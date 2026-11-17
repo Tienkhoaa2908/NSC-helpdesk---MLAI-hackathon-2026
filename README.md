@@ -6,6 +6,8 @@
 >
 > **MLAI Hackathon 2026:** First Prize, VNG Track · Third Place Overall. [HUTECH results announcement](https://www.facebook.com/hutechuniversity/posts/pfbid02aDmtNL88SKFYwZUSW7gRMWut1BLRCKFEPxb2ZkhA3j2vRQx8P5epe2AaP63dhZ82l) · [Competition website](https://ai-network.hcmut.edu.vn/mlai2026)
 
+**Contents:** [My contributions](#my-contributions) · [Product workflow](#product-workflow) · [Architecture](#technical-architecture) · [Interface walkthrough](#interface-walkthrough) · [Run locally](#run-locally) · [Vietnamese](#phần-tiếng-việt)
+
 NoSleepClub Support Desk is an AI-assisted help desk built for VNG’s **The Escalation Referee** challenge at MLAI Hackathon 2026. It turns natural-language support requests into reviewable workflows: resolve routine cases when policy and evidence permit, ask for missing information, and route risk or authority-sensitive cases to a human reviewer.
 
 ## My contributions
@@ -16,11 +18,11 @@ I designed the policy runtime that converts structured request evidence into exp
 
 ### Requester and reviewer workflows
 
-I contributed to the UI/UX design for request submission, preview and confirmation, follow-up and case tracking, as well as the Admin workspace for searching requests, inspecting evidence and recording actions. The requester interface presents guidance and status; reviewer-facing policy reasons and audit evidence stay in the review workflow. In-product guidance is organized around the task and role.
+I contributed to the UI/UX design for request submission, preview and confirmation, follow-up and case tracking, as well as the Admin workspace for searching requests, inspecting evidence and recording actions. The requester interface presents guidance and status; reviewer-facing policy reasons and audit evidence stay in the review workflow. In-product guidance is organized around the task and role. Representative modules: [`guest-request-history.tsx`](src/components/guest-request-history.tsx), [`support-workspace.tsx`](src/components/support-workspace.tsx) and [`request-detail.tsx`](src/components/request-detail.tsx).
 
 ### Controlled grouping of related requests
 
-Eligible requests are grouped by a recognized FAQ topic or a site-scoped incident. Each requester keeps a separate case and tracking link. For eligible reply groups, an Admin can send one shared message to the current group; the system redacts the message, rechecks group membership before saving, and shows the reply on each member's case. Separately, incident groups accept predefined progress updates and remain active for up to 24 hours. These workflows do not merge individual cases. This is a product extension beyond the VNG challenge brief.
+Eligible requests are grouped by a recognized FAQ topic or a site-scoped incident. Each requester keeps a separate case and tracking link. For eligible reply groups, an Admin can send one shared message to the current group; the system redacts the message, rechecks group membership before saving, and shows the reply on each member's case. Separately, incident groups accept predefined progress updates and remain active for up to 24 hours. These workflows do not merge individual cases. This is a product extension beyond the VNG challenge brief. See [`support-groups.ts`](src/lib/support-groups.ts) and [`support-incidents.ts`](src/lib/support-incidents.ts).
 
 ## Product workflow
 
@@ -137,6 +139,8 @@ The team repository submitted to the competition is [dakiemdarktharr/nosleepclub
 
 ## Phần tiếng Việt
 
+**Nội dung:** [Đóng góp](#đóng-góp-của-tôi) · [Quy trình](#quy-trình-sản-phẩm) · [Kiến trúc](#kiến-trúc-kỹ-thuật) · [Luồng giao diện](#một-số-luồng-giao-diện) · [Chạy local](#chạy-local)
+
 > **MLAI Hackathon 2026:** Giải Nhất track VNG · Giải Ba chung cuộc. [Thông báo kết quả](https://www.facebook.com/hutechuniversity/posts/pfbid02aDmtNL88SKFYwZUSW7gRMWut1BLRCKFEPxb2ZkhA3j2vRQx8P5epe2AaP63dhZ82l) · [Trang cuộc thi](https://ai-network.hcmut.edu.vn/mlai2026)
 
 NoSleepClub Support Desk là hệ thống hỗ trợ ứng dụng AI, được xây dựng cho đề bài **The Escalation Referee** của VNG tại MLAI Hackathon 2026. Sản phẩm chuyển yêu cầu ngôn ngữ tự nhiên thành quy trình có thể kiểm tra: tự xử lý trường hợp thường quy khi policy và bằng chứng cho phép, hỏi bổ sung thông tin còn thiếu, hoặc chuyển trường hợp có rủi ro hay yêu cầu thẩm quyền cho người phụ trách.
@@ -149,11 +153,11 @@ Tôi thiết kế policy runtime chuyển dữ kiện yêu cầu có cấu trúc
 
 ### Luồng người gửi và người xử lý
 
-Tôi hỗ trợ thiết kế UI/UX cho các bước gửi, xem trước và xác nhận yêu cầu, hỏi tiếp và theo dõi hồ sơ; đồng thời cho không gian Admin tìm kiếm yêu cầu, kiểm tra bằng chứng và ghi nhận thao tác. Giao diện người gửi tập trung vào hướng dẫn và trạng thái; lý do policy và bằng chứng audit dành cho người xử lý nằm trong luồng review. Hướng dẫn trong sản phẩm được tổ chức theo tác vụ và vai trò.
+Tôi hỗ trợ thiết kế UI/UX cho các bước gửi, xem trước và xác nhận yêu cầu, hỏi tiếp và theo dõi hồ sơ; đồng thời cho không gian Admin tìm kiếm yêu cầu, kiểm tra bằng chứng và ghi nhận thao tác. Giao diện người gửi tập trung vào hướng dẫn và trạng thái; lý do policy và bằng chứng audit dành cho người xử lý nằm trong luồng review. Hướng dẫn trong sản phẩm được tổ chức theo tác vụ và vai trò. Một số module đại diện: [`guest-request-history.tsx`](src/components/guest-request-history.tsx), [`support-workspace.tsx`](src/components/support-workspace.tsx) và [`request-detail.tsx`](src/components/request-detail.tsx).
 
 ### Gom nhóm yêu cầu liên quan có kiểm soát
 
-Các yêu cầu đủ điều kiện được gom theo chủ đề FAQ đã nhận diện hoặc sự cố gắn với một địa điểm. Mỗi người gửi vẫn có hồ sơ riêng và token theo dõi riêng cho hồ sơ đó. Với nhóm đủ điều kiện nhận phản hồi chung, Admin có thể gửi một nội dung cho các thành viên hiện tại; hệ thống che dữ liệu nhạy cảm, kiểm tra lại membership trước khi lưu và hiển thị phản hồi trên từng hồ sơ thành viên. Riêng nhóm sự cố nhận các cập nhật tiến độ theo trạng thái và hoạt động tối đa 24 giờ. Các luồng này không gộp hồ sơ cá nhân. Đây là phần mở rộng sản phẩm ngoài brief VNG.
+Các yêu cầu đủ điều kiện được gom theo chủ đề FAQ đã nhận diện hoặc sự cố gắn với một địa điểm. Mỗi người gửi vẫn có hồ sơ riêng và token theo dõi riêng cho hồ sơ đó. Với nhóm đủ điều kiện nhận phản hồi chung, Admin có thể gửi một nội dung cho các thành viên hiện tại; hệ thống che dữ liệu nhạy cảm, kiểm tra lại membership trước khi lưu và hiển thị phản hồi trên từng hồ sơ thành viên. Riêng nhóm sự cố nhận các cập nhật tiến độ theo trạng thái và hoạt động tối đa 24 giờ. Các luồng này không gộp hồ sơ cá nhân. Đây là phần mở rộng sản phẩm ngoài brief VNG. Xem [`support-groups.ts`](src/lib/support-groups.ts) và [`support-incidents.ts`](src/lib/support-incidents.ts).
 
 ## Quy trình sản phẩm
 
