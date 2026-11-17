@@ -19,6 +19,7 @@ import {
 import { submitSupport } from "@/services/support";
 import { groupedSupportPage } from "@/lib/support-groups";
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 export async function POST(request: Request) {
   return supportApi(async () => {
     enforceDemoRateLimit(request, "ingress");

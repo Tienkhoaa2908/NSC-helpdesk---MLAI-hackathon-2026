@@ -6,6 +6,7 @@ import {
 } from "@/lib/support-http";
 import { previewSupport } from "@/services/support";
 import { measureSupportStage, supportMeasurements, withSupportMeasurements } from "@/lib/support-telemetry";
+export const maxDuration = 60;
 export async function POST(request: Request) {
   return withSupportMeasurements(async () => {
     const response = await supportApi(async () => {

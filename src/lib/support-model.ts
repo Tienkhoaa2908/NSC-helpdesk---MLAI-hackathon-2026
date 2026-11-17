@@ -168,6 +168,7 @@ function transientFailure(error: unknown): boolean {
 }
 
 let sharedClient: { configuration: string; transport: typeof fetch; client: OpenAI } | undefined;
+const MAX_MODEL_TIMEOUT_MS = 25_000;
 function configuredClient() {
   const provider = modelProvider();
   const key = modelProviderApiKey(provider);
@@ -179,7 +180,7 @@ function configuredClient() {
   const configuration = JSON.stringify([provider, key, baseURL, organization, project]);
   if (!sharedClient || sharedClient.configuration !== configuration || sharedClient.transport !== globalThis.fetch)
     sharedClient = { configuration, transport: globalThis.fetch,
-      client: new OpenAI({ apiKey: key, baseURL, organization, project, maxRetries: 0, timeout: 12000 }) };
+      client: new OpenAI({ apiKey: key, baseURL, organization, project, maxRetries: 0, timeout: MAX_MODEL_TIMEOUT_MS }) };
   return sharedClient.client;
 }
 async function modelAttempt(call: ModelCall, timeoutMs: number, options: ModelOptions, started: () => void,
@@ -245,7 +246,7 @@ export async function callModel(
   if (!options.run && (!isLiveModelProvider(provider) || !modelProviderApiKey(provider) || !call.model))
     throw new ModelFailure("MODEL_UNAVAILABLE", "NOT_CONFIGURED");
   const startedAt = Date.now();
-  const totalMs = Math.max(1, Math.min(options.timeoutMs ?? 12000, 12000));
+  const totalMs = Math.max(1, Math.min(options.timeoutMs ?? MAX_MODEL_TIMEOUT_MS, MAX_MODEL_TIMEOUT_MS));
   // Sentiment is optional observation and keeps its existing single-call budget.
   // Extraction/prose may retry once, only with this already configured model and credential.
   const maxAttempts = ["sentiment", "review-draft", "review-summary"].includes(call.purpose) || totalMs < 1000 ? 1 : 2;

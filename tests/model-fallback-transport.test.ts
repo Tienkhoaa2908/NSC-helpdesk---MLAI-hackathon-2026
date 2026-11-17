@@ -69,12 +69,12 @@ it("allows a nine-second first inference to finish without cutting it short for 
   expect(trace).toHaveBeenCalledWith({ model: call.model, attempts: 1, latencyMs: 9000 });
 });
 
-it("uses the full twelve-second deadline then falls back without another doomed timeout attempt", async () => {
+it("uses the full twenty-five-second deadline then falls back without another doomed timeout attempt", async () => {
   vi.useFakeTimers();
   const run = vi.fn(() => new Promise<never>(() => {}));
   const pending = callModel(call, {}, { run });
   const rejected = expect(pending).rejects.toMatchObject({ reason: "TIMEOUT" });
-  await vi.advanceTimersByTimeAsync(12000);
+  await vi.advanceTimersByTimeAsync(25000);
   await rejected;
   expect(run).toHaveBeenCalledOnce();
 });
