@@ -1,6 +1,6 @@
 # Kiến trúc VNG Support
 
-Ứng dụng Next.js App Router, TypeScript, React, MongoDB và adapter OpenAI. `src/domain/policy-source.ts` là nguồn phiên bản policy runtime; không lấy phiên bản từ một báo cáo lịch sử.
+Ứng dụng Next.js App Router, TypeScript, React, MongoDB và Gemini API qua giao diện chat tương thích OpenAI. Tra cứu web dùng Google Search grounding riêng, chỉ chạy khi được bật. `src/domain/policy-source.ts` là nguồn phiên bản policy runtime; không lấy phiên bản từ một báo cáo lịch sử.
 
 ## Tiếp nhận và quyết định
 

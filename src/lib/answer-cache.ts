@@ -5,6 +5,7 @@ import { knowledgeSeed } from "@/domain/knowledge";
 import { POLICY_VERSION } from "@/domain/policy-source";
 import type { ConversationContext } from "@/domain/conversation";
 import { supportDatabase } from "./support-repository";
+import { isLiveModelProvider, modelProvider, modelProviderApiKey } from "./model-provider";
 type CacheScope = "conversation" | "guidance";
 const stores = {
   conversation: { collection: "v3_support_answer_cache", ttlMs: 60 * 60_000 },
@@ -28,9 +29,10 @@ export function answerCacheKey(context: ConversationContext, model: string) {
   return createHash("sha256")
     .update(
       JSON.stringify([
-        "answer-v4-evidence-workflow-response-style",
+        "answer-v5-evidence-workflow-response-style",
         text,
         context.label,
+        modelProvider(),
         model,
         POLICY_VERSION,
         knowledgeSeed,
@@ -39,7 +41,7 @@ export function answerCacheKey(context: ConversationContext, model: string) {
     .digest("hex");
 }
 function sign(key: string, row: Omit<Row, "signature">) {
-  return createHmac("sha256", process.env.OPENAI_API_KEY || "")
+  return createHmac("sha256", modelProviderApiKey())
     .update(JSON.stringify([key, row.value, row.createdAt, row.expiresAt]))
     .digest("hex");
 }
@@ -67,7 +69,7 @@ export async function readAnswerCache<T>(
   validate: (value: unknown) => T,
   scope: CacheScope = "conversation",
 ): Promise<{ value: T; cacheHit: true; generatedAt: string } | null> {
-  if (!key || process.env.AI_PROVIDER !== "openai" || !process.env.OPENAI_API_KEY) return null;
+  if (!key || !isLiveModelProvider() || !modelProviderApiKey()) return null;
   try {
     const collection = cacheCollection(scope);
     const row = trusted(key, collection ? await collection.findOne({ _id: key }) : memory.get(`${scope}:${key}`));
@@ -82,8 +84,8 @@ export async function withAnswerCache<T>(
 ): Promise<{ value: T; cacheHit: boolean; generatedAt: string }> {
   if (
     !key ||
-    process.env.AI_PROVIDER !== "openai" ||
-    !process.env.OPENAI_API_KEY
+    !isLiveModelProvider() ||
+    !modelProviderApiKey()
   )
     return {
       value: validate(await generate()),

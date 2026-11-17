@@ -9,6 +9,7 @@ import { INTAKE_REVISION, detectedRisks, normalize, asserted } from "@/domain/te
 import { redact } from "@/domain/redaction";
 import { readAnswerCache, withAnswerCache } from "./answer-cache";
 import { recordAnswerCache } from "./support-telemetry";
+import { isLiveModelProvider, modelProviderApiKey, modelProviderSource } from "./model-provider";
 
 const prose = z.string().trim().min(1).max(700);
 const storedAnswerSchema = z.object({
@@ -29,7 +30,7 @@ function cachePlan(input: SupportInput, canonical: CanonicalRequest, decision: D
       decision.action !== "AUTO_APPROVE" || !["GUIDE", "LLM_ASSIST"].includes(decision.handlingMode) ||
       decision.missingFields.length ||
       Object.keys(input.fields).some(field => !["employeeId", "department"].includes(field)) ||
-      process.env.AI_PROVIDER !== "openai" || !process.env.OPENAI_API_KEY) return null;
+      !isLiveModelProvider() || !modelProviderApiKey()) return null;
   const template = guidanceTemplate(canonical);
   const model = process.env.AI_MODEL || "";
   const key = createHash("sha256").update(JSON.stringify([
@@ -60,12 +61,13 @@ function validateStoredAnswer(value: unknown, plan: Plan): StoredAnswer {
 }
 
 function cachedAnswer(value: StoredAnswer, generatedAt: string, plan: Plan): Assistance {
+  const provider = modelProviderSource();
   return {
     ...value, source: "cache", timestamp: new Date().toISOString(),
     cache: { kind: "GUIDANCE", createdAt: generatedAt,
       expiresAt: new Date(Date.parse(generatedAt) + FAQ_TTL_MS).toISOString(),
       matchedBy: "intent-symptom", topic: plan.context.topic,
-      originalSource: "openai", originalModel: plan.model },
+      originalSource: provider === "mock" ? "deterministic" : provider, originalModel: plan.model },
   };
 }
 
@@ -91,7 +93,7 @@ export async function withGuidanceAnswerCache(
   try {
     const result = await withAnswerCache(plan.key, async () => {
       generated = await generate();
-      if (generated.source !== "openai" || generated.fallbackReason || generated.model?.failure)
+      if (generated.source !== modelProviderSource() || generated.fallbackReason || generated.model?.failure)
         throw new UncacheableAnswer(generated);
       // No original user's evidence, identity, trace, timestamp or status enters the shared body.
       const { summary, diagnosis, potentialFixes, stepByStepInstructions, stepExplanations,

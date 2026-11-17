@@ -114,7 +114,7 @@ export type CanonicalRequest = Extraction & {
   subrequests: Extraction[];
   redactions: string[];
   model: {
-    source: "deterministic" | "mock" | "openai";
+    source: "deterministic" | "mock" | "openai" | "gemini";
     model?: string;
     attempts?: number;
     latencyMs?: number;
@@ -225,7 +225,7 @@ export type ConversationAnswer = {
 };
 export type Assistance = {
   cache?: { kind: "FAQ" | "GUIDANCE"; createdAt: string; expiresAt: string; similarity?: number;
-    matchedBy?: "intent-symptom"; topic?: string; originalSource?: "deterministic" | "openai"; originalModel?: string };
+    matchedBy?: "intent-symptom"; topic?: string; originalSource?: "deterministic" | "openai" | "gemini"; originalModel?: string };
   generationReason?: "REVIEWED_TEMPLATE_SUFFICIENT";
   model?: CanonicalRequest["model"];
   fallbackReason?: string;
@@ -241,7 +241,7 @@ export type Assistance = {
   warning: string;
   nextQuestion: string;
   canPassToAdmin: true;
-  source: "deterministic" | "mock" | "openai" | "cache";
+  source: "deterministic" | "mock" | "openai" | "gemini" | "cache";
   timestamp: string;
 };
 export type AuditEvent = {

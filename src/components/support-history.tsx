@@ -25,7 +25,7 @@ export function AssistanceHistory({
                 ? "Câu trả lời từ bộ nhớ đệm, đã kiểm tra lại"
                 : item.source === "mock"
                   ? "Hướng dẫn mẫu"
-                  : item.source === "openai"
+                  : item.source === "openai" || item.source === "gemini"
                     ? "Trợ lý giải thích theo tình huống; bước thao tác đã kiểm duyệt"
                     : "Hướng dẫn an toàn"}{" "}
               · {new Date(item.timestamp).toLocaleString("vi-VN")}

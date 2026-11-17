@@ -168,24 +168,36 @@ Xem [nguồn dữ liệu, kết quả và giới hạn](docs/SENTIMENT-EVALUATIO
 Nhánh sentiment sau trả lời không tự đóng/chuyển ticket; nút xác nhận kết quả,
 yêu cầu chuyển người và policy được xét độc lập với nhãn cảm xúc.
 
-Model chính được chủ repo chọn là `gpt-6-luna`: đặt `AI_PROVIDER=openai`,
-`AI_MODEL=gpt-6-luna`; `AI_CONVERSATION_MODEL` để trống sẽ kế thừa cho sentiment
-sau câu trả lời. `AI_WEB_MODEL` là cấu hình riêng, không đổi theo model chính.
-Production không còn hạn mức model-call theo ngày ở cấp ứng dụng; không cần reset counter. Provider vẫn có thể trả 429 theo quota/rate limit tài khoản. API intake demo còn giới hạn 30 request/phút/client.
-Khi demo offline, giữ `AI_PROVIDER=mock` và model keys rỗng.
+Provider có thể là `gemini`, `openai` hoặc `mock`. Với Gemini, đặt
+`AI_PROVIDER=gemini`, `GEMINI_API_KEY` và `AI_MODEL` theo model đang được cấp
+trong Google AI Studio. Mã dùng endpoint tương thích OpenAI; cấu trúc `system` /
+`user` và prompt hiện có được giữ nguyên. `AI_CONVERSATION_MODEL` để trống sẽ
+kế thừa `AI_MODEL`; `AI_WEB_MODEL` có thể cấu hình riêng.
+
+Tạo key tại [Google AI Studio](https://aistudio.google.com/apikey), rồi lưu trực
+tiếp trong biến môi trường server của Vercel; không gửi key qua chat, Git hoặc
+log. Model và quota khả dụng phụ thuộc project. Theo [bảng giá Gemini API](https://ai.google.dev/gemini-api/docs/pricing), API Free tier có thể dùng
+nội dung gửi lên để cải thiện sản phẩm Google và không cung cấp Google Search
+grounding qua API. Vì vậy chỉ dùng dữ liệu synthetic/ẩn danh với Free tier.
+Grounding giữ khả năng cấu hình trong ứng dụng nhưng mặc định tắt; chỉ đặt
+`AI_WEB_SEARCH=true` sau khi xác nhận quyền, billing và giới hạn phát sinh phí.
+
+Production hiện không có hạn mức model-call theo ngày ở cấp ứng dụng; provider
+vẫn có thể trả 429 theo quota/rate limit. API intake demo còn giới hạn 30 request/
+phút/client. Khi demo offline, giữ `AI_PROVIDER=mock` và model keys rỗng.
 
 Nếu preview ghi “Dự phòng theo luật”, đọc **Vì sao dùng dự phòng**:
 
-- `AUTHENTICATION`: provider trả 401. Cập nhật `OPENAI_API_KEY` hợp lệ trong
-  Vercel → vng-support → Settings → Environment Variables → Production,
-  rồi triển khai lại để nhận biến mới. Không gửi key qua chat/Git/log.
+- `AUTHENTICATION`: provider trả 401. Cập nhật key tương ứng với provider trong
+  Vercel → project → Settings → Environment Variables → Production, rồi triển
+  khai lại để nhận biến mới. Không gửi key qua chat/Git/log.
 - `NOT_CONFIGURED`: thiếu provider/model/API key.
 - `BUDGET_EXHAUSTED`: chỉ còn ở dữ liệu lịch sử hoặc test-only; production hiện không chặn theo ngân sách ngày của ứng dụng.
 - `RATE_LIMIT`/`TIMEOUT`: thử lại sau; không retry vô hạn.
 - Output/evidence không hợp lệ: giữ fallback có nhãn và kiểm tra log đã lọc;
   không bỏ validation để ép nhãn `model`.
 
-Health 200 và `provider=openai` chỉ xác nhận app/cấu hình; trường
+Health 200 và `provider=gemini` (hoặc provider đã cấu hình) chỉ xác nhận app/cấu hình; trường
 `modelConnectivity=NOT_CHECKED` nhắc rằng endpoint này không gọi inference.
 Kiểm tra thật bằng một preview synthetic, không xác nhận lưu ticket; chỉ coi
 sentiment dùng model khi `sentiment.source=model` và model ID đúng. Cần key

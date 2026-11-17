@@ -1,4 +1,11 @@
 import OpenAI from "openai";
+import {
+  GEMINI_OPENAI_COMPAT_BASE_URL,
+  isLiveModelProvider,
+  modelProvider,
+  modelProviderApiKey,
+  modelProviderSource,
+} from "./model-provider";
 import { recordModelMeasurement, startSupportStage, type ModelMeasurement } from "./support-telemetry";
 import { decodeIntentOutput, intentInstructions, intentResponseSchema } from "./intent-contract";
 import { z } from "zod";
@@ -140,7 +147,7 @@ function sanitizedFailure(error: unknown): ModelFailure {
   if (error instanceof ModelFailure) return error;
   const reason = error instanceof OpenAI.APIConnectionTimeoutError
     ? "TIMEOUT"
-    : error instanceof OpenAI.APIError && error.status === 401
+    : error instanceof OpenAI.APIError && [401, 403].includes(error.status ?? 0)
       ? "AUTHENTICATION"
       : error instanceof OpenAI.APIError && error.status === 429
         ? "RATE_LIMIT"
@@ -159,11 +166,17 @@ function transientFailure(error: unknown): boolean {
 
 let sharedClient: { configuration: string; transport: typeof fetch; client: OpenAI } | undefined;
 function configuredClient() {
-  const key = process.env.OPENAI_API_KEY ?? "";
-  const configuration = JSON.stringify([key, process.env.OPENAI_BASE_URL, process.env.OPENAI_ORG_ID, process.env.OPENAI_PROJECT_ID]);
+  const provider = modelProvider();
+  const key = modelProviderApiKey(provider);
+  const baseURL = provider === "gemini"
+    ? GEMINI_OPENAI_COMPAT_BASE_URL
+    : process.env.OPENAI_BASE_URL;
+  const organization = provider === "openai" ? process.env.OPENAI_ORG_ID : undefined;
+  const project = provider === "openai" ? process.env.OPENAI_PROJECT_ID : undefined;
+  const configuration = JSON.stringify([provider, key, baseURL, organization, project]);
   if (!sharedClient || sharedClient.configuration !== configuration || sharedClient.transport !== globalThis.fetch)
     sharedClient = { configuration, transport: globalThis.fetch,
-      client: new OpenAI({ apiKey: key, maxRetries: 0, timeout: 12000 }) };
+      client: new OpenAI({ apiKey: key, baseURL, organization, project, maxRetries: 0, timeout: 12000 }) };
   return sharedClient.client;
 }
 async function modelAttempt(call: ModelCall, timeoutMs: number, options: ModelOptions, started: () => void,
@@ -176,15 +189,19 @@ async function modelAttempt(call: ModelCall, timeoutMs: number, options: ModelOp
     started();
     const work = options.run ? options.run(call) : (async () => {
       const client = configuredClient();
+      const provider = modelProvider();
       const body: OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming = {
-        model: call.model, store: false,
-        max_completion_tokens: call.maxCompletionTokens ?? 1000,
+        model: call.model,
+        ...(provider === "openai" ? { store: false } : {}),
+        ...(provider === "gemini"
+          ? { max_tokens: call.maxCompletionTokens ?? 1000 }
+          : { max_completion_tokens: call.maxCompletionTokens ?? 1000 }),
         messages: [{ role: "system", content: call.instructions }, { role: "user", content: call.data }],
         response_format: call.responseSchema ? {
           type: "json_schema", json_schema: { name: `support_${call.purpose}`, strict: true, schema: call.responseSchema },
         } : { type: "json_object" },
       };
-      // SDK 5's effort enum predates "none". Keep the bounded, non-reasoning Luna request.
+      // Preserve the bounded, non-reasoning request used by this OpenAI-only legacy model.
       const response = call.model === "gpt-6-luna"
         ? await client.post<OpenAI.Chat.Completions.ChatCompletion>("/chat/completions", {
             body: { ...body, reasoning_effort: "none" }, signal: controller.signal, timeout: timeoutMs,
@@ -220,9 +237,9 @@ export async function callModel(
     call = { ...call, instructions: `${evidenceWorkflowPrompt}\n\n${call.instructions}` };
   if (options.fault === "unavailable") throw new ModelFailure("MODEL_UNAVAILABLE", "SIMULATED");
   if (options.fault === "invalid") return "invalid synthetic JSON";
-  const provider = process.env.AI_PROVIDER || "mock";
+  const provider = modelProvider();
   if (!options.run && provider === "mock") return structuredClone(fallback);
-  if (!options.run && (provider !== "openai" || !process.env.OPENAI_API_KEY || !call.model))
+  if (!options.run && (!isLiveModelProvider(provider) || !modelProviderApiKey(provider) || !call.model))
     throw new ModelFailure("MODEL_UNAVAILABLE", "NOT_CONFIGURED");
   const startedAt = Date.now();
   const totalMs = Math.max(1, Math.min(options.timeoutMs ?? 12000, 12000));
@@ -294,7 +311,7 @@ export function modelFailure(
     ...request,
     riskSignals: [...new Set<RiskSignal>([...request.riskSignals, failure])],
     model: {
-      source: process.env.AI_PROVIDER === "openai" ? "openai" : "mock",
+      source: modelProviderSource(),
       ...(process.env.AI_MODEL ? { model: process.env.AI_MODEL } : {}),
       ...trace,
       failure,
@@ -320,7 +337,7 @@ export async function extractWithModel(
     return baseline;
   // "Reset" leaves restart versus destructive reset unresolved; policy has a specific clarification.
   if (baseline.intentLabel === "DEVICE_RESET_GUIDANCE") return baseline;
-  if ((process.env.AI_PROVIDER || "mock") === "mock" && !options.fault && !options.run)
+  if (modelProvider() === "mock" && !options.fault && !options.run)
     return baseline;
   const {
     subrequests: _parts,
@@ -377,7 +394,7 @@ export async function extractWithModel(
         (divisionForGroup(baseline.serviceGroup) !== divisionForGroup(model.serviceGroup) ||
           isCompanyService(baseline.serviceGroup) && baseline.requestKind !== "GUIDANCE" && model.requestKind === "GUIDANCE"))
       throw new ModelFailure("MODEL_EVIDENCE_INVALID", "EVIDENCE_MISMATCH");
-    const modelRouting = process.env.AI_PROVIDER === "openai";
+    const modelRouting = isLiveModelProvider();
     if (
       modelRouting &&
       (!route || !intentEvidence || !input.rawText.includes(intentEvidence))
@@ -528,7 +545,7 @@ export async function extractWithModel(
         ]),
       ],
       model: {
-        source: process.env.AI_PROVIDER === "openai" ? "openai" : "mock",
+        source: modelProviderSource(),
         ...trace,
       },
     };
@@ -747,8 +764,8 @@ export async function createAssistance(
       expectedResult: data.expectedResult,
       nextQuestion: data.nextQuestion,
       contextEvidence: data.evidenceQuote,
-      source: process.env.AI_PROVIDER === "openai" ? "openai" : "mock",
-      model: { source: process.env.AI_PROVIDER === "openai" ? "openai" : "mock", ...trace },
+      source: modelProviderSource(),
+      model: { source: modelProviderSource(), ...trace },
       timestamp: new Date().toISOString(),
     };
   }
@@ -794,8 +811,8 @@ export async function createAssistance(
     potentialFixes: template.potentialFixes
       ? parsed.data.stepByStepInstructions
       : undefined,
-    source: process.env.AI_PROVIDER === "openai" ? "openai" : "mock",
-    model: { source: process.env.AI_PROVIDER === "openai" ? "openai" : "mock", ...trace },
+    source: modelProviderSource(),
+    model: { source: modelProviderSource(), ...trace },
     timestamp: new Date().toISOString(),
   };
   } finally { finishValidation(); }
@@ -823,7 +840,7 @@ export async function createAssistanceWithFallback(
         error.reason === "REFUSAL") throw error;
     // Discard every model-generated field. No prose, selected steps or invented facts survive.
     return { ...await createAssistance(request, false, options),
-      model: { source: process.env.AI_PROVIDER === "openai" ? "openai" : "mock",
+      model: { source: modelProviderSource(),
         ...trace, failure: error.code, failureReason: error.reason },
       fallbackReason: [error.code, error.reason].filter(Boolean).join(":") };
   }

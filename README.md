@@ -21,7 +21,7 @@ Mô hình ngôn ngữ hỗ trợ trích xuất dữ kiện có cấu trúc và s
 
 ## Kiến trúc và công nghệ
 
-Ứng dụng dùng Next.js App Router, TypeScript và React. MongoDB lưu yêu cầu, sự kiện và dữ liệu identity; OpenAI adapter hỗ trợ phân tích ngôn ngữ và tạo câu trả lời. Policy, kiểm tra an toàn và chuyển tiếp do server thực hiện.
+Ứng dụng dùng Next.js App Router, TypeScript và React. MongoDB lưu yêu cầu, sự kiện và dữ liệu identity; Gemini API qua giao diện tương thích OpenAI hỗ trợ phân tích ngôn ngữ và tạo câu trả lời. Tra cứu web có thể bật riêng bằng Google Search grounding. Policy, kiểm tra an toàn và chuyển tiếp do server thực hiện.
 
 Xem [sơ đồ kiến trúc](docs/ARCHITECTURE.md), [mục lục tài liệu](docs/README.md) và [mô tả dữ liệu MLAI](challenge/mlai-2026/README.md).
 

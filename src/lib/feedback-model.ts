@@ -9,6 +9,7 @@ import type { SentimentAssessment } from "@/domain/contracts";
 import { sentimentFallbackReason } from "@/domain/sentiment-diagnostics";
 import { isEmotionCueNegated, observedFeedbackText } from "@/domain/interaction-feedback";
 import { callModel, ModelFailure } from "@/lib/support-model";
+import { isLiveModelProvider, modelProviderApiKey } from "@/lib/model-provider";
 import type { ModelOptions } from "@/lib/support-model";
 import { startSupportStage } from "./support-telemetry";
 
@@ -174,8 +175,7 @@ export async function analyzeSupportSentiment(
   const model = context === "support-request"
     ? process.env.AI_MODEL || ""
     : process.env.AI_CONVERSATION_MODEL || process.env.AI_MODEL || "";
-  const modelConfigured = process.env.AI_PROVIDER === "openai" &&
-    !!process.env.OPENAI_API_KEY && !!model;
+  const modelConfigured = isLiveModelProvider() && !!modelProviderApiKey() && !!model;
   const fallback = (reason: NonNullable<SentimentAssessment["fallbackReason"]>) => ({
     ...(context === "support-request"
       ? supportRequestSentimentFallback(text)

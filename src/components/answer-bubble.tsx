@@ -20,7 +20,7 @@ export function AnswerBubble({
             ? "VNG Support"
             : cached
               ? "VNG Support · Câu trả lời từ bộ nhớ đệm"
-              : item.source === "openai"
+              : item.source === "openai" || item.source === "gemini"
                 ? "VNG Support · AI trả lời"
                 : item.source === "mock"
                   ? "VNG Support · Câu trả lời mẫu"

@@ -15,7 +15,8 @@ async function initializeIdentity(db: Db) {
     try { await db.createCollection(name, { validator, validationLevel: "strict", validationAction: "error" }); }
     catch (error) {
       if ((error as { code?: number }).code !== 48) throw error;
-      await db.command({ collMod: name, validator, validationLevel: "strict", validationAction: "error" });
+      // The app user is intentionally limited to readWrite. Updating validators
+      // on every cold start would require the broader dbAdmin collMod privilege.
     }
   }
 }

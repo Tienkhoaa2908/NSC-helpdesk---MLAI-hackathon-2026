@@ -7,12 +7,13 @@ import { normalize, detectedRisks } from "@/domain/text";
 import { callModel, type ModelOptions } from "@/lib/support-model";
 import { getSupportRequest, SupportError } from "@/lib/support-repository";
 import { companyTopic, privateCompanyTopic } from "@/domain/company-support";
+import { modelProviderSource } from "@/lib/model-provider";
 
 const inputSchema = z.object({ version: z.number().int().nonnegative() }).strict();
 const outputSchema = z.object({ text: z.string().trim().min(12).max(500), evidence: z.string().min(1).max(300) }).strict();
 const responseSchema = { type: "object", additionalProperties: false,
   properties: { text: { type: "string" }, evidence: { type: "string" } }, required: ["text", "evidence"] };
-export type InformationDraft = { version: number; text: string; source: "openai" | "mock" | "deterministic"; model?: string; fallbackReason?: string };
+export type InformationDraft = { version: number; text: string; source: "openai" | "gemini" | "mock" | "deterministic"; model?: string; fallbackReason?: string };
 
 function diagnosticAlreadySupplied(field: string, text: string) {
   if (field === "os") return /\b(?:windows|macos|mac os|linux|ubuntu|android|ios)\b/.test(text);
@@ -58,7 +59,7 @@ export async function draftReviewInformation(id: string, value: unknown, options
     if (!context.includes(parsed.evidence) || details.some(detail => !normalized.includes(normalize(detail))) ||
       redact(parsed.text).markers.length || detectedRisks(parsed.text).some(risk => risk !== "USER_HANDOFF") ||
       /\b(?:password|otp|secret|mat khau|sudo|curl|powershell|netsh|kubectl|regedit)\b|https?:|www\.|\bda (?:duyet|cap|mo|khac phuc|xu ly|gui)\b/.test(normalized)) throw Error("INVALID_INFORMATION_DRAFT");
-    result = { version, text: parsed.text, source: process.env.AI_PROVIDER === "openai" || options.run ? "openai" : "mock", ...(model ? { model } : {}) };
+    result = { version, text: parsed.text, source: modelProviderSource(), ...(model ? { model } : {}) };
   } catch { result.fallbackReason = "DRAFT_UNAVAILABLE_OR_INVALID"; }
   if ((await getSupportRequest(id))?.version !== version)
     throw new SupportError("VERSION_CONFLICT", "Hồ sơ vừa thay đổi. Tải lại để soạn đúng nội dung.", 409);

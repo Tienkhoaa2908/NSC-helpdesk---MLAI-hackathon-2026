@@ -267,7 +267,7 @@ export function ReviewDetail({
             </label>
             {drafting && <p role="status">Đang soạn tin nhắn hỏi thông tin còn thiếu…</p>}
             {draftError && <p role="alert">{draftError}</p>}
-            {information && <p role="status" className="it-field-hint">{information.source === "openai" ? `Bản nháp từ ${information.model || "AI"}` : information.source === "mock" ? "Bản nháp mô phỏng" : "Mẫu hỏi bổ sung dự phòng"}. Bạn có thể sửa trước khi gửi.</p>}
+            {information && <p role="status" className="it-field-hint">{information.source === "openai" || information.source === "gemini" ? `Bản nháp từ ${information.model || "AI"}` : information.source === "mock" ? "Bản nháp mô phỏng" : "Mẫu hỏi bổ sung dự phòng"}. Bạn có thể sửa trước khi gửi.</p>}
             <div data-guide="reviewer-actions">
               <div className="it-primary-actions">
                 {actionButton("SEND_MESSAGE", "primary")}

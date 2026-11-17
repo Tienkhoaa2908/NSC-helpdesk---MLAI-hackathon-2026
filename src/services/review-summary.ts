@@ -5,14 +5,15 @@ import { normalize } from "@/domain/text";
 import { callModel, type ModelOptions } from "@/lib/support-model";
 import { getSupportRequest, supportDatabase, SupportError } from "@/lib/support-repository";
 import { privateCompanyTopic } from "@/domain/company-support";
+import { modelProviderSource } from "@/lib/model-provider";
 
 const inputSchema = z.object({ version: z.number().int().nonnegative() }).strict();
 const outputSchema = z.object({ summary: z.string().trim().min(10).max(700), evidence: z.array(z.string().trim().min(3).max(300)).min(1).max(4) }).strict();
 const wireSchema = { type: "object", additionalProperties: false, properties: {
   summary: { type: "string" }, evidence: { type: "array", minItems: 1, maxItems: 4, items: { type: "string" } },
 }, required: ["summary", "evidence"] };
-export type ReviewerSummary = { version: number; summary?: string; evidence?: string[]; source: "openai" | "mock" | "unavailable" | "deterministic"; model?: string; cache: "hit" | "miss"; generatedAt?: string; fallbackReason?: string };
-type Entry = { _id: string; requestId: string; summary: string; evidence: string[]; source: "openai" | "mock"; model: string; createdAt: Date; expiresAt: Date };
+export type ReviewerSummary = { version: number; summary?: string; evidence?: string[]; source: "openai" | "gemini" | "mock" | "unavailable" | "deterministic"; model?: string; cache: "hit" | "miss"; generatedAt?: string; fallbackReason?: string };
+type Entry = { _id: string; requestId: string; summary: string; evidence: string[]; source: "openai" | "gemini" | "mock"; model: string; createdAt: Date; expiresAt: Date };
 const local = new Map<string, Entry>();
 const inFlight = new Map<string, Promise<Entry>>();
 
@@ -56,7 +57,7 @@ export async function summarizeReviewRequest(id: string, value: unknown, options
             /\b(?:sudo|curl|powershell|cmd\.exe|wget|kubectl|chmod|regedit|netsh)\b|https?:\/\//i.test(parsed.summary) ||
             /\b(?:ho so|yeu cau) da (?:duoc )?(?:duyet|chap thuan|hoan thanh)\b/.test(normalize(parsed.summary))) throw Error("SUMMARY_INVALID");
           const now = new Date();
-          const result: Entry = { _id: key, requestId: id, ...parsed, source: process.env.AI_PROVIDER === "openai" || options.run ? "openai" : "mock", model, createdAt: now, expiresAt: new Date(+now + 86400000) };
+          const result: Entry = { _id: key, requestId: id, ...parsed, source: modelProviderSource(), model, createdAt: now, expiresAt: new Date(+now + 86400000) };
           // Re-check before caching; never attach a late result to a changed/deleted request.
           if ((await getSupportRequest(id))?.version !== version) throw new SupportError("VERSION_CONFLICT", "Hồ sơ vừa thay đổi. Tải lại để tóm tắt.", 409);
           try {

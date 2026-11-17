@@ -8,10 +8,11 @@ import { guidanceRules } from "@/domain/policy-source";
 import { REVIEW_MESSAGE_MAX_LENGTH } from "@/domain/reviewer-messages";
 import { draftKinds, draftResponseSchema, DraftValidationError, validateDraftOutput, type DraftSource } from "@/domain/review-drafts";
 import { privateCompanyTopic } from "@/domain/company-support";
+import { modelProviderSource } from "@/lib/model-provider";
 
 const inputSchema = z.object({ version: z.number().int().nonnegative() }).strict();
 export type ReviewDrafts = {
-  version: number; options: string[]; source: "openai" | "mock" | "deterministic";
+  version: number; options: string[]; source: "openai" | "gemini" | "mock" | "deterministic";
   kinds: typeof draftKinds;
   model?: string; fallbackReason?: string;
   evidence?: DraftSource[][];
@@ -96,7 +97,7 @@ evidenceIds must select IDs from sources that support the message; use answer_* 
     const parsed = validateDraftOutput(raw, sources, requiredAnswerParts);
     result = { version, options: parsed.options.map(option => option.text), kinds,
       evidence: parsed.options.map(option => option.evidenceIds.map(id => sources.find(source => source.id === id)!)),
-      source: process.env.AI_PROVIDER === "openai" || options.run ? "openai" : "mock", ...(model ? { model } : {}) };
+      source: modelProviderSource(), ...(model ? { model } : {}) };
   } catch (error) {
     result.fallbackReason = error instanceof DraftValidationError ? error.code :
       error instanceof ModelFailure ? `${error.code}:${error.reason || "UNKNOWN"}` : "DRAFT_UNAVAILABLE_OR_INVALID";
