@@ -205,8 +205,13 @@ async function modelAttempt(call: ModelCall, timeoutMs: number, options: ModelOp
           type: "json_schema", json_schema: { name: `support_${call.purpose}`, strict: true, schema: call.responseSchema },
         } : { type: "json_object" },
       };
-      // Preserve the bounded, non-reasoning request used by this OpenAI-only legacy model.
-      const response = call.model === "gpt-6-luna"
+      // Gemini 3 uses less thinking for latency-sensitive support triage.
+      // Preserve the bounded, non-reasoning request used by the OpenAI-only legacy model.
+      const response = provider === "gemini"
+        ? await client.post<OpenAI.Chat.Completions.ChatCompletion>("/chat/completions", {
+            body: { ...body, reasoning_effort: "low" }, signal: controller.signal, timeout: timeoutMs,
+          })
+        : call.model === "gpt-6-luna"
         ? await client.post<OpenAI.Chat.Completions.ChatCompletion>("/chat/completions", {
             body: { ...body, reasoning_effort: "none" }, signal: controller.signal, timeout: timeoutMs,
           })

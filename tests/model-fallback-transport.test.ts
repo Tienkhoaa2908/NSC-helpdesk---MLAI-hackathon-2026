@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { callModel, createAssistanceWithFallback, extractWithModel, ModelFailure, type ModelCallTrace } from "@/lib/support-model";
 import { extractIntake } from "@/domain/text";
+import { evidenceWorkflowPrompt } from "@/domain/workflow-prompt";
 import type { SupportInput } from "@/domain/contracts";
 
 const reserve = vi.hoisted(() => vi.fn());
@@ -56,6 +57,22 @@ it("retries a transient timeout once within the same model call budget", async (
   await expect(callModel(call, {}, { run, onModelCall: trace })).resolves.toEqual({});
   expect(run).toHaveBeenCalledTimes(2);
   expect(trace).toHaveBeenCalledWith(expect.objectContaining({ attempts: 2, fallbackReason: "RETRY_TIMEOUT" }));
+});
+
+it("uses low Gemini reasoning effort without changing the system and user prompts", async () => {
+  vi.stubEnv("AI_PROVIDER", "gemini");
+  vi.stubEnv("GEMINI_API_KEY", "synthetic-unused-key");
+  const transport = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => response(200));
+  vi.stubGlobal("fetch", transport);
+  await expect(callModel(call, {})).resolves.toBe("{}");
+  const [, init] = transport.mock.calls[0];
+  const body = JSON.parse(String(init?.body));
+  expect(body.reasoning_effort).toBe("low");
+  expect(body.messages).toEqual([
+    { role: "system", content: `${evidenceWorkflowPrompt}\n\n${call.instructions}` },
+    { role: "user", content: call.data },
+  ]);
+  expect(body.model).toBe(call.model);
 });
 
 it("allows a nine-second first inference to finish without cutting it short for a retry", async () => {
