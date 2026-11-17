@@ -1,4 +1,4 @@
-# NoSleepClub Support Desk
+# NoSleepClub Help Desk
 
 > **MLAI Hackathon 2026:** NoSleepClub đạt **Giải Nhất track VNG** và **Giải Ba chung cuộc**. [Thông báo kết quả của HUTECH](https://www.facebook.com/hutechuniversity/posts/pfbid02aDmtNL88SKFYwZUSW7gRMWut1BLRCKFEPxb2ZkhA3j2vRQx8P5epe2AaP63dhZ82l) · [Trang cuộc thi](https://ai-network.hcmut.edu.vn/mlai2026)
 
@@ -12,7 +12,7 @@ Tôi xây dựng policy runtime để chuyển yêu cầu đã được trích x
 
 ### Thiết kế UI/UX
 
-Tôi hỗ trợ thiết kế các luồng gửi yêu cầu, xem trước và xác nhận, theo dõi phản hồi, cùng không gian Admin để tìm kiếm, đọc bằng chứng và xử lý hồ sơ. Giao diện tách thông tin người gửi nhìn thấy khỏi lý do và audit dành cho người xử lý; hướng dẫn trong sản phẩm chỉ đến đúng thao tác theo vai trò.
+Tôi hỗ trợ thiết kế các luồng gửi yêu cầu, xem trước và xác nhận, theo dõi phản hồi, cùng không gian Admin để tìm kiếm, đọc bằng chứng và xử lý hồ sơ. Giao diện tách thông tin người gửi nhìn thấy khỏi lý do và audit dành cho người xử lý, hướng dẫn trong sản phẩm chỉ đến đúng thao tác theo vai trò.
 
 ### Nhóm yêu cầu cùng một vấn đề
 
@@ -36,10 +36,6 @@ Sơ đồ Mermaid và các luồng khác nằm trong [`docs/diagrams`](docs/diag
 ### Một số luồng giao diện
 
 Ảnh dưới đây là ảnh chụp minh họa các luồng demo được lưu trong repository.
-
-**Theo dõi sự cố chung**
-
-![Trang theo dõi cập nhật của một nhóm sự cố](docs/images/batch-incident-tracker.png)
 
 **Tóm tắt hồ sơ trong không gian Admin**
 
@@ -82,7 +78,3 @@ npm run build
 - [Dữ liệu và bộ Verify MLAI 2026](challenge/mlai-2026/README.md)
 - [Cấu hình Gemini và bảo vệ API key](docs/AI-CONFIGURATION.md)
 - [Mục lục tài liệu](docs/README.md)
-
-## Repo tham gia cuộc thi
-
-[dakiemdarktharr/nosleepclub-support-desk](https://github.com/dakiemdarktharr/nosleepclub-support-desk)
