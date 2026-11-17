@@ -64,6 +64,7 @@ export class ModelFailure extends Error {
       | "EMPTY_RESPONSE"
       | "UPSTREAM_ERROR"
       | "AUTHENTICATION"
+      | "AUTHORIZATION"
       | "RATE_LIMIT"
       | "SCHEMA_INVALID"
       | "ROUTING_INVALID"
@@ -147,8 +148,10 @@ function sanitizedFailure(error: unknown): ModelFailure {
   if (error instanceof ModelFailure) return error;
   const reason = error instanceof OpenAI.APIConnectionTimeoutError
     ? "TIMEOUT"
-    : error instanceof OpenAI.APIError && [401, 403].includes(error.status ?? 0)
+    : error instanceof OpenAI.APIError && error.status === 401
       ? "AUTHENTICATION"
+      : error instanceof OpenAI.APIError && error.status === 403
+        ? "AUTHORIZATION"
       : error instanceof OpenAI.APIError && error.status === 429
         ? "RATE_LIMIT"
         : "UPSTREAM_ERROR";

@@ -32,7 +32,7 @@ it.each(["support-request", "post-answer"] as const)("sends Luna's bounded non-r
   expect(budget).toHaveBeenCalledOnce();
 });
 
-it.each([[401, "AUTHENTICATION"], [429, "RATE_LIMIT"], [500, "MODEL_UNAVAILABLE"]] as const)("exposes safe fallback diagnostics for HTTP %i without retry or upstream body", async (status, reason) => {
+it.each([[401, "AUTHENTICATION"], [403, "AUTHORIZATION"], [429, "RATE_LIMIT"], [500, "MODEL_UNAVAILABLE"]] as const)("exposes safe fallback diagnostics for HTTP %i without retry or upstream body", async (status, reason) => {
   const transport = vi.fn(async () => new Response(JSON.stringify({ error: { message: "private-upstream-detail", type: "api_error" } }), { status, headers: { "content-type": "application/json" } }));
   vi.stubGlobal("fetch", transport);
   const result = await analyzeSupportSentiment("Tôi bực mình vì phải chờ", "support-request");

@@ -22,6 +22,7 @@ it("drafts a short specific message for missing facts, without sending or changi
   expect(await getSupportRequest(row.id)).toEqual(row);
 });
 it("uses Luna's configured model and redacted context for an editable information message", async () => {
+  vi.stubEnv("AI_PROVIDER", "openai");
   vi.stubEnv("AI_MODEL", "gpt-6-luna");
   const row = await create("VPN không kết nối. Email demo@example.invalid");
   const run = vi.fn(async (call: ModelCall) => {

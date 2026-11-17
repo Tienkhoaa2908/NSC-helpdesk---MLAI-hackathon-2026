@@ -64,8 +64,10 @@ test("existing job shows fixed scope; tracking reveals issued ID only after appr
 test("IT controls require server-assigned authority; guide remains reachable on mobile", async ({ page }) => {
   await page.goto("/identity/review"); await expect(page.getByRole("main").getByRole("alert")).toContainText("Đăng nhập");
   await expect(page.getByRole("button", { name: "Duyệt và cấp ID" })).toHaveCount(0);
-  await page.goto("/help"); await expect(page.getByRole("heading", { name: "Bắt đầu từ việc bạn cần làm" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "Verify / Kiểm thử" })).toHaveAttribute("href", "/verify");
+  await page.goto("/help"); await expect(page.getByRole("heading", { name: "VNG Support", exact: true })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Hướng dẫn nhân viên", exact: true })).toHaveAttribute("href", "/help/employee");
+  await expect(page.getByRole("link", { name: "Hướng dẫn Admin", exact: true })).toHaveAttribute("href", "/help/admin");
+  await expect(page.getByRole("link", { name: "Gửi yêu cầu hỗ trợ", exact: true })).toHaveAttribute("href", "/send-help");
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 });
 

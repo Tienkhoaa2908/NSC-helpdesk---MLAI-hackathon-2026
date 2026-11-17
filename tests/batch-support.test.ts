@@ -61,6 +61,7 @@ it("uses the department from the Mongo-backed session rather than the caller's d
 });
 
 it("drafts two reasons without changing a request or exposing sender fields to the model", async () => {
+  vi.stubEnv("AI_PROVIDER", "openai");
   const row = await create("Mở port 3389 ra Internet");
   const run = vi.fn(async (call: model.ModelCall) => completeDrafts(call, [
     "Bạn cần trao đổi với người phụ trách về rủi ro của yêu cầu này nhé.",
@@ -81,6 +82,7 @@ it("rejects impersonal model fragments and returns two friendly fallback message
   expect(reviewerMessages((await getSupportRequest(row.id))!.events)).toEqual([]);
 });
 it("returns all two complete model messages verbatim, with server-owned evidence and no appended text", async () => {
+  vi.stubEnv("AI_PROVIDER", "openai");
   const row = await create("VPN không kết nối");
   let generated: ReturnType<typeof completeDrafts> | undefined;
   const result = await draftReviewReasons(row.id, { version: row.version }, { run: async call => {

@@ -12,6 +12,7 @@ beforeEach(() => { vi.stubEnv("AI_PROVIDER", "mock"); vi.stubEnv("MONGODB_URI", 
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllEnvs(); vi.useRealTimers(); });
 
 it("summarizes without changing policy, audit, original text or sending a message", async () => {
+  vi.stubEnv("AI_PROVIDER", "openai");
   const row = await create(); const run = vi.fn(async () => valid);
   expect(await summarizeReviewRequest(row.id, { version: row.version }, { run })).toMatchObject({ source: "openai", summary: valid.summary, cache: "miss" });
   expect(await getSupportRequest(row.id)).toEqual(row);
@@ -51,6 +52,7 @@ it.each([
   { ...valid, summary: "Bạn hãy chạy sudo để sửa máy in." },
   { summary: valid.summary },
 ])("does not display or cache invalid model summaries %#", async output => {
+  vi.stubEnv("AI_PROVIDER", "openai");
   const row = await create(), run = vi.fn(async () => output);
   expect(await summarizeReviewRequest(row.id, { version: row.version }, { run })).toMatchObject({ source: "unavailable", fallbackReason: "SUMMARY_UNAVAILABLE_OR_INVALID" });
   expect((await summarizeReviewRequest(row.id, { version: row.version }, { run: async () => valid })).source).toBe("openai");

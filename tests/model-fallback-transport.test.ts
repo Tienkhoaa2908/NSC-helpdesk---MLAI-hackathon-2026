@@ -33,11 +33,11 @@ it.each([429, 500, 503])("retries HTTP %i once with the same configured model an
   expect(JSON.stringify(traces)).not.toMatch(/upstream-private-detail|synthetic-unused-key/);
 });
 
-it.each([400, 401, 403, 404])("never retries non-transient HTTP %i", async status => {
+it.each([[400, "UPSTREAM_ERROR"], [401, "AUTHENTICATION"], [403, "AUTHORIZATION"], [404, "UPSTREAM_ERROR"]] as const)("never retries non-transient HTTP %i", async (status, reason) => {
   const transport = vi.fn(async () => response(status));
   vi.stubGlobal("fetch", transport);
   await expect(callModel(call, {})).rejects.toMatchObject({ code: "MODEL_UNAVAILABLE",
-    reason: status === 401 ? "AUTHENTICATION" : "UPSTREAM_ERROR" });
+    reason });
   expect(transport).toHaveBeenCalledOnce();
   expect(reserve).toHaveBeenCalledOnce();
 });

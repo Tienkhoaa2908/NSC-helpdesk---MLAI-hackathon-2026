@@ -187,7 +187,7 @@ export type SentimentAssessment = {
   evidence: string;
   explanation: string;
   model?: string;
-  fallbackReason?: "MOCK_PROVIDER" | "NOT_CONFIGURED" | "AUTHENTICATION" |
+  fallbackReason?: "MOCK_PROVIDER" | "NOT_CONFIGURED" | "AUTHENTICATION" | "AUTHORIZATION" |
     "BUDGET_EXHAUSTED" | "RATE_LIMIT" | "TIMEOUT" | "INVALID_OUTPUT" |
     "INVALID_EVIDENCE" | "MODEL_UNAVAILABLE";
 };

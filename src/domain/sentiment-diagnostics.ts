@@ -6,6 +6,7 @@ export const sentimentFallbackMessages: Record<Reason, string> = {
   MOCK_PROVIDER: "Môi trường này đang dùng model mô phỏng.",
   NOT_CONFIGURED: "Chưa đủ cấu hình API model; quản trị viên cần kiểm tra provider, model và API key.",
   AUTHENTICATION: "API model từ chối xác thực (401). Quản trị viên cần cập nhật API key trên hosting.",
+  AUTHORIZATION: "API model từ chối quyền truy cập (403). Quản trị viên cần kiểm tra quyền dùng model và project API.",
   BUDGET_EXHAUSTED: "Kết quả lịch sử hoặc test-only bị chặn bởi ngân sách model cũ; production hiện không có hạn mức ngày ở cấp ứng dụng.",
   RATE_LIMIT: "Dịch vụ model đang giới hạn lượt gọi. Thử lại sau.",
   TIMEOUT: "Model chưa trả lời trong thời gian cho phép. Thử lại sau.",
@@ -17,7 +18,7 @@ export const sentimentFallbackMessages: Record<Reason, string> = {
 // Only expose allowlisted diagnostics, never an upstream error message/body.
 export function sentimentFallbackReason(reason?: string): Reason {
   switch (reason) {
-    case "MOCK_PROVIDER": case "NOT_CONFIGURED": case "AUTHENTICATION":
+    case "MOCK_PROVIDER": case "NOT_CONFIGURED": case "AUTHENTICATION": case "AUTHORIZATION":
     case "BUDGET_EXHAUSTED": case "RATE_LIMIT": case "TIMEOUT":
       return reason;
     case "MODEL_EVIDENCE_INVALID": case "EVIDENCE_MISMATCH":

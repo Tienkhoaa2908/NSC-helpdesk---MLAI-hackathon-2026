@@ -126,7 +126,7 @@ function recoverSafeGuidance(
   failed: CanonicalRequest,
 ): CanonicalRequest {
   if (failed.model.failure !== "MODEL_UNAVAILABLE" ||
-      !["AUTHENTICATION", "TIMEOUT", "RATE_LIMIT", "UPSTREAM_ERROR", "NOT_CONFIGURED", "BUDGET_EXHAUSTED", "SIMULATED"].includes(failed.model.failureReason ?? "") ||
+      !["AUTHENTICATION", "AUTHORIZATION", "TIMEOUT", "RATE_LIMIT", "UPSTREAM_ERROR", "NOT_CONFIGURED", "BUDGET_EXHAUSTED", "SIMULATED"].includes(failed.model.failureReason ?? "") ||
       !safeDeterministicGuidance(input, baseline) ||
       baseline.riskSignals.length || baseline.redactions.length ||
       baseline.subrequests.length || baseline.ambiguities.length) return failed;
