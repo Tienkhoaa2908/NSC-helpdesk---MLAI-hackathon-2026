@@ -1,6 +1,6 @@
 # NoSleepClub Help Desk
 
-> **MLAI Hackathon 2026:** NoSleepClub đạt **Giải Nhất track VNG** và **Giải Ba chung cuộc**. [Thông báo kết quả của HUTECH](https://www.facebook.com/hutechuniversity/posts/pfbid02aDmtNL88SKFYwZUSW7gRMWut1BLRCKFEPxb2ZkhA3j2vRQx8P5epe2AaP63dhZ82l) · [Trang cuộc thi](https://ai-network.hcmut.edu.vn/mlai2026)
+> **MLAI Hackathon 2026:** NoSleepClub đạt **Giải Nhất track VNG** và **Giải Ba chung cuộc**. [Thông báo kết quả](https://www.facebook.com/hutechuniversity/posts/pfbid02aDmtNL88SKFYwZUSW7gRMWut1BLRCKFEPxb2ZkhA3j2vRQx8P5epe2AaP63dhZ82l) · [Trang cuộc thi](https://ai-network.hcmut.edu.vn/mlai2026)
 
 Support Desk là hệ thống tiếp nhận và xử lý yêu cầu hỗ trợ bằng ngôn ngữ tự nhiên. Sản phẩm được phát triển cho đề bài VNG **The Escalation Referee** trong [brief MLAI 2026](challenge/mlai-2026/CHALLENGE-BRIEF.md): tự động xử lý trường hợp thường quy, nhận diện phần còn thiếu, giới hạn thẩm quyền và rủi ro, rồi chuyển đúng trường hợp cho nhân viên kèm câu hỏi cần xác minh.
 
