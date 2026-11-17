@@ -1,33 +1,57 @@
 # NoSleepClub Support Desk
 
-[![QA](https://github.com/Tienkhoaa2908/nosleepclub-support-desk/actions/workflows/qa.yml/badge.svg?branch=main)](https://github.com/Tienkhoaa2908/nosleepclub-support-desk/actions/workflows/qa.yml)
+> **MLAI Hackathon 2026:** NoSleepClub đạt **Giải Nhất track VNG** và **Giải Ba chung cuộc**. [Thông báo kết quả của HUTECH](https://www.facebook.com/hutechuniversity/posts/pfbid02aDmtNL88SKFYwZUSW7gRMWut1BLRCKFEPxb2ZkhA3j2vRQx8P5epe2AaP63dhZ82l) · [Trang cuộc thi](https://ai-network.hcmut.edu.vn/mlai2026)
 
-## Thành tích
+Support Desk là hệ thống tiếp nhận và xử lý yêu cầu hỗ trợ bằng ngôn ngữ tự nhiên. Sản phẩm được phát triển cho đề bài VNG **The Escalation Referee** trong [brief MLAI 2026](challenge/mlai-2026/CHALLENGE-BRIEF.md): tự động xử lý trường hợp thường quy, nhận diện phần còn thiếu, giới hạn thẩm quyền và rủi ro, rồi chuyển đúng trường hợp cho nhân viên kèm câu hỏi cần xác minh.
 
-Đội NoSleepClub đạt **Giải Nhất track VNG AI Agent** và **Giải Ba chung cuộc** tại MLAI Hackathon 2026. [Thông báo kết quả của HUTECH](https://www.facebook.com/hutechuniversity/posts/pfbid02aDmtNL88SKFYwZUSW7gRMWut1BLRCKFEPxb2ZkhA3j2vRQx8P5epe2AaP63dhZ82l).
+## Đóng góp của tôi
 
-## Tổng quan
+### Hệ thống policy phân loại yêu cầu
 
-Support Desk tiếp nhận yêu cầu hỗ trợ IT bằng ngôn ngữ tự nhiên, cung cấp hướng dẫn có nguồn cho tình huống phù hợp và chuyển các trường hợp thiếu thông tin, vượt thẩm quyền hoặc có rủi ro đến nhân viên xử lý. Sản phẩm được xây dựng cho thử thách **The Escalation Referee** của MLAI Hackathon 2026.
+Tôi xây dựng policy runtime để chuyển yêu cầu đã được trích xuất dữ kiện thành quyết định có thể giải thích. Bộ phân loại kiểm tra tín hiệu rủi ro, thẩm quyền, dữ kiện bắt buộc và điều kiện xử lý thường quy; quyết định được xếp vào bốn bucket: **ROUTINE**, **MISSING_INFO**, **BEYOND_AUTHORITY** hoặc **SECURITY_RISK**. Các trường hợp chưa thể xử lý tự động được gắn lớp bất định như **MISSING_FACTS**, **OUT_OF_POLICY** hoặc **AUTHORITY_REQUIRED**. Policy tạo lý do, câu hỏi xác minh và nhóm phụ trách. Mô hình ngôn ngữ hỗ trợ hiểu câu chữ; server áp dụng policy xác định và giữ quyết định cuối cùng. Quy tắc được phiên bản hóa trong [`src/domain/policy-source.ts`](src/domain/policy-source.ts) và đánh giá tại [`src/domain/policy.ts`](src/domain/policy.ts).
 
-Mô hình ngôn ngữ hỗ trợ trích xuất dữ kiện có cấu trúc và soạn câu trả lời. Server kiểm chứng dữ kiện, áp dụng policy xác định và giữ quyền quyết định cuối cùng; kết quả không đủ căn cứ sẽ được làm rõ hoặc chuyển người.
+### Thiết kế UI/UX
 
-## Chức năng chính
+Tôi hỗ trợ thiết kế các luồng gửi yêu cầu, xem trước và xác nhận, theo dõi phản hồi, cùng không gian Admin để tìm kiếm, đọc bằng chứng và xử lý hồ sơ. Giao diện tách thông tin người gửi nhìn thấy khỏi lý do và audit dành cho người xử lý; hướng dẫn trong sản phẩm chỉ đến đúng thao tác theo vai trò.
 
-- Tiếp nhận, phân loại, xem trước và theo dõi yêu cầu hỗ trợ.
-- Trả lời dựa trên kho tri thức có nguồn, hỗ trợ hội thoại tiếp nối và tái sử dụng hướng dẫn đã duyệt.
-- Quản lý hàng đợi, hỏi bổ sung, duyệt và ghi lại quyết định cùng bằng chứng.
-- Cung cấp bộ Verify, dữ liệu tổng hợp và quy trình đánh giá hồi quy.
+### Nhóm yêu cầu cùng một vấn đề
+
+Tôi thiết kế cơ chế liên kết các yêu cầu đủ điều kiện vào một sự cố chung dựa trên chủ đề và địa điểm đã chuẩn hóa. Mỗi người gửi vẫn có hồ sơ và liên kết theo dõi riêng; Admin đăng một cập nhật tiến độ cho nhóm và hệ thống hiển thị cập nhật đó trên các hồ sơ liên kết. Cơ chế này áp dụng cho một tập con yêu cầu có metadata phù hợp, nhóm tự hết hạn sau 24 giờ và không thay thế phản hồi riêng cho từng hồ sơ. Đây là phần mở rộng của sản phẩm, không phải tiêu chí ghi trong brief VNG.
+
+## Quy trình xử lý
+
+1. Người gửi mô tả vấn đề hoặc chọn một danh mục. Server kiểm tra input, che thông tin nhạy cảm và trích xuất dữ kiện có cấu trúc.
+2. Bộ policy kiểm tra rủi ro, thẩm quyền, thông tin bắt buộc và căn cứ nội bộ. Trường hợp an toàn, đủ căn cứ nhận hướng dẫn có nguồn; trường hợp chưa đủ căn cứ được hỏi bổ sung hoặc chuyển người xử lý.
+3. Khi người gửi xác nhận preview, hệ thống lưu hồ sơ, sự kiện và trạng thái để tiếp tục theo dõi.
+4. Admin xem nội dung, bằng chứng và lịch sử; các quyết định được ghi audit. Verify chạy bộ tình huống hồi quy và đối chiếu kết quả với hồ sơ đã lưu.
+
+![Sơ đồ policy: bằng chứng được kiểm tra trước khi server áp dụng quyết định](docs/diagrams/ai-policy.svg)
+
+Sơ đồ Mermaid và các luồng khác nằm trong [`docs/diagrams`](docs/diagrams/); mô tả hệ thống ở [tài liệu kiến trúc](docs/ARCHITECTURE.md).
 
 ## Kiến trúc và công nghệ
 
-Ứng dụng dùng Next.js App Router, TypeScript và React. MongoDB lưu yêu cầu, sự kiện và dữ liệu identity; Gemini API qua giao diện tương thích OpenAI hỗ trợ phân tích ngôn ngữ và tạo câu trả lời. Tra cứu web có thể bật riêng bằng Google Search grounding. Policy, kiểm tra an toàn và chuyển tiếp do server thực hiện.
+Ứng dụng dùng **Next.js App Router**, **React**, **TypeScript** và **MongoDB**. MongoDB lưu hồ sơ hỗ trợ, sự kiện, nhóm sự cố, lượt Verify và dữ liệu Identity trong các collection riêng; Support và Identity có thể cấu hình database/connection riêng. Gemini API hỗ trợ trích xuất và soạn nội dung qua adapter tương thích OpenAI; Google Search grounding là tùy chọn riêng. Quyết định policy và kiểm tra an toàn chạy ở server, không giao quyền quyết định cuối cùng cho mô hình.
 
-Xem [sơ đồ kiến trúc](docs/ARCHITECTURE.md), [mục lục tài liệu](docs/README.md) và [mô tả dữ liệu MLAI](challenge/mlai-2026/README.md).
+### Một số luồng giao diện
 
-## Chạy local
+Ảnh dưới đây là ảnh chụp minh họa các luồng demo được lưu trong repository.
 
-Yêu cầu Node.js 22.13+ và npm. Cấu hình mẫu dùng AI mock và bộ nhớ demo, không cần dịch vụ ngoài.
+**Theo dõi sự cố chung**
+
+![Trang theo dõi cập nhật của một nhóm sự cố](docs/images/batch-incident-tracker.png)
+
+**Tóm tắt hồ sơ trong không gian Admin**
+
+![Bản tóm tắt hồ sơ hỗ trợ dành cho Admin](docs/images/review-summary-desktop.png)
+
+**Theo dõi tiến trình Verify**
+
+![Tiến trình chạy bộ Verify](docs/images/verify-progress.png)
+
+## Bắt đầu
+
+Yêu cầu Node.js 22.13 trở lên và npm.
 
 ```powershell
 npm ci
@@ -35,7 +59,9 @@ Copy-Item .env.example .env.local
 npm run dev
 ```
 
-Mở http://localhost:3000. Không ghi API key hoặc connection string vào Git. Cấu hình dịch vụ nằm trong .env.local; xem [RUNBOOK](RUNBOOK.md).
+Mở `http://localhost:3000`. Cấu hình mẫu dùng AI mock và bộ nhớ demo, không cần API key hay dịch vụ ngoài.
+
+Để bật Gemini, đặt `AI_PROVIDER="gemini"`, `AI_MODEL="gemini-3.8-flash"` và `GEMINI_API_KEY` trong `.env.local`. Không đưa khóa vào Git, frontend hoặc nội dung chat. Xem [cấu hình AI và quản lý khóa](docs/AI-CONFIGURATION.md) và [RUNBOOK](RUNBOOK.md).
 
 ## Kiểm tra
 
@@ -49,12 +75,14 @@ npm run build
 
 ## Tài liệu
 
-- [Hướng dẫn sử dụng](docs/USAGE.md)
+- [Hướng dẫn nhân viên gửi yêu cầu](docs/EMPLOYEE-GUIDE.md)
+- [Hướng dẫn Admin xử lý yêu cầu](docs/ADMIN-GUIDE.md)
 - [Kiến trúc](docs/ARCHITECTURE.md)
 - [Đánh giá và giới hạn](docs/EVALUATION.md)
-- [Kho dữ liệu và bộ Verify của MLAI 2026](challenge/mlai-2026/README.md)
-- [Vận hành](RUNBOOK.md)
+- [Dữ liệu và bộ Verify MLAI 2026](challenge/mlai-2026/README.md)
+- [Cấu hình Gemini và bảo vệ API key](docs/AI-CONFIGURATION.md)
+- [Mục lục tài liệu](docs/README.md)
 
-## Repo dự thi
+## Repo tham gia cuộc thi
 
-Mã nguồn gốc được dùng để tham gia cuộc thi: [dakiemdarktharr/nosleepclub-support-desk](https://github.com/dakiemdarktharr/nosleepclub-support-desk)
+[dakiemdarktharr/nosleepclub-support-desk](https://github.com/dakiemdarktharr/nosleepclub-support-desk)

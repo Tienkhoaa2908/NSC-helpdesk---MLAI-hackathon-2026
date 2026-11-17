@@ -1,16 +1,30 @@
 # Tài liệu Support Desk
 
-| Mục đích | Tài liệu |
-| --- | --- |
-| Tính năng và bắt đầu | [README](../README.md), [hướng dẫn sử dụng](USAGE.md) |
-| Cài đặt và phát hành | [RUNBOOK](../RUNBOOK.md) |
-| Luồng xử lý và code | [Kiến trúc](ARCHITECTURE.md) |
-| Retrieval và nguồn trả lời | [Retrieval](RAG-RETRIEVAL.md), [câu trả lời](RAG-ANSWER.md), [quản trị tri thức](KNOWLEDGE-REVIEW.md) |
-| Dữ liệu và đánh giá | [Riêng tư](PRIVACY-INVENTORY.md), [evaluation](EVALUATION.md), [Enterprise 128 v1](ENTERPRISE-128-EVALUATION.md), [sentiment](SENTIMENT-EVALUATION.md) |
-| Hỗ trợ hàng loạt | [Contract](BATCH-SUPPORT-CONTRACT.md), [kiểm chứng](BATCH-SUPPORT-VALIDATION.md) |
-| Trình diễn | [Hướng dẫn giám khảo](JUDGE-ONBOARDING.md), [dataset](JUDGE-DATASETS.md) |
-| Thu thập feedback | [Protocol](INDEPENDENT-EVALUATION-PROTOCOL.md), [nội dung nộp](SUBMISSION-CONTENT.md) |
-| Bằng chứng triển khai theo ngày | [Ảnh chụp và báo cáo 2026](evidence/2026/) |
-| Quyết định còn áp dụng | [Policy](decisions/PERSON-A-POLICY-DECISIONS.md), [contract](decisions/PERSON-A-CONTRACT-DECISIONS.md), [quyền demo](decisions/DEMO-AUTHORITY-CONTRACT.md) |
+## Hướng dẫn sử dụng
 
-Bằng chứng triển khai và báo cáo theo ngày được lưu trong evidence/2026. Dùng commit và metadata của từng báo cáo để xác định phiên bản được kiểm tra; không dùng số đo lịch sử làm kết quả của bản đang chạy.
+| Đối tượng | Tài liệu |
+| --- | --- |
+| Nhân viên gửi và theo dõi yêu cầu | [Hướng dẫn nhân viên](EMPLOYEE-GUIDE.md) |
+| Admin tiếp nhận, phản hồi và kiểm tra yêu cầu | [Hướng dẫn Admin](ADMIN-GUIDE.md) |
+| Bắt đầu nhanh theo vai trò | [Mục lục hướng dẫn](USAGE.md) |
+
+## Kiến trúc và phát triển
+
+| Nội dung | Tài liệu |
+| --- | --- |
+| Kiến trúc, luồng xử lý và sơ đồ | [ARCHITECTURE](ARCHITECTURE.md), [diagrams](diagrams/) |
+| Cấu hình Gemini, model và API key | [AI-CONFIGURATION](AI-CONFIGURATION.md) |
+| Cài đặt, môi trường và vận hành | [RUNBOOK](../RUNBOOK.md) |
+| Policy runtime | [`src/domain/policy-source.ts`](../src/domain/policy-source.ts), [`src/domain/policy.ts`](../src/domain/policy.ts) |
+
+## Đánh giá và dữ liệu
+
+| Nội dung | Tài liệu |
+| --- | --- |
+| Giới hạn và kết quả đánh giá | [EVALUATION](EVALUATION.md), [Enterprise 128](ENTERPRISE-128-EVALUATION.md), [sentiment](SENTIMENT-EVALUATION.md) |
+| Retrieval, câu trả lời và tri thức | [RAG Retrieval](RAG-RETRIEVAL.md), [RAG Answer](RAG-ANSWER.md), [Knowledge Review](KNOWLEDGE-REVIEW.md) |
+| Quyền riêng tư và xử lý dữ liệu | [Privacy Inventory](PRIVACY-INVENTORY.md) |
+| MLAI 2026 brief, dữ liệu và Verify | [challenge/mlai-2026](../challenge/mlai-2026/README.md), [dataset](JUDGE-DATASETS.md) |
+| Bằng chứng triển khai theo ngày | [evidence/2026](evidence/2026/) |
+
+Các tài liệu có nhãn cuộc thi hoặc ảnh chụp theo ngày là tư liệu lịch sử. Hãy kiểm tra commit và thời điểm trong từng tài liệu trước khi dùng kết quả làm bằng chứng cho phiên bản hiện tại.
