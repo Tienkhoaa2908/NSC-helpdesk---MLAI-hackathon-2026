@@ -2,33 +2,44 @@ import { test, expect } from "./fixtures";
 const id = "bbbbbbbb-bbbb-4bbb-abbb-bbbbbbbbbbbb";
 const scope = { environment: "sandbox", resource: "project", operation: "read", target: "project-demo" };
 const profile = { id, version: 1, name: "Job giả lập Alpha", scopes: [scope], active: true };
-test("home offers two roles and guest access; support opens password-free login and optional tools", async ({ page }) => {
+const signedInApplicant = { status: "PENDING", name: "Nhân Viên Giả Lập Alpha", email: "alpha@gmail.com", assurance: "verified", canReviewIds: false };
+
+test("home keeps guest support separate and employee login uses Google", async ({ page }) => {
   await page.goto("/");
   await expect(page.locator("main a")).toHaveCount(3);
-  await expect(page.getByLabel("ID nhân viên", { exact: true })).toHaveCount(0);
   await expect(page.getByRole("link", { name: "Dành cho Admin", exact: true })).toHaveAttribute("href", "/review");
   await page.getByRole("link", { name: "Tôi cần hỗ trợ", exact: true }).click();
   await expect(page).toHaveURL(/\/login$/);
   await expect(page.getByRole("heading", { name: "Đăng nhập", exact: true })).toBeVisible();
-  await expect(page.getByLabel("ID nhân viên", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Đăng nhập bằng Google", exact: true })).toBeVisible();
+  await expect(page.getByLabel("ID nhân viên", { exact: true })).toHaveCount(0);
   await expect(page.locator('input[type="password"]')).toHaveCount(0);
   await expect(page.getByRole("link", { name: "Nhân viên mới?" })).toBeVisible();
-  await expect(page.getByText("Dùng ID đã được IT cấp", { exact: false })).toHaveCount(0);
-  await expect(page.getByText("Truy cập bằng ID là chế độ demo", { exact: false })).toHaveCount(0);
   await page.getByText("Hướng dẫn & tùy chọn", { exact: true }).click();
   await expect(page.getByRole("link", { name: "Theo dõi đơn cấp ID" })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 });
-test("without Mongo the real API reports unavailable and does not create a demo account", async ({ request }) => {
-  const login = await request.post("/api/identity/login", { data: { employeeId: "alphanvgl" } }); expect(login.status()).toBe(503);
-  expect(login.headers()["set-cookie"]).toBeUndefined();
-  const submit = await request.post("/api/identity/applications", { data: { id, trackingToken: "a".repeat(64), fullName: "Nhân Viên Giả Lập Alpha", job: { kind: "new", name: "Job giả lập", scopes: [scope] } } });
-  expect(submit.status()).toBe(503); expect((await submit.json()).success).toBe(false);
-  expect((await request.get("/api/identity/review", { headers: { "X-Employee-ID": "alphanvgl" } })).status()).toBe(401);
+
+test("without Mongo Google login is unavailable and client IDs cannot enter identity APIs", async ({ page, request }) => {
+  await page.goto("/login");
+  const start = await page.evaluate(async () => {
+    const response = await fetch("/api/identity/google/start", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ returnTo: "/identity/new" }) });
+    return { status: response.status, result: await response.json() };
+  });
+  expect(start.status).toBe(503);
+  expect(start.result.success).toBe(false);
+  const legacyLogin = await request.post("/api/identity/login", { data: { employeeId: "alphanvgl" } });
+  expect(legacyLogin.status()).toBe(410);
+  const identityHeader = await request.get("/api/identity/review", { headers: { "X-Employee-ID": "alphanvgl" } });
+  expect(identityHeader.status()).toBe(401);
 });
-test("new employee wizard preserves scope, uses only allowed fields and waits for storage confirmation", async ({ page }) => {
+
+test("onboarding requires a signed-in Google principal and preserves scope/data validation", async ({ page }) => {
+  await page.route("**/api/identity/session", (route) => route.fulfill({ json: { success: true, data: signedInApplicant } }));
   await page.route("**/api/identity/profiles", (route) => route.fulfill({ json: { success: true, data: [profile] } }));
+  await page.route("**/api/identity/my-application", (route) => route.fulfill({ json: { success: true, data: null } }));
   await page.goto("/identity/new");
+  await expect(page.getByText("alpha@gmail.com", { exact: false })).toBeVisible();
   await page.getByLabel("Họ và tên người cần cấp ID").fill("Nhân Viên Giả Lập Alpha");
   await page.getByLabel("Tên job", { exact: true }).selectOption("new");
   await page.getByLabel("Tên job mới").fill("Job giả lập Beta");
@@ -52,17 +63,31 @@ test("new employee wizard preserves scope, uses only allowed fields and waits fo
   await expect(page.getByLabel("Liên kết theo dõi riêng")).toHaveValue(/\/identity\/track#id=.+&token=[a-f0-9]{64}/);
   await expect(page.getByText("ID chính thức của bạn")).toHaveCount(0);
 });
-test("existing job shows fixed scope; tracking reveals issued ID only after approval", async ({ page }) => {
+
+test("approved applicants use Google sign-in and internal employee IDs are not credentials", async ({ page }) => {
+  await page.route("**/api/identity/session", (route) => route.fulfill({ json: { success: true, data: { ...signedInApplicant, status: "ACTIVE", id: "alphanvgl" } } }));
+  await page.goto("/identity/new");
+  await expect(page.getByRole("heading", { name: "Bạn đã có ID nhân viên" })).toBeVisible();
+  await expect(page.getByText("alphanvgl", { exact: true })).toBeVisible();
+  await expect(page.locator(".identity-card").getByText(/ID là mã nhận diện nội bộ, không phải mật khẩu/)).toBeVisible();
+  await expect(page.getByRole("link", { name: "Gửi yêu cầu hỗ trợ" })).toHaveAttribute("href", "/send-help");
+});
+
+test("existing job remains pinned and private receipt can reveal the issued ID", async ({ page }) => {
+  await page.route("**/api/identity/session", (route) => route.fulfill({ json: { success: true, data: signedInApplicant } }));
   await page.route("**/api/identity/profiles", (route) => route.fulfill({ json: { success: true, data: [profile] } }));
-  await page.goto("/identity/new"); await page.getByLabel("Họ và tên người cần cấp ID").fill("Nhân Viên Giả Lập Alpha");
+  await page.route("**/api/identity/my-application", (route) => route.fulfill({ json: { success: true, data: null } }));
+  await page.goto("/identity/new");
+  await page.getByLabel("Họ và tên người cần cấp ID").fill("Nhân Viên Giả Lập Alpha");
   await page.getByLabel("Tên job", { exact: true }).selectOption(`${id}:1`); await page.getByRole("button", { name: "Tiếp tục" }).click();
   await expect(page.getByText("project-demo", { exact: true })).toBeVisible(); await expect(page.getByRole("button", { name: "Thêm phạm vi" })).toHaveCount(0);
   await page.route("**/api/identity/applications/*", (route) => route.fulfill({ json: { success: true, data: { fullName: "Nhân Viên Giả Lập Alpha", jobName: "Job giả lập", status: "APPROVED", employeeId: "alphanvgl", scopes: [scope], grantedScopes: [scope], reason: "Đã kiểm tra dữ liệu giả lập" } } }));
   await page.goto(`/identity/track#id=${id}&token=${"a".repeat(64)}`);
-  await expect(page.getByText("alphanvgl", { exact: true })).toBeVisible(); await expect(page.getByRole("link", { name: "Đăng nhập bằng ID" })).toBeVisible();
+  await expect(page.getByText("alphanvgl", { exact: true })).toBeVisible(); await expect(page.getByRole("link", { name: "Đăng nhập bằng Google" })).toBeVisible();
 });
-test("IT controls require server-assigned authority; guide remains reachable on mobile", async ({ page }) => {
-  await page.goto("/identity/review"); await expect(page.getByRole("main").getByRole("alert")).toContainText("Đăng nhập");
+
+test("identity admin page explains server allowlist and employee guide remains reachable", async ({ page }) => {
+  await page.goto("/identity/review"); await expect(page.getByText("IDENTITY_ADMIN_EMAILS", { exact: false })).toBeVisible();
   await expect(page.getByRole("button", { name: "Duyệt và cấp ID" })).toHaveCount(0);
   await page.goto("/help"); await expect(page.getByRole("heading", { name: "VNG Support", exact: true })).toBeVisible();
   await expect(page.getByRole("link", { name: "Hướng dẫn nhân viên", exact: true })).toHaveAttribute("href", "/help/employee");
@@ -71,10 +96,10 @@ test("IT controls require server-assigned authority; guide remains reachable on 
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 });
 
-test("IT approves only selected scopes and receives an explicit success result", async ({ page }) => {
+test("identity admin review requires Google allowlist and confirms the applicant email", async ({ page }) => {
   let approved = false;
   const sensitive = { ...scope, environment: "production" };
-  const row = { id, fullName: "Nhân Viên Giả Lập Alpha", status: "PENDING", version: 0, job: { kind: "new", name: "Job giả lập" }, profile: null, requestedScopes: [scope, sensitive], createdAt: "2026-10-01T00:00:00.000Z" };
+  const row = { id, fullName: "Nhân Viên Giả Lập Alpha", applicant: { email: "alpha@gmail.com" }, status: "PENDING", version: 0, job: { kind: "new", name: "Job giả lập" }, profile: null, requestedScopes: [scope, sensitive], createdAt: "2026-10-01T00:00:00.000Z" };
   await page.route("**/api/identity/review?*", (route) => route.fulfill({ json: { success: true, data: { items: approved ? [] : [row], hasMore: false } } }));
   await page.route("**/api/identity/audit?*", (route) => route.fulfill({ json: { success: true, data: { items: [], hasMore: false } } }));
   await page.route(`**/api/identity/review/${id}`, async (route) => {
@@ -82,6 +107,7 @@ test("IT approves only selected scopes and receives an explicit success result",
     approved = true; await route.fulfill({ json: { success: true, data: { id, employeeId: "alphanvgl", status: "APPROVED" } } });
   });
   await page.goto("/identity/review");
+  await expect(page.getByText("alpha@gmail.com", { exact: false })).toBeVisible();
   await page.getByRole("checkbox").nth(1).uncheck();
   await page.getByLabel("Lý do quyết định (hiển thị cho người gửi)").fill("Đã xác minh hồ sơ giả lập; chỉ duyệt phạm vi sandbox");
   await page.getByRole("button", { name: "Duyệt và cấp ID", exact: true }).click();
@@ -89,19 +115,17 @@ test("IT approves only selected scopes and receives an explicit success result",
   await expect(page.getByRole("button", { name: "Duyệt và cấp ID", exact: true })).toHaveCount(0);
 });
 
-// UI mocks verify navigation only; they do not prove Mongo transaction behavior.
-test("ID-only login routes an IT role to review without an OTP step", async ({ page, request }) => {
-  await page.route("**/api/identity/login", async route => {
-    expect(route.request().postDataJSON()).toEqual({ employeeId: "itnvgl" });
-    await route.fulfill({ json: { success: true, data: { assurance: "demo", canReviewIds: true } } });
+test("login starts the Google OIDC flow with a fixed internal callback destination", async ({ page }) => {
+  let started = false;
+  await page.route("**/api/identity/google/start", async (route) => {
+    expect(route.request().postDataJSON()).toEqual({ returnTo: "/identity/review" });
+    started = true;
+    const url = new URL("/google-mock", page.url()).toString();
+    await route.fulfill({ json: { success: true, data: { authorizationUrl: url } } });
   });
-  await page.goto("/login");
-  await expect(page.getByText("Xác minh OTP", { exact: false })).toHaveCount(0);
-  await page.getByLabel("ID nhân viên", { exact: true }).fill("itnvgl");
-  await page.getByRole("button", { name: "Đăng nhập", exact: true }).click();
-  await expect(page).toHaveURL(/\/identity\/review$/);
-  await expect(page.getByText(/người biết ID quản trị/i)).toBeVisible();
-  const retired = await request.post("/api/identity/verify", { data: {} });
-  expect(retired.status()).toBe(410);
-  expect(retired.headers()["set-cookie"]).toBeUndefined();
+  await page.route("**/google-mock", (route) => route.fulfill({ contentType: "text/plain", body: "OAuth redirect mock" }));
+  await page.goto("/login?next=%2Fidentity%2Freview");
+  await page.getByRole("button", { name: "Đăng nhập bằng Google", exact: true }).click();
+  await expect(page).toHaveURL(/google-mock$/);
+  expect(started).toBe(true);
 });

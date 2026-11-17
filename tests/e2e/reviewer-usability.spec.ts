@@ -93,7 +93,9 @@ test("review, audit and verify share one employee workspace", async ({ page }) =
     await expect(page.locator(".it-content")).toBeVisible();
     await expect(nav.getByRole("link", { name: currentLabel, exact: true }))
       .toHaveAttribute("aria-current", "page");
-    await expect(page.locator(".it-header nav")).toHaveCount(0);
+    const guideNav = page.getByRole("navigation", { name: "Điều hướng Admin" });
+    await expect(guideNav).toBeVisible();
+    await expect(guideNav.getByRole("link", { name: "Hướng dẫn Admin", exact: true })).toHaveAttribute("href", "/help/admin");
   }
 });
 

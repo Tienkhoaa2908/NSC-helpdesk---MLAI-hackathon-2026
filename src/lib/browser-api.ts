@@ -2,27 +2,29 @@ export class BrowserApiError extends Error {
   constructor(message: string, public code?: string) { super(message); }
 }
 
-export async function browserApi<T>(path: string, body?: unknown): Promise<T> {
+export async function browserApi<T>(path: string, body?: unknown, headers: Record<string, string> = {}): Promise<T> {
   // Bound both headers and response-body reads. A timeout is an unknown outcome,
   // not proof that the server failed to save; callers retain their draft/key.
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 60_000);
   try {
-    return await readResponse<T>(path, body, controller.signal);
+    return await readResponse<T>(path, body, controller.signal, headers);
   } finally {
     clearTimeout(timer);
   }
 }
 
-async function readResponse<T>(path: string, body: unknown, signal: AbortSignal): Promise<T> {
+async function readResponse<T>(path: string, body: unknown, signal: AbortSignal, headers: Record<string, string>): Promise<T> {
   let response: Response;
   try {
     response = await fetch(path, {
       signal,
       method: body === undefined ? "GET" : "POST",
       cache: "no-store",
-      headers:
-        body === undefined ? undefined : { "content-type": "application/json" },
+      headers: {
+        ...headers,
+        ...(body === undefined ? {} : { "content-type": "application/json" }),
+      },
       body: body === undefined ? undefined : JSON.stringify(body),
     });
   } catch {

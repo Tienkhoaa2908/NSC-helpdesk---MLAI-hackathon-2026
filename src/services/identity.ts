@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { MongoServerError, type ClientSession, type Db } from "mongodb";
 import { applicationInputSchema, decisionSchema, generateEmployeeId, profileSchema, scopeKey,
-  type IdentityApplication, type IdentityAudit, type EmployeeAccount, type JobProfile } from "@/domain/identity";
+  type IdentityApplication, type IdentityApplicant, type IdentityAudit, type EmployeeAccount, type JobProfile } from "@/domain/identity";
 import { identityStore, identityTransaction } from "@/lib/identity-store";
 import { SupportError } from "@/lib/support-repository";
 
@@ -14,32 +14,49 @@ export async function listIdentityProfiles() {
   const rows = await db.collection<JobProfile>("identity_profiles").find({ active: true }, { projection: { _id: 0 } }).sort({ name: 1, version: -1 }).limit(100).toArray();
   return rows.map((row) => profileSchema.parse(row));
 }
-export async function submitIdentityApplication(value: unknown) {
+export async function submitIdentityApplication(value: unknown, applicant: IdentityApplicant) {
   const input = applicationInputSchema.parse(value);
-  const fingerprint = identityHash(JSON.stringify({ fullName: input.fullName, job: input.job }));
+  const fingerprint = identityHash(JSON.stringify({ applicant: applicant.sub, fullName: input.fullName, job: input.job }));
   return identityTransaction(async (db, session) => {
     const collection = db.collection<IdentityApplication>("identity_applications");
     const existing = await collection.findOne({ id: input.id }, { session });
     if (existing) {
-      if (existing.trackingHash !== identityHash(input.trackingToken) || existing.fingerprint !== fingerprint)
+      if (existing.applicant?.sub !== applicant.sub || existing.trackingHash !== identityHash(input.trackingToken) || existing.fingerprint !== fingerprint)
         throw new SupportError("APPLICATION_CONFLICT", "Mã gửi đã dùng cho đơn khác. Tạo đơn mới.", 409);
       return { id: existing.id, status: existing.status };
     }
+    const account = await db.collection<EmployeeAccount>("identity_employees").findOne({ googleSub: applicant.sub }, { session });
+    if (account?.status === "ACTIVE") throw new SupportError("IDENTITY_ALREADY_ACTIVE", "Tài khoản Google này đã được cấp ID nhân viên.", 409);
+    if (account?.status === "DISABLED") throw new SupportError("IDENTITY_DISABLED", "Tài khoản nhân viên đã bị vô hiệu hóa. Liên hệ quản trị viên.", 403);
+    const pending = await collection.findOne({ "applicant.sub": applicant.sub, status: { $in: ["PENDING", "ID_CONFLICT"] } }, { session });
+    if (pending) throw new SupportError("APPLICATION_EXISTS", "Tài khoản Google này đã có đơn đang chờ. Đăng nhập lại để xem trạng thái đơn.", 409);
     const profile = input.job.kind === "existing"
       ? await db.collection<JobProfile>("identity_profiles").findOne({ id: input.job.profileId, version: input.job.version, active: true }, { session, projection: { _id: 0 } }) : null;
     if (input.job.kind === "existing" && !profile) throw new SupportError("PROFILE_CHANGED", "Job không còn khả dụng. Tải lại và chọn profile hiện hành.", 409);
     const validated = profile ? profileSchema.parse(profile) : null;
     const now = new Date().toISOString();
     const row: IdentityApplication = {
-      id: input.id, fullName: input.fullName, job: input.job, profile: validated,
+      id: input.id, fullName: input.fullName, applicant: { sub: applicant.sub, email: applicant.email }, job: input.job, profile: validated,
       requestedScopes: input.job.kind === "new" ? input.job.scopes : validated!.scopes,
       trackingHash: identityHash(input.trackingToken), fingerprint,
       status: "PENDING", version: 0, createdAt: now, updatedAt: now,
     };
     await collection.insertOne(row, { session });
-    await identityAudit(db, session, "applicant-unverified", "APPLICATION_SUBMITTED", row.id, "Đơn chờ IT xác minh nhân sự và phạm vi.", 0);
+    await identityAudit(db, session, applicant.email, "APPLICATION_SUBMITTED", row.id, "Email Google đã xác minh; đơn chờ quản trị viên xác minh nhân sự và phạm vi.", 0);
     return { id: row.id, status: row.status };
   });
+}
+export async function myIdentityApplication(googleSub: string) {
+  const { db } = await identityStore();
+  const row = await db.collection<IdentityApplication>("identity_applications").findOne(
+    { "applicant.sub": googleSub }, { projection: { _id: 0 }, sort: { createdAt: -1 } },
+  );
+  if (!row) return null;
+  const granted = row.status === "APPROVED" && row.grantedProfile ? await db.collection<JobProfile>("identity_profiles").findOne({ id: row.grantedProfile.id, version: row.grantedProfile.version }) : null;
+  return { id: row.id, fullName: row.fullName, status: row.status, createdAt: row.createdAt,
+    updatedAt: row.updatedAt, jobName: row.profile?.name ?? (row.job.kind === "new" ? row.job.name : "Job"),
+    scopes: row.requestedScopes, grantedScopes: granted ? profileSchema.parse(granted).scopes : undefined,
+    reason: row.decisionReason, employeeId: row.status === "APPROVED" ? row.employeeId : undefined };
 }
 export async function trackIdentityApplication(id: string, token: string) {
   const { db } = await identityStore();
@@ -64,6 +81,8 @@ export async function decideIdentityApplication(id: string, value: unknown, acto
       let employeeId: string | undefined;
       let profile: JobProfile | null = row.profile;
       if (decision.action === "approve") {
+        if (!row.applicant?.sub || !row.applicant.email)
+          throw new SupportError("GOOGLE_IDENTITY_REQUIRED", "Đơn cũ không có danh tính Google đã xác minh. Không thể cấp tài khoản; hãy từ chối hoặc yêu cầu nhân viên gửi đơn mới sau khi đăng nhập Google.", 422);
         if (decision.suffix && row.status !== "ID_CONFLICT") throw new SupportError("SUFFIX_NOT_NEEDED", "Giữ đúng công thức ID; hậu tố chỉ dùng sau khi xác nhận trùng ID.", 422);
         employeeId = generateEmployeeId(row.fullName) + (decision.suffix ? `-${decision.suffix}` : "");
         if (employeeId.length > 32) throw new SupportError("ID_TOO_LONG", "ID có hậu tố vượt 32 ký tự.", 422);
@@ -81,7 +100,7 @@ export async function decideIdentityApplication(id: string, value: unknown, acto
           await identityAudit(db, session, actor, "PROFILE_CREATED", profile.id, decision.reason, 1);
         }
         const checked = profileSchema.parse(profile);
-        await db.collection<EmployeeAccount>("identity_employees").insertOne({ id: employeeId, fullName: row.fullName, status: "ACTIVE", profileId: checked.id, profileVersion: checked.version, roles: [], applicationId: id, createdAt: new Date().toISOString() }, { session });
+        await db.collection<EmployeeAccount>("identity_employees").insertOne({ id: employeeId, fullName: row.fullName, googleSub: row.applicant.sub, email: row.applicant.email, status: "ACTIVE", profileId: checked.id, profileVersion: checked.version, roles: [], applicationId: id, createdAt: new Date().toISOString() }, { session });
       }
       const status = decision.action === "approve" ? "APPROVED" : "REJECTED";
       const changed = await applications.updateOne({ id, version: decision.version }, { $set: { status, decisionReason: decision.reason, decidedBy: actor, employeeId, grantedProfile: decision.action === "approve" && profile ? { id: profile.id, version: profile.version } : undefined, updatedAt: new Date().toISOString() }, $inc: { version: 1 } }, { session });
@@ -90,6 +109,9 @@ export async function decideIdentityApplication(id: string, value: unknown, acto
       return { id, status, employeeId };
     });
   } catch (error) {
+    if (error instanceof MongoServerError && error.code === 11000 && error.keyPattern?.["applicant.sub"]) {
+      throw new SupportError("APPLICATION_EXISTS", "Tài khoản Google này đã có đơn đang chờ. Đăng nhập lại để xem trạng thái đơn.", 409);
+    }
     if ((error instanceof SupportError && error.code === "ID_COLLISION") || (error instanceof MongoServerError && error.code === 11000)) {
       await identityTransaction(async (db, session) => {
         const changed = await db.collection<IdentityApplication>("identity_applications").updateOne({ id, version: decision.version, status: { $in: ["PENDING", "ID_CONFLICT"] } }, { $set: { status: "ID_CONFLICT", decisionReason: "Trùng ID; IT đang xác minh và chọn hậu tố. Chưa cấp tài khoản.", updatedAt: new Date().toISOString() }, $inc: { version: 1 } }, { session });

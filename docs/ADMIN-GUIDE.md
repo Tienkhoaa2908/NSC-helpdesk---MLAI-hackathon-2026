@@ -27,10 +27,10 @@ Hệ thống chỉ nhóm một số yêu cầu tự do có chủ đề nhận di
 ## Verify và cấp ID
 
 - [Kiểm thử / Verify](https://nsclub-support-desk.vercel.app/verify) chạy các bộ tình huống giả lập và input mới để kiểm tra quyết định, hồ sơ và audit. Kết quả demo không phải đánh giá người dùng thật hay bằng chứng cho môi trường tổ chức.
-- [Cấp ID nhân viên](https://nsclub-support-desk.vercel.app/identity/review) là luồng Identity riêng, cần phiên đăng nhập và vai trò operator phù hợp. Cấp ID demo không xác minh danh tính thật.
+- [Cấp ID nhân viên](https://nsclub-support-desk.vercel.app/identity/review) là luồng Identity riêng, yêu cầu Google Sign-In và email nằm trong `IDENTITY_ADMIN_EMAILS`. Admin phải tự xác minh nhân sự/phạm vi trước khi cấp ID. Danh sách reviewer Support vẫn công khai, độc lập với quyền Identity Admin.
 
 ## Môi trường demo
 
-> Trang Admin hiện là reviewer demo công khai, không phải cơ chế xác thực thành viên tổ chức. Chỉ dùng dữ liệu tổng hợp/giả lập; nhãn vai trò hoặc mã nhân viên tự khai không cấp quyền thật.
+> Trang Admin Support hiện là reviewer demo công khai, không phải cơ chế xác thực thành viên tổ chức. Chỉ dùng dữ liệu tổng hợp/giả lập; mã nhân viên tự khai không cấp quyền thật. Google Sign-In và bước IT duyệt trong Identity là luồng riêng, chưa thay thế IAM/HR của tổ chức.
 
 Mở [trang hướng dẫn trong ứng dụng](https://nsclub-support-desk.vercel.app/help/admin) hoặc trở lại [mục lục hướng dẫn](USAGE.md).

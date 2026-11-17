@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "./fixtures";
+import { expect, requesterLink, test, type Page } from "./fixtures";
 import { employeeIdentity, fillEmployeeIdentity } from "./intake-helpers";
 
 test.beforeEach(async ({ request }) => {
@@ -14,7 +14,7 @@ async function submit(page: Page, text: string) {
   await page.getByLabel("Mô tả yêu cầu", { exact: true }).fill(text);
   await page.getByRole("button", { name: "Gửi", exact: true }).click();
   await page.getByRole("button", { name: "Xác nhận và gửi yêu cầu" }).click();
-  await expect(page).toHaveURL(/\/requests\/[a-f0-9-]+$/);
+  await expect(page).toHaveURL(/\/requests\/[a-f0-9-]+#token=[a-f0-9]{64}$/);
   await expect(page.getByText("Trạng thái:")).toBeVisible();
 }
 test("role entry opens login, public demo and staff workspace", async ({
@@ -346,7 +346,7 @@ test("manual approval preserves the security assessment and redaction", async ({
   expect(fulfillment.status()).toBe(409);
   const events = await request.get(`/api/support/events?requestId=${data.id}`);
   expect(await events.text()).not.toContain(secret);
-  await page.goto(`/requests/${data.id}`);
+  await page.goto(requesterLink(data));
   await expect(page.getByText("Trạng thái:")).toBeVisible();
   await expect(page.locator("body")).not.toContainText(secret);
 });

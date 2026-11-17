@@ -6,6 +6,8 @@ Hướng dẫn thao tác sản phẩm nằm trong [README](README.md). File này
 
 Dùng Node.js 22.13+ và npm. Trong PowerShell, tại thư mục repository:
 
+Repository giữ duy nhất `package-lock.json`; CI và Vercel đều cài dependency bằng `npm ci` để dùng cùng lockfile.
+
 ```powershell
 npm ci
 if (-not (Test-Path .env.local)) { Copy-Item .env.example .env.local }
@@ -53,13 +55,13 @@ git diff --check
 
 Renderer dừng nếu thiếu nhãn, chữ vượt khung, node chồng nhau hoặc SVG còn HTML nhúng. Trước commit, xem ảnh ở kích thước README và thử ảnh SVG qua thẻ `img` trên nền sáng/tối; kiểm tra link mở ảnh đầy đủ trên mobile. Commit cả nguồn `.mmd` lẫn `.svg`; ảnh kiểm tra để ngoài repo.
 
-## Đối chiếu bản triển khai
+## Đối chiếu bản triển khai cá nhân
 
-Website: [vng-support.vercel.app](https://vng-support.vercel.app). Dùng project Vercel hiện có `acne-a6cd/vng-support`.
+Website: [nsclub-support-desk.vercel.app](https://nsclub-support-desk.vercel.app). Production deployment thuộc project Vercel `nsclub-support-desk`.
 
 ```powershell
 git rev-parse HEAD
-Invoke-RestMethod https://vng-support.vercel.app/api/support/health
+Invoke-RestMethod https://nsclub-support-desk.vercel.app/api/support/health
 ```
 
 Đối chiếu `sourceRevision` với commit đã triển khai, cùng `status`, `policy`, `storage` và `durable`. Runtime lưu dữ liệu qua MongoDB; cấu hình nằm trong môi trường của project. `.vercelignore` loại environment files, dependencies, artifacts và worktree khỏi gói upload. Không đưa secret vào Git hoặc output kiểm tra.
@@ -143,7 +145,7 @@ xử lý; không tự sửa/xóa dữ liệu lịch sử.
 
 ## Chẩn đoán API và sentiment
 
-Preview từ v5.19 trả `data.diagnostics` và `Server-Timing`: stage, model attempts,
+Preview trả `data.diagnostics` và `Server-Timing`: stage, model attempts,
 usage khi provider trả, cache state và process invocation. Đo client từ trước
 fetch đến sau đọc JSON; không gọi thời gian ký tự đầu là phản hồi sử dụng
 được. Giữ request tuần tự, một warm-up tách riêng và tối thiểu 20 mẫu để
@@ -174,7 +176,7 @@ trong Google AI Studio. Mã dùng endpoint tương thích OpenAI; cấu trúc `s
 `user` và prompt hiện có được giữ nguyên. `AI_CONVERSATION_MODEL` để trống sẽ
 kế thừa `AI_MODEL`; `AI_WEB_MODEL` có thể cấu hình riêng.
 
-Tạo key tại [Google AI Studio](https://aistudio.google.com/apikey), rồi lưu trực
+Tạo key tại [Google AI Studio](https://aistudio.google.com/api-keys), rồi lưu trực
 tiếp trong biến môi trường server của Vercel; không gửi key qua chat, Git hoặc
 log. Model và quota khả dụng phụ thuộc project. Theo [bảng giá Gemini API](https://ai.google.dev/gemini-api/docs/pricing), API Free tier có thể dùng
 nội dung gửi lên để cải thiện sản phẩm Google và không cung cấp Google Search
@@ -205,157 +207,55 @@ hợp lệ, quyền model và quota API; thay tên model không sửa được k
 
 ## Hệ thống ID nhân viên
 
-### Sổ quyền và quota demo
+Identity dùng Google OIDC authorization-code flow, mặc định chỉ chấp nhận email Gmail đã xác minh, session ứng dụng và MongoDB transaction; không có đăng nhập bằng ID hay mật khẩu ứng dụng. Google xác minh tài khoản/email; IT phải kiểm tra nhân sự và scopes trước khi duyệt đơn. ID theo mẫu `têncuối + chữ cái đầu tên trước` là mã nội bộ, không phải thông tin đăng nhập. Xem [hướng dẫn cấu hình Google Sign-In](docs/IDENTITY-SETUP.md).
 
-Policy v5.16 bổ sung đề xuất TTL có xác nhận và role Jira theo phạm vi được
-giao. [13 quyết định của chủ repo](docs/decisions/DEMO-AUTHORITY-CONTRACT.md)
-không thay nhãn benchmark hoặc bằng chứng IAM/ITSM còn thiếu.
+### Biến môi trường Identity
 
-Vào **Cấp ID nhân viên → Sổ quyền và quota DEMO-SANDBOX**. Người đăng nhập
-xin quyền read/create demo cho chính tài khoản; owner xem xét, nhập lý do,
-duyệt/từ chối hoặc thu hồi. Chỉ owner khác người gửi được xử lý. Bản ghi demo
-không cấp quyền thật và không đổi quyết định ticket Support thành AUTO.
+- `GOOGLE_CLIENT_ID` và `GOOGLE_CLIENT_SECRET`: OAuth client loại Web application; chỉ lưu trong secret store.
+- `GOOGLE_REDIRECT_URI`: phải trùng URI đã đăng ký trong Google Cloud. Production dùng `https://nsclub-support-desk.vercel.app/api/identity/google/callback`.
+- `IDENTITY_ADMIN_EMAILS`: các email được phép duyệt đơn, cách nhau bằng dấu phẩy. Rỗng nghĩa là không có Identity Admin được cấp quyền.
+- `IDENTITY_MONGODB_URI`: kết nối Identity riêng; nếu rỗng, ứng dụng dùng `MONGODB_URI`. `IDENTITY_MONGODB_DB` mặc định `nsclub_support_desk`.
 
-Operator được phép thao tác database thử nghiệm riêng có thể khởi tạo một
-pool mới. Không chạy chỉ vì đã push code hoặc thấy MongoDB trống:
+MongoDB cần replica set/sharded cluster hỗ trợ transaction. Tài khoản ứng dụng chỉ cần quyền trên database này để đọc/ghi collection `identity_*`, tạo index/collection và cài validator. Không dùng Atlas Admin. Identity không fallback sang memory/CSV; Mongo hoặc OAuth cấu hình sai sẽ trả lỗi thay vì giả báo thành công.
 
-1. Dùng cấu hình identity MongoDB hiện hành; cần replica set/transaction.
-   Gọi endpoint profiles để cài validator/index. Không dùng URI production
-   cho kiểm thử, không đưa credentials vào lệnh/chat/Git.
-2. Chuẩn bị file JSON riêng gồm `ownerId` (ID IT giả lập đang ACTIVE), `actor`,
-   `reason`, `validUntil` (ISO UTC, hạn hiệu lực của snapshot usage mới).
-3. Chạy khi đã có thẩm quyền với database đích:
+### Cấp quyền và xử lý ID trùng
 
-```powershell
-node scripts/demo-authority-bootstrap.mjs --file C:\private\demo-authority.json --database $env:IDENTITY_MONGODB_DB --demo-id-only --apply
-```
+1. Nhân viên đăng nhập Google rồi gửi đơn với tên, job và phạm vi cần thiết. Không thu ngày sinh, mật khẩu, mã OTP hay giấy tờ tùy thân trong form.
+2. Identity Admin đăng nhập bằng email trong `IDENTITY_ADMIN_EMAILS`, kiểm tra nhân sự qua quy trình tin cậy bên ngoài ứng dụng, rà soát phạm vi rồi duyệt/từ chối.
+3. Khi duyệt, ứng dụng gắn ID nội bộ vào Google `sub` của người nộp đơn. Nếu ID bị trùng, đơn chuyển `ID_CONFLICT`; Admin phải xác minh và ghi lý do trước khi chọn hậu tố số.
+4. Nhân viên tiếp tục đăng nhập bằng chính tài khoản Google đã gắn với đơn. Đăng xuất thu hồi session ứng dụng; session hết hạn sau 8 giờ.
 
-Script từ chối project đã tồn tại, owner không có role IT, thiếu validator/index
-hoặc database khác cấu hình. Pool mới có usage/reserved khai báo bằng 0,
-16 vCPU / 64 GB RAM / 500 GB disk / 4 GPU T4, max 24 giờ, budget unconfigured.
-Không seed entitlement hay ticket benchmark. Không chạy script trong CI.
+Các tài khoản roster cũ không có Google `sub` không tự liên kết được với phiên mới. Script roster/bootstrap có `--demo-id-only` là công cụ cho dữ liệu demo lịch sử, không chạy chúng trên database OIDC mới hoặc Production. Chuyển đổi tài khoản cũ cần migration riêng có đối chiếu chủ tài khoản; ứng dụng không tự import hay xóa dữ liệu cũ.
 
-Owner cập nhật usage + giữ chỗ, thời điểm quan sát và hạn hiệu lực qua trang
-sổ demo; API kiểm tra lại role/assignment và version trước khi ghi audit cùng
-transaction. Snapshot cũ/thiếu không được coi usage bằng 0. Kiểm tra preflight
-không đặt chỗ, không tự trừ quota và không thu hồi hạ tầng khi TTL hết.
-Ngân sách/bảng giá chưa cấu hình nên luôn cần Capacity owner; chưa có connector
-để xác minh billing thật. Màn hình hiện hiển thị tối đa 100 đơn mới nhất.
+### Sổ quyền/quota DEMO-SANDBOX
 
-`tests/demo-authority.test.ts` dùng transactional double riêng trong test;
-`tests/e2e/authority.spec.ts` dùng mock UI và API local thiếu Mongo. Những test
-này không chứng minh Mongo transaction/index/concurrency/restart thật.
+Đây là mô phỏng scope/quota; không tạo entitlement IAM/ITSM, không giữ chỗ cloud và không thực thi thao tác hạ tầng. Các script roster `--demo-id-only` và bootstrap cũ không còn là cách cấp người dùng cho Google Sign-In. Chỉ vận hành dữ liệu demo theo [contract DEMO-SANDBOX](docs/decisions/DEMO-AUTHORITY-CONTRACT.md); test transactional doubles không chứng minh Mongo transaction/restart thật.
 
-Hệ thống ID dùng collection riêng, có thể dùng chung database đã cấu hình với Support. Không có memory/CSV fallback. Khi MongoDB không cấu hình/không khả dụng, API trả 503 và UI không xác nhận thành công. Mọi thao tác dưới đây dành cho operator đã có thẩm quyền; không chạy trên production chỉ vì có quyền push code.
+### Token theo dõi yêu cầu
 
-### Cấu hình
-
-- `IDENTITY_MONGODB_URI`: URI riêng; nếu bỏ trống dùng `MONGODB_URI`. Không đưa URI vào Git/log.
-- `IDENTITY_MONGODB_DB=nsclub_support_desk`: dùng chung database với Support; dữ liệu identity nằm trong các collection `identity_*`.
-- MongoDB cần replica set/sharded cluster để dùng transaction. User cần đọc/ghi các collection `identity_*`, tạo collection/index và `collMod` để cài validator. Không cần quyền quản trị toàn cluster.
-- Bản demo hiện đăng nhập chỉ bằng ID cho cả người gửi và IT. Không cần OTP relay/signing key. Biến OTP cũ không được đọc; collection challenge và metadata kênh cũ được giữ nguyên, không sử dụng để đăng nhập.
-
-`GET /api/identity/profiles` khởi tạo schema/index nếu chưa có. HTTP 200 cùng `data: []` là kết nối thành công nhưng chưa có profile active, không phải lỗi thiếu Mongo. MongoDB rỗng không tự tạo tài khoản hay nhập CSV. Khi Mongo lỗi, UI không báo lưu thành công; người gửi vẫn có thể dùng `/guest` nếu storage Support hoạt động.
-
-### Khởi tạo người xử lý ID
-
-Chỉ operator được chủ repo cho phép mới chạy. Đây là cấp quyền IT cho demo, không phải xác minh danh tính thật.
-
-1. Xác nhận database đích và quyền thực hiện. Gọi profiles endpoint để cài schema/index trước.
-2. Chuẩn bị JSON riêng ngoài repository gồm `fullName`, `actor`, `reason`. Dùng tên giả lập rõ ràng. Actor ghi người/công cụ thực hiện; reason ghi căn cứ chủ repo cho phép, không giả xác minh nhân sự hoặc review của người thật.
-3. Nạp URI qua môi trường riêng, rồi chạy:
+Mỗi request lưu `trackingTokenHash` và proof hash, không lưu raw token/proof. Trong Production, `SUPPORT_TRACKING_SECRET` phải có đúng 64 ký tự hex (32 byte ngẫu nhiên); tạo giá trị bằng lệnh sau trong terminal riêng, rồi dán trực tiếp vào Vercel Production secret store:
 
 ```powershell
-node scripts/identity-bootstrap.mjs --file C:\private\identity-operator.json --database $env:IDENTITY_MONGODB_DB --demo-id-only --apply
+node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"
 ```
 
-Script từ chối database khác cấu hình, thiếu cờ chấp nhận ID-only demo, schema/index chưa cài hoặc ID đã tồn tại. Tạo profile sandbox/read, account `identity-admin` và audit `OPERATOR_BOOTSTRAP_DEMO` trong cùng transaction. Không sửa account cũ. Job tên IT không tự tạo role trong luồng đăng ký công khai.
+Không tái sử dụng Google client secret, đưa secret vào Git, terminal log được chia sẻ hoặc chat. Đổi secret sẽ làm các tracking link cũ mất hiệu lực. Nếu biến thiếu hoặc sai, việc gửi request Production trả 503. Các request cũ chưa có tracking hash vẫn xem được trong hàng đợi Admin public nhưng không mở được requester follow-up.
 
-4. Vào `/login`, nhập ID vừa cấp; server trả vai trò phù hợp và mở `/identity/review`. Chỉ xử lý đơn giả lập. Mọi cấp ID/từ chối/trùng ID vẫn qua validation, unique index, version, transaction và audit. Không thực thi IAM/cloud/database bên ngoài.
+Hàng đợi Support/reviewer vẫn là public demo theo quyết định sản phẩm; Google OIDC và `IDENTITY_ADMIN_EMAILS` không bảo vệ các API đó. Token tracking chỉ cho phép người gửi dùng route theo dõi/tiếp tục; nó không làm ticket riêng tư. Chỉ dùng dữ liệu tổng hợp trên website Production public.
 
-### Bộ 40 ID demo
-
-Nguồn dữ liệu giả lập được ghim tại `data/demo/identities.json`: 40 tên và ID duy nhất, mỗi ID có profile/job, scope và đích `demo/<id>` riêng. Các tài khoản này không được cấp role quản lý ID. Công cụ không tự chạy khi app khởi động.
-
-Kiểm tra manifest mà không kết nối hoặc ghi MongoDB:
-
-```powershell
-node scripts/identity-demo-roster.mjs --file data/demo/identities.json
-node --test scripts/identity-demo-roster.test.mjs
-npm test -- tests/demo-identity-roster.test.ts
-```
-
-Sau khi operator xác nhận môi trường demo và database đích, gọi `GET /api/identity/profiles` để cài validator/index nếu chưa có, rồi chạy với URI trong `.env.local`:
-
-```powershell
-node --env-file=.env.local scripts/identity-demo-roster.mjs --file data/demo/identities.json --database "$env:IDENTITY_MONGODB_DB" --actor operator-demo --demo-id-only --apply
-```
-
-`--database` phải trùng `IDENTITY_MONGODB_DB`. Import dùng một Mongo transaction cho account, profile và audit. Nếu một ID/profile đã tồn tại khác manifest, toàn bộ lượt nhập rollback; không ghi đè account cũ. Chạy lại cùng manifest chỉ xác nhận dữ liệu đã có, không tạo trùng hoặc thêm audit cấp tài khoản. Mỗi lượt tạo ghi actor và SHA-256 của manifest.
-
-Phạm vi trong profile chưa cho phép thực thi thao tác nhạy cảm: Production hoặc quyền vượt thẩm quyền cần duyệt riêng; secrets/keys vẫn bị chặn. API access trả `executed: false`.
-
-### Đổi tên và ID bộ demo v1 → v2
-
-Bộ hiện hành là `data/demo/identities.json` (version 2): 24 tên 3 chữ, 12 tên 4 chữ, 4 tên 5 chữ. `data/demo/migrations/identities-v1.json` là snapshot giả lập phục vụ đối chiếu migration, không phải danh sách ID đăng nhập hiện hành. Mỗi account pin profileVersion 2; không sửa scopes của profile version 1 để che lịch sử.
-
-Kiểm tra mapping trước, chưa ghi Mongo:
-
-```powershell
-node scripts/identity-demo-rename.mjs --from data/demo/migrations/identities-v1.json --file data/demo/identities.json
-node --test scripts/identity-demo-roster.test.mjs scripts/identity-demo-rename.test.mjs
-```
-
-Chỉ operator được phép thay 40 tài khoản giả lập trên database đích mới chạy:
-
-```powershell
-node --env-file=.env.local scripts/identity-demo-rename.mjs --from data/demo/migrations/identities-v1.json --file data/demo/identities.json --database "$env:IDENTITY_MONGODB_DB" --actor operator-demo --demo-id-only --apply
-```
-
-Migration ghép bằng profile UUID cố định, giữ Mongo `_id`, ngày tạo, job, role và policy; cập nhật tên, ID, liên kết batch và phiên đăng nhập. Tạo profile version 2 cho đúng đích mới; giữ scopes cũ ở version 1 và ngừng đưa version cũ vào danh sách chọn. ID cũ không còn đăng nhập được. Phiên đã có tiếp tục đọc ra ID mới; trang đang mở cần tải lại để đồng bộ ID đang hiển thị. Người chưa có tài khoản vẫn dùng `/guest`.
-
-Mọi thay đổi và 40 audit đối chiếu ID cũ/mới, actor, SHA-256 hai manifest nằm trong một transaction. Trùng ID, profile bị chia sẻ/sửa hoặc tài khoản có liên kết ticket/đơn/quota phát sinh sẽ dừng toàn bộ để operator xem xét. Không tự sửa input/audit nghiệp vụ. Chạy lại đúng mapping không tạo thêm tài khoản/audit. Import thông thường từ chối khi gặp profile phiên bản cũ; dùng migration thay vì nhập thêm 40 tài khoản.
-
-Nếu lỗi trước commit transaction, Mongo tự rollback toàn bộ và bộ v1 vẫn nguyên. Sau thành công, revert Git không hoàn tác database: giữ receipt ngoài repo; chỉ rollback bằng migration có audit sau khi kiểm tra các liên kết mới phát sinh. Không drop database/collection hay xóa tài khoản để quay lại demo.
-
-Kiểm chứng: 40 ID mới đăng nhập/đăng xuất; session trả đúng tên; access dùng profile version 2; chặn đích cũ, đích người khác và môi trường khác; chặn quyền IT; 40 ID cũ trả 401. Kiểm tra trình duyệt với tên 3/4/5 chữ, reload, logout, IT cũ và guest.
-
-### Giới hạn và thu hồi quyền
-
-Mọi phiên là `demo`, kể cả session cũ có nhãn verified. Người biết ID IT có thể mạo danh; không dùng với nhân sự/dữ liệu production thật. Role IT, ACTIVE và expiry được đọc lại từ Mongo ở mỗi request. Operator có thẩm quyền thu hồi role/vô hiệu hóa account qua quy trình có audit; chưa có UI quản trị các thao tác này. Không xóa dữ liệu hoặc thay đổi account có sẵn chỉ để làm bài demo đạt.
-
-API access chỉ đánh giá scope và ghi audit, trả `assurance: demo`, `executed: false`. Sensitive scopes vẫn bị chặn; profile được pin id/version, không sửa ngầm. Theo dõi đơn dùng bearer capability chỉ đọc, chưa có khôi phục link hoặc xác minh chủ đơn.
-
-### Kiểm tra
-
-`npm test`, Mongo guard/report tests, lint, typecheck, build; sau build chạy E2E desktop/mobile tuần tự ở port3227 với mock/memory. Tests identity dùng adapter giả lập để kiểm tra role/rollback; E2E route mocks chỉ kiểm tra UI. Không suy ra Mongo transaction/restart thật từ chúng. Muốn chứng minh restart Support cần Mongo disposable như phần trên; bootstrap thành công trên database identity không thay thế bài đó.
-
-User yêu cầu bỏ OTP nên các test hợp đồng OTP được thay bằng ID-only, thu hồi role, phiên hết hạn, chống client tự khai báo verified/role và endpoint OTP đã ngừng. Giữ nguyên Ground Truth quyết định Support.
+Sau khi đổi Vercel environment variables, tạo deployment mới. Không deploy cho tới khi xác minh `SUPPORT_TRACKING_SECRET`, MongoDB và cấu hình OAuth; thiếu các biến này sẽ làm chức năng tương ứng không dùng được.
 
 ## Kiểm tra bản trình diễn
 
-Giữ đăng nhập ID-only và reviewer công khai theo lựa chọn của nhóm để quay video/trình diễn nhanh. Màn hình người gửi không render sentiment, expected result hoặc audit thô; reviewer vẫn có các thông tin này. Phân tách màn hình không phải cơ chế xác thực bổ sung cho các API public-demo.
+Support reviewer công khai theo lựa chọn của nhóm. Identity dùng Google Sign-In và IT duyệt thủ công. Màn hình người gửi không render sentiment, expected result hoặc audit thô; reviewer vẫn có các thông tin này. Phân tách màn hình không phải cơ chế xác thực bổ sung cho các API public-demo.
 
 Trước buổi trình diễn, kiểm tra máy in, VPN, reset có làm rõ, yêu cầu mở port nguy hiểm, DNS, hỏi tiếp, handoff và tra cứu lại trên desktop/mobile. Kiểm tra bằng lời gọi thật khi được phép, đối chiếu SHA và lưu receipt; dọn đúng ID dữ liệu giả lập vừa tạo sau khi lưu bằng chứng. Không chạy Verify bằng dữ liệu nghiệp vụ hoặc xóa theo điều kiện rộng.
 
-Dependency audit cần phân biệt runtime và toolchain. Lượt rà soát 15/10/2026: `npm audit --omit=dev` không có advisory; full audit còn 7 high trong chuỗi Tailwind/ESLint → glob → braces. [Advisory braces](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm) chưa có bản vá công bố tại thời điểm kiểm tra. Không gọi `npm audit fix --force` hoặc tự thay major framework để làm sạch chỉ số. Chỉ dùng cấu hình glob tin cậy trong build/lint; rà bản vá hoặc migration toolchain riêng khi có phương án tương thích. Chạy lại audit ở mỗi lần phát hành.
+Dependency audit cần tách runtime và toolchain. Rà soát ngày 18/11/2026: `npm audit --omit=dev` không có advisory sau khi cập nhật Next.js, OpenAI SDK và Zod. Full `npm audit` còn 21 advisory thuộc toolchain phát triển (5 moderate, 16 high), gồm nhánh `picomatch`, `minimatch`, Vite và ESLint. Một số advisory có thể xử lý bằng cập nhật tương thích; làm sạch toàn bộ còn cần thay đổi lớn trong toolchain như Tailwind CSS 4. Chưa áp dụng migration major. Không chạy `npm audit fix --force` hoặc nâng framework tùy tiện. Đánh giá migration riêng rồi chạy lại audit và toàn bộ test.
 
-## Bổ sung phòng ban cho 40 ID hiện có
+## Tài khoản roster demo cũ
 
-Đọc manifest `data/demo/identities.json`; validate không chạm database:
-
-```sh
-node scripts/identity-demo-roster.mjs --file data/demo/identities.json
-node --test scripts/identity-demo-roster.test.mjs scripts/identity-demo-rename.test.mjs
-```
-
-Operator chỉ áp dụng trên database identity đã xác nhận, qua terminal có sẵn biến môi trường an toàn; không gửi URI/key vào chat. Dùng đúng database đang cấu hình trong `IDENTITY_MONGODB_DB` (không tự đổi sang database khác). Trong PowerShell:
-
-```powershell
-node scripts/identity-demo-roster.mjs --file data/demo/identities.json --apply --sync-departments --demo-id-only --database "$env:IDENTITY_MONGODB_DB" --actor operator-demo
-```
-
-Lệnh đối chiếu đúng 40 ID, tên, batch, profile version, role và scope trước khi bổ sung phòng ban còn trống. Không đổi ID, role hay scope; gặp phòng ban đã có nhưng khác manifest sẽ rollback cả batch. Chạy lại không tạo audit thừa. Lưu receipt ngoài Git. Chỉ chạy migration trên Production khi chủ repo cho phép. Lượt ngày 17/10/2026 đã đồng bộ 40/40 phòng ban trên database của môi trường triển khai cũ, giữ nguyên quyền; xem README và receipt của lượt đó. Phiên đăng nhập đọc phòng ban từ Mongo, điền vào form và server dùng giá trị đó; người chưa có phòng ban vẫn dùng lựa chọn hiện có.
+`data/demo/identities.json` và các script `identity-demo-roster.mjs` / `identity-demo-rename.mjs` là tư liệu cho phiên bản đăng nhập ID-only trước đây. Chúng không tạo phiên Google OIDC và không được chạy trên database OIDC hiện tại hoặc Production. Giữ lại để tra cứu lịch sử; việc đối chiếu/chuyển tài khoản cũ cần một migration riêng có xác minh người sở hữu `sub`.
 
 ## Vận hành cache và sự cố chung
 
@@ -376,8 +276,8 @@ Không chia sẻ nội dung tự do/credential/entitlement; dữ kiện hoặc c
 
 ## Tóm tắt hồ sơ cho reviewer
 
-POST `/api/review/:id/summary` yêu cầu quyền reviewer demo và version hiện hành; dùng cùng `AI_PROVIDER`/`AI_MODEL` đang cấu hình (Production: Luna). Một lượt inference, timeout 12 giây, tối đa 500 token đầu ra; schema và trích dẫn được kiểm tra trước khi hiển thị. Lỗi AI báo chưa có tóm tắt; nguyên văn và workflow vẫn dùng được. Bản tóm tắt không đi vào policy, routing, approval hoặc tin nhắn người gửi.
+POST `/api/review/:id/summary` yêu cầu quyền reviewer demo và version hiện hành; dùng cùng `AI_PROVIDER`/`AI_MODEL` đang cấu hình. Một lượt inference, timeout 12 giây, tối đa 500 token đầu ra; schema và trích dẫn được kiểm tra trước khi hiển thị. Lỗi AI báo chưa có tóm tắt; nguyên văn và workflow vẫn dùng được. Bản tóm tắt không đi vào policy, routing, approval hoặc tin nhắn người gửi.
 
 Cache Mongo trong `v3_support_reviewer_summaries`, TTL 24 giờ. Khóa gồm request ID, nội dung đã redact, phiên bản prompt, provider/model; thay nội dung làm mất hiệu lực, đổi trạng thái mà không đổi nội dung dùng lại được. Mỗi lần đọc kiểm tra version và hạn dùng; không cache lỗi. Chỉ chế độ support memory-demo dùng cache bộ nhớ local. Mongo cache lỗi được coi là miss; kết quả hợp lệ vừa sinh vẫn hiển thị, không ghi fallback Production vào bộ nhớ. Single-flight chỉ trong cùng process; nhiều instance đồng thời có thể gọi trùng trước khi cache được lưu.
 
-Khi kiểm thử Production, lưu ID ticket và bản ghi summary thuộc đúng ticket đó trong manifest; sau khi lưu bằng chứng, chỉ dọn các ID thử do lượt kiểm tra tạo. Không xóa cache/ticket theo điều kiện rộng. Giữ các giới hạn đăng nhập ID-only/reviewer công khai của demo.
+Khi kiểm thử Production, lưu ID ticket và bản ghi summary thuộc đúng ticket đó trong manifest; sau khi lưu bằng chứng, chỉ dọn các ID thử do lượt kiểm tra tạo. Không xóa cache/ticket theo điều kiện rộng. Google Sign-In và reviewer public có phạm vi riêng; chỉ nhập dữ liệu tổng hợp.

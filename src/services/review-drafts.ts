@@ -47,7 +47,7 @@ export async function draftReviewReasons(id: string, value: unknown, options: Mo
   const kinds = draftKinds;
   // Identity profile fields are excluded. Existing redaction applies to the
   // actual question/history; it is not a claim of comprehensive anonymization.
-  // The server owns source text. Luna selects source IDs rather than rewriting
+  // The server owns source text. The model selects source IDs rather than rewriting
   // quotes (or citing JSON property names as evidence).
   const sources: DraftSource[] = [
     { id: "request", text: snapshot.originalQuestion || snapshot.input.rawText },

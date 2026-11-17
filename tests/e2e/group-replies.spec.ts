@@ -1,19 +1,19 @@
-import { test, expect } from "./fixtures";
+import { test, expect, requesterLink, requesterTokenHeader } from "./fixtures";
 import dataset from "../../data/evaluation/cache-system.json";
 import type { SupportRequest } from "../../src/domain/contracts";
 
 test("admin opens seven grouped requests and sends a reply to every tracker, with safe retry and membership refresh", async ({ page, request, context }, info) => {
   test.setTimeout(120_000);
-  const rows: SupportRequest[] = [];
+  const rows: Array<SupportRequest & { trackingToken: string }> = [];
   async function create(text: string) {
     const response = await request.post("/api/support/requests", { data: {
       requesterMode: "guest", rawText: text, confirmed: true, idempotencyKey: crypto.randomUUID(),
     } });
     expect(response.ok()).toBe(true);
-    const original: SupportRequest = (await response.json()).data;
-    const handoff = await request.post(`/api/support/requests/${original.id}/feedback`, { data: { version: original.version, choice: "ADMIN" } });
+    const original = (await response.json()).data as SupportRequest & { trackingToken: string };
+    const handoff = await request.post(`/api/support/requests/${original.id}/feedback`, { headers: requesterTokenHeader(original), data: { version: original.version, choice: "ADMIN" } });
     expect(handoff.ok()).toBe(true);
-    return (await handoff.json()).data as SupportRequest;
+    return { ...(await handoff.json()).data as SupportRequest, trackingToken: original.trackingToken };
   }
   for (const text of dataset.groups[3].requests) rows.push(await create(text));
   await page.goto("/review");
@@ -32,7 +32,7 @@ test("admin opens seven grouped requests and sends a reply to every tracker, wit
   const text = "Bạn kiểm tra nguồn và kết nối máy in, sau đó mở lại hàng đợi in nhé.";
   await composer.fill(text);
   const tracker = await context.newPage();
-  await tracker.goto(`/requests/${rows[0].id}`);
+  await tracker.goto(requesterLink(rows[0]));
   await expect(tracker.getByRole("region", { name: "Tin nhắn từ nhân viên" })).toHaveCount(0);
   // Save the response, then drop its network acknowledgement. Retrying must
   // reuse the send ID and never deliver a second copy to any member.

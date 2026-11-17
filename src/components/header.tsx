@@ -6,8 +6,9 @@ import { SiteAccess } from "./site-access";
 import { TransitionLink } from "./route-transition";
 export function Header() {
   const path = usePathname();
-  const staff = /^\/(review|audit|verify|identity\/review)/.test(path);
+  const staff = /^\/(review|audit|verify|identity\/(review|authority))/.test(path);
   const supportPath = path === "/send-help" || path === "/workspace" ? "/send-help" : "/guest";
+  const openGuide = () => window.dispatchEvent(new Event("vng-open-guide"));
   return (
     <header className={`site-header${staff ? " it-header" : ""}`}>
       <SiteAccess />
@@ -17,6 +18,17 @@ export function Header() {
         </span>
         VNG Support
       </TransitionLink>
+      {staff && (
+        <nav aria-label="Điều hướng Admin">
+          <Link href="/help/admin">Hướng dẫn Admin</Link>
+          <button className="button secondary" type="button" onClick={openGuide}>Hướng dẫn nhanh</button>
+        </nav>
+      )}
+      {path === "/login" && (
+        <nav aria-label="Điều hướng nhân viên">
+          <Link href="/help/employee">Hướng dẫn nhân viên</Link>
+        </nav>
+      )}
       {path !== "/" && path !== "/login" && !staff && (
         <nav aria-label="Điều hướng chính">
           <Link href={supportPath} aria-current={path === "/send-help" || path === "/workspace" || path === "/guest" ? "page" : undefined}>Gửi yêu cầu</Link>

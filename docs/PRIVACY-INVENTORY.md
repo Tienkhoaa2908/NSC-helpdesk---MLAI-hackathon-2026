@@ -11,7 +11,7 @@ kiểm toán bảo mật production. Dữ liệu gõ ban đầu vẫn nằm tron
 | Email | Địa chỉ ASCII có @ và domain nhiều nhãn, gồm dấu + | Unicode email, obfuscation “at/dot”, ảnh, tên hiển thị chưa được bảo đảm. |
 | Họ tên | Không hứa nhận diện tự do | Tên giả lập trong test vẫn giữ nguyên; phải ẩn danh trước nhập. |
 | Địa chỉ | Không hứa nhận diện tự do | Địa chỉ giả lập trong test vẫn giữ nguyên; phải ẩn danh trước nhập. |
-| Employee ID | Che khi nhãn employee ID/mã nhân viên + `:`/`=` nằm trong nội dung; metadata `fields.employeeId` loại khỏi model facts | Metadata ID vẫn cần cho lookup, lưu và hiển thị. Đây là dữ liệu có thể liên kết, không ẩn danh hoặc xác thực. ID không nhãn chưa được che. |
+| Employee ID | Che khi nhãn employee ID/mã nhân viên + `:`/`=` nằm trong nội dung; metadata `fields.employeeId` loại khỏi model facts | ID tự khai trong guest/demo chỉ liên kết, không xác thực. Employee ID trong phiên Google OIDC được đối chiếu với account/profile đã được duyệt. Metadata có thể liên kết người dùng, không ẩn danh; ID không nhãn chưa được che. |
 | Secret/key | PEM, token prefixes, Bearer/JWT, labelled password/client_secret/access_token…, connection credentials | Pattern-based; encoding, ảnh, secret không nhãn hoặc bị làm rối có thể lọt. |
 | OTP | Nhãn OTP/verification code, 4–10 số, JSON quote, số cách bằng khoảng trắng/gạch ngang | Dạng khác hoặc không nhãn chưa bảo đảm; không log/gửi OTP thật để thử. |
 | Unicode | NFKC, tổ hợp dấu và ký tự zero-width theo regex trong code | Không cam kết mọi homograph/encoding/biến thể nhận diện. |
@@ -44,14 +44,21 @@ model/fallback khi có; dữ liệu lịch sử thiếu trường này không đ
 
 - Reviewer Support là **public demo**, không xác thực thành viên/team. Bộ lọc
   hàng đợi chỉ để tìm hồ sơ. Nhãn này được hiển thị trong reviewer cả mobile.
-- Sender ID-only có assurance demo; không phải production authentication.
-  IT duyệt ID cũng dùng phiên ID-only demo + role server theo cấu hình hiện tại;
-  tên job/header không tạo quyền. Không coi ID-only là xác minh chủ tài khoản.
+- Employee sign-in dùng Google OIDC; server kiểm tra chữ ký/issuer/audience/
+  thời hạn/nonce, `sub`, `email_verified` và domain email `gmail.com`. Google
+  xác minh tài khoản/email, không xác nhận quan hệ lao động. IT xác minh thủ công
+  trước khi gán ID/profile.
+  Email trong `IDENTITY_ADMIN_EMAILS` mới được duyệt đơn cấp ID.
+- Support reviewer vẫn là **public demo** theo lựa chọn sản phẩm; Identity session
+  không bảo vệ hàng đợi Support. Tracking token và proof chỉ được lưu dạng hash,
+  nhưng token không tạo ticket confidentiality trước API reviewer công khai.
 - Identity Mongo có transaction/index/session controls nhưng chưa có integration
   evidence trên replica set thật trong lượt này. Support smoke standalone không
   chứng minh transaction của identity.
-- Owner cần chốt identity provider, tenant, mapping team/scope và quyền đọc/
-  approve/override; retention, deletion, consent custody và actor đáng tin cậy.
-  Không chọn hộ SSO, cấp team role hoặc cài notification integration.
+- Bản demo giới hạn Identity vào domain email `gmail.com`, nhưng không ràng buộc
+  Workspace tenant hoặc phân quyền theo team; Gmail tiêu dùng không chứng minh
+  nhân sự. Identity Admin được cấu hình theo email allowlist, còn Support
+  reviewer vẫn public. Retention, deletion, consent custody, recovery và IAM/HR thật cần được
+  quyết định trước khi dùng dữ liệu/tài khoản tổ chức.
 - Không dùng production/private data cho demo công khai. Muốn thử người thật,
   vẫn dùng ticket synthetic và thu consent theo [protocol](INDEPENDENT-EVALUATION-PROTOCOL.md).

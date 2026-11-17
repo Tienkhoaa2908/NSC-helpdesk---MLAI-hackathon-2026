@@ -6,6 +6,7 @@ import { continueConversation } from "@/services/conversation";
 import { identityCookie } from "@/lib/identity-auth";
 import { GET as employees } from "@/app/api/employees/route";
 import { supportInputSchema } from "@/domain/input";
+import { supportRequestProof } from "./support-request-proof";
 
 beforeEach(() => {
   vi.stubEnv("AI_PROVIDER", "mock"); vi.stubEnv("AI_TEST_MAX_ATTEMPTS", "0");
@@ -15,7 +16,7 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllEnvs());
 const input = (rawText = "VPN không kết nối") => ({ requesterMode: "guest", guestDepartment: "finance", rawText, idempotencyKey: crypto.randomUUID() });
 const request = (body: unknown) => new Request("http://localhost/api/support/requests", {
-  method: "POST", headers: { "content-type": "application/json", cookie: `${identityCookie}=${"a".repeat(64)}` }, body: JSON.stringify(body),
+  method: "POST", headers: { "content-type": "application/json", "x-tracking-proof": supportRequestProof((body as { idempotencyKey?: unknown })?.idempotencyKey), cookie: `${identityCookie}=${"a".repeat(64)}` }, body: JSON.stringify(body),
 });
 it("guest preview, confirmed save and readback work without Mongo, employee fields or a usable identity cookie", async () => {
   const response = await preview(request(input()));

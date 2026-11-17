@@ -35,12 +35,15 @@ import { evaluatePolicy } from "@/domain/policy";
 import { extractIntake, safeInput, safeDeterministicGuidance, INTAKE_REVISION } from "@/domain/text";
 import {
   getSupportRequest,
+  getSupportRequestTrackingHash,
+  getSupportRequestTrackingProofHash,
   getSupportPreview,
   saveSupportPreview,
   insertSupportRequest,
   SupportError,
   updateSupportRequest,
 } from "@/lib/support-repository";
+import { trackingHashMatches } from "@/lib/support-tracking";
 import { verifyApproval } from "./approvals";
 import {
   createAssistanceWithFallback as createAssistance,
@@ -378,6 +381,8 @@ async function waitForDecision(request: SupportRequest) {
 export async function submitSupport(
   value: unknown,
   options: ModelOptions = {},
+  trackingTokenHash?: string,
+  trackingProofHash?: string,
 ): Promise<SupportRequest> {
   const safe = prepareInput(value);
   const input = safe.input;
@@ -398,6 +403,10 @@ export async function submitSupport(
         "Mã gửi này đã dùng cho nội dung khác.",
         409,
       );
+    if (trackingTokenHash && (!trackingProofHash ||
+        !trackingHashMatches(await getSupportRequestTrackingHash(existing.id), trackingTokenHash) ||
+        !trackingHashMatches(await getSupportRequestTrackingProofHash(existing.id), trackingProofHash)))
+      throw new SupportError("NOT_FOUND", "Không tìm thấy yêu cầu.", 404);
     // Recover abandoned receipts from an interrupted older worker. The version
     // guard still permits only one committed result; active workers get time to finish.
     if (
@@ -460,7 +469,7 @@ export async function submitSupport(
       "Đã tiếp nhận input đã redact; chưa có hành động thực thi.",
     ),
   );
-  if (!(await insertSupportRequest(request))) {
+  if (!(await insertSupportRequest(request, trackingTokenHash, trackingProofHash))) {
     const winner = await getSupportRequest(request.id);
     if (!winner || winner.fingerprint !== fingerprint)
       throw new SupportError(
@@ -468,6 +477,10 @@ export async function submitSupport(
         "Mã gửi bị trùng nội dung khác.",
         409,
       );
+    if (trackingTokenHash && (!trackingProofHash ||
+        !trackingHashMatches(await getSupportRequestTrackingHash(winner.id), trackingTokenHash) ||
+        !trackingHashMatches(await getSupportRequestTrackingProofHash(winner.id), trackingProofHash)))
+      throw new SupportError("NOT_FOUND", "Không tìm thấy yêu cầu.", 404);
     return waitForDecision(winner);
   }
   const result =

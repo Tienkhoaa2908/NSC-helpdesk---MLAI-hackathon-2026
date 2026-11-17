@@ -178,6 +178,9 @@ li {
   padding: 9px 13px;
   border-radius: 9px;
 }
+.site-header nav button {
+  font: inherit;
+}
 .site-header nav a:hover,
 .site-header nav a[aria-current="page"] {
   background: #fff0e9;

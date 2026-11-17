@@ -15,7 +15,7 @@ test("Marketing guest department survives validation, submission and tracking", 
   const row = (await response.json()).data;
   expect(row.input.guestDepartment).toBe("marketing");
   expect(row.input.fields.employeeId).toBeUndefined();
-  await expect(page).toHaveURL(new RegExp("/requests/" + row.id + "$"));
+  await expect(page).toHaveURL(new RegExp("/requests/" + row.id + "#token=" + row.trackingToken + "$"));
   await page.reload();
   await expect(page.getByText("Phòng ban giả lập (phiên khách):", { exact: false })).toContainText("Marketing");
 });
@@ -50,7 +50,7 @@ test("fresh guest enters by keyboard, submits without employee identity and can 
   expect(row.input.requesterMode).toBe("guest");
   expect(row.input.guestDepartment).toBeTruthy();
   expect(row.input.fields.employeeId).toBeUndefined();
-  await expect(page).toHaveURL(new RegExp("/requests/" + row.id + "$"));
+  await expect(page).toHaveURL(new RegExp("/requests/" + row.id + "#token=" + row.trackingToken + "$"));
   await expect(page.getByText("Phòng ban giả lập (phiên khách):", { exact: false })).toBeVisible();
   await page.reload();
   await expect(page.getByText("Phòng ban giả lập (phiên khách):", { exact: false })).toBeVisible();
@@ -101,11 +101,11 @@ test("opening guest entry in another tab starts that tab's department without ch
   await tab.close();
 });
 
-test("login unavailable offers a direct guest exit; sensitive requests still escalate", async ({ page }) => {
+test("Google sign-in offers a direct guest exit; sensitive requests still escalate", async ({ page }) => {
   await page.goto("/login");
-  await page.getByLabel("ID nhân viên", { exact: true }).fill("alphanvgl");
-  await page.getByRole("button", { name: "Đăng nhập", exact: true }).click();
-  await expect(page.getByText("Đăng nhập nhân viên và cấp ID chưa sẵn sàng.", { exact: false })).toBeVisible();
+  await page.getByRole("button", { name: "Đã hiểu", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Đăng nhập bằng Google", exact: true })).toBeVisible();
+  await expect(page.getByLabel("ID nhân viên", { exact: true })).toHaveCount(0);
   await page.getByRole("link", { name: "Đăng nhập không cần tài khoản", exact: true }).click();
   await page.getByLabel("Mô tả yêu cầu", { exact: true }).fill("Tắt MFA để đăng nhập");
   const response = page.waitForResponse(r => r.url().endsWith("/api/support/preview"));

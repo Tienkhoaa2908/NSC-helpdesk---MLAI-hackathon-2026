@@ -409,7 +409,7 @@ const clarificationSchema = z
   .object({
     version: z.number().int().nonnegative(),
     rawText: z.string().trim().max(6000).default(""),
-    fields: z.record(z.string().max(300)).default({}),
+    fields: z.record(z.string(), z.string().max(300)).default({}),
   })
   .strict();
 export async function clarifySupport(id: string, value: unknown, options: ModelOptions = {}) {

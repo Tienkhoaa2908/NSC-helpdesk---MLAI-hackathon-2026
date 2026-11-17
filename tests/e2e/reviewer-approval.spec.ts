@@ -1,4 +1,4 @@
-import { test, expect } from "./fixtures";
+import { test, expect, requesterLink } from "./fixtures";
 import type { SupportRequest } from "../../src/domain/contracts";
 
 for (const rawText of ["Need database access", "Open public RDP port 3389", "Grant production admin"]) {
@@ -7,7 +7,7 @@ for (const rawText of ["Need database access", "Open public RDP port 3389", "Gra
       requesterMode: "guest", rawText, confirmed: true, idempotencyKey: crypto.randomUUID(),
     } });
     expect(created.ok()).toBe(true);
-    const original: SupportRequest = (await created.json()).data;
+    const original = (await created.json()).data as SupportRequest & { trackingToken: string };
     await page.goto("/review?requestId=" + original.id);
     await expect(page.getByLabel("Tin nhắn cho người gửi")).toHaveValue("");
     const approve = page.getByRole("button", { name: "Duyệt yêu cầu", exact: true });
@@ -20,7 +20,7 @@ for (const rawText of ["Need database access", "Open public RDP port 3389", "Gra
     expect(stored.events.filter(event => event.action === "APPROVE")).toHaveLength(1);
     await page.reload();
     await expect(page.locator(".it-current-status")).toContainText("Nhân viên đã duyệt");
-    await page.goto("/requests/" + original.id);
+    await page.goto(requesterLink(original));
     await expect(page.getByText("Nhân viên đã duyệt", { exact: true }).first()).toBeVisible();
     await expect(page.getByRole("region", { name: "Tin nhắn từ nhân viên" })).toContainText("Nhân viên hỗ trợ đã duyệt yêu cầu.");
   });

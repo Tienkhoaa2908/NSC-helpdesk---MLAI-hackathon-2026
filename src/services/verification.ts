@@ -12,6 +12,7 @@ import { SupportError } from "@/lib/support-repository";
 import { supportInputSchema } from "@/domain/input";
 import { cachePackId } from "@/domain/cache-verification";
 import { runCacheVerificationCase } from "./cache-verification";
+import { verificationRequesterProof } from "@/lib/support-tracking";
 
 export async function createVerifyRun(value: unknown) {
   const { pack } = z
@@ -114,6 +115,7 @@ export async function executeVerifyCase(
   const result = run.pack === cachePackId ? await runCacheVerificationCase(caseId, { runId: id, requestId: entry.requestId }) : await runSupportCase(fixture, fetcher, {
     runId: id,
     requestId: entry.requestId,
+    trackingProof: verificationRequesterProof(id, entry.requestId),
   });
   // Throttling is resumable: do not record a rate limit as a policy failure.
   if (result.httpStatus === 429)

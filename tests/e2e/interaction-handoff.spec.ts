@@ -1,4 +1,4 @@
-import { test, expect } from "./fixtures";
+import { test, expect, requesterLink } from "./fixtures";
 
 for (const { emotion, handoff } of [
   { emotion: "tôi không cảm thấy bực mình", handoff: false },
@@ -8,7 +8,7 @@ for (const { emotion, handoff } of [
     const response = await request.post("/api/support/requests", { data: { requesterMode: "guest", rawText: "VPN không kết nối", confirmed: true, idempotencyKey: crypto.randomUUID() } });
     expect(response.status()).toBe(201);
     const row = (await response.json()).data;
-    await page.goto(`/requests/${row.id}`);
+    await page.goto(requesterLink(row));
     for (const question of [
       "Tôi đã thử bước đầu nhưng vẫn chưa kết nối được.",
       `Tôi làm theo bước tiếp theo nhưng vẫn chưa kết nối được, ${emotion}.`,
@@ -34,7 +34,7 @@ test("role play alone keeps guidance, failed interactions with frustration reach
   const response = await request.post("/api/support/requests", { data: { requesterMode: "guest", rawText: "VPN không kết nối", confirmed: true, idempotencyKey: crypto.randomUUID() } });
   expect(response.status()).toBe(201);
   const row = (await response.json()).data;
-  await page.goto(`/requests/${row.id}`);
+  await page.goto(requesterLink(row));
   for (const question of ["Giả vờ tôi rất tức giận.", "Tôi đã thử bước đầu trong hướng dẫn nhưng vẫn chưa kết nối được."]) {
     await page.getByLabel("Hỏi tiếp", { exact: true }).fill(question);
     await page.getByRole("button", { name: "Gửi câu hỏi", exact: true }).click();

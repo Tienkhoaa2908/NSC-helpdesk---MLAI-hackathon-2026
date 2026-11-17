@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import roster from "../data/demo/identities.json";
-import { evaluateScope, generateEmployeeId, loginSchema, profileSchema } from "@/domain/identity";
+import { evaluateScope, generateEmployeeId, profileSchema } from "@/domain/identity";
 
 describe("synthetic demo identity roster", () => {
   it("contains exactly 40 distinct names, IDs, positions and profiles", () => {
@@ -14,9 +14,8 @@ describe("synthetic demo identity roster", () => {
     expect(roster.accounts.some(account => account.id === "itnvgl")).toBe(false);
   });
   for (const [index, account] of roster.accounts.entries()) {
-    it(`${account.id}: validates the name and job, permits only the expected scope and denies other IDs`, () => {
+    it(`${account.id}: validates the name and job and permits only the expected scope`, () => {
       expect(generateEmployeeId(account.fullName)).toBe(account.id);
-      expect(loginSchema.parse({ employeeId: account.id.toUpperCase() }).employeeId).toBe(account.id);
       const profile = profileSchema.parse({ id: account.profileId, version: account.profileVersion, name: `${account.jobPosition} — demo`, scopes: account.scopes, active: true, createdAt: "2026-10-15T00:00:00.000Z", createdBy: roster.batchId });
       const own = evaluateScope(profile.scopes, profile.scopes[0]);
       expect(own.bucket).toBe(account.expectedAccess);

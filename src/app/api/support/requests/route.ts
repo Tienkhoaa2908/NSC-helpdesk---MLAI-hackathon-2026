@@ -15,9 +15,11 @@ import {
 import {
   listSupportRequests,
   listSupportSummaries,
+  SupportError,
 } from "@/lib/support-repository";
 import { submitSupport } from "@/services/support";
 import { groupedSupportPage } from "@/lib/support-groups";
+import { requesterTrackingProofHash, requesterTrackingToken, requesterTrackingTokenHash } from "@/lib/support-tracking";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 export async function POST(request: Request) {
@@ -26,7 +28,19 @@ export async function POST(request: Request) {
     const body = await requireEmployeeIdentity(await supportBody(request), request);
     // Only the server-validated exact fixture may use the verification allowance.
     enforceDemoRateLimit(request, body.verifyRunId ? "verify" : "intake");
-    return submitSupport(body, verifyModelOptions(request));
+    const trackingProof = request.headers.get("x-tracking-proof")?.trim() ?? "";
+    if (!/^[a-f0-9]{64}$/i.test(trackingProof))
+      throw new SupportError("TRACKING_PROOF_REQUIRED", "Không thể xác nhận biên nhận. Hãy thử gửi lại.", 422);
+    const trackingToken = requesterTrackingToken(body.idempotencyKey);
+    const row = await submitSupport(
+      body,
+      verifyModelOptions(request),
+      requesterTrackingTokenHash(trackingToken),
+      requesterTrackingProofHash(trackingProof),
+    );
+    // The capability is returned once as part of the confirmed receipt. It is
+    // never included in SupportRequest storage or reviewer API responses.
+    return { ...row, trackingToken };
   }, 201);
 }
 export async function GET(request: Request) {

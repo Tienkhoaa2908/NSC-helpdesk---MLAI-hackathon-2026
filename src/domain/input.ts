@@ -19,7 +19,7 @@ export const supportInputSchema = z
     requestKind: z.enum(requestKinds).optional(),
     rawText: z.string().trim().max(6000).default(""),
     fields: z
-      .record(z.string().trim().max(300))
+      .record(z.string(), z.string().trim().max(300))
       .default({})
       .transform((fields): Record<string, string> => {
         const normalized = { ...fields };

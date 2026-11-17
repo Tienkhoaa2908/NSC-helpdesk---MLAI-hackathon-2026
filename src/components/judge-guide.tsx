@@ -11,6 +11,12 @@ type Position = { left: number; top: number; width: number; height: number };
 type Guide = { stage: string; index: number };
 const waitingStages = ["sender-form", "sender-preview", "reviewer-list"];
 
+function introKeyForPath(pathname: string) {
+  if (/^\/(login|send-help|workspace|track)(\/|$)/.test(pathname)) return "sender-intro";
+  if (/^\/(review|audit|verify|identity\/(review|authority))(\/|$)/.test(pathname)) return "reviewer-intro";
+  return null;
+}
+
 export function JudgeGuide({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const navigating = useNavigationInFlight();
@@ -26,6 +32,7 @@ export function JudgeGuide({ children }: { children: ReactNode }) {
   const [guide, setGuide] = useState<Guide | null>(null);
   const [position, setPosition] = useState<Position | null>(null);
   const [viewport, setViewport] = useState({ width: 0, height: 0, headerBottom: 0 });
+  const introKey = introKeyForPath(pathname);
 
   const remember = useCallback((key: string) => {
     seen.current.add(key);
@@ -34,14 +41,14 @@ export function JudgeGuide({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    for (const key of ["intro", "sender", "reviewer"]) {
+    for (const key of ["sender-intro", "reviewer-intro", "sender", "reviewer"]) {
       try {
         if (sessionStorage.getItem(`${GUIDE_SESSION_PREFIX}${key}`) === "seen") seen.current.add(key);
       } catch { /* Storage may be disabled by the browser. */ }
     }
-    setIntro(!seen.current.has("intro") && /^\/(send-help|workspace|review|audit|verify|track)(\/|$)/.test(pathname));
+    setIntro(Boolean(introKey && !seen.current.has(introKey)));
     setReady(true);
-  }, [pathname]);
+  }, [introKey]);
 
   useEffect(() => {
     const open = () => setIntro(true);
@@ -50,9 +57,9 @@ export function JudgeGuide({ children }: { children: ReactNode }) {
   }, []);
 
   const dismissIntro = useCallback(() => {
-    remember("intro");
+    remember(introKey ?? "intro");
     setIntro(false);
-  }, [remember]);
+  }, [introKey, remember]);
 
   useEffect(() => {
     if (!ready || !intro || navigating) { dialog.current?.close(); return; }
@@ -210,7 +217,7 @@ export function JudgeGuide({ children }: { children: ReactNode }) {
         <div className="guide-modal-scroll" tabIndex={0} aria-label="Nội dung hướng dẫn sử dụng">
           <section>
             <h3>1. Nhân viên gửi yêu cầu</h3>
-            <p>Chọn <strong>Tôi cần hỗ trợ</strong> để đăng nhập bằng ID đã cấp, hoặc chọn luồng không cần tài khoản để gửi yêu cầu demo. Mã ID trong bản demo chỉ liên kết hồ sơ và không xác minh danh tính.</p>
+            <p>Chọn <strong>Tôi cần hỗ trợ</strong> rồi đăng nhập bằng Google với tài khoản đã được IT duyệt. Nếu chưa có ID, đăng nhập Google và gửi đơn qua mục <strong>Nhân viên mới?</strong>; IT phải xác minh trước khi cấp ID. ID nội bộ không phải mật khẩu. Có thể chọn luồng không cần tài khoản để thử yêu cầu demo, nhưng luồng đó không xác minh người gửi.</p>
           </section>
           <section>
             <h3>Gửi yêu cầu hỗ trợ</h3>

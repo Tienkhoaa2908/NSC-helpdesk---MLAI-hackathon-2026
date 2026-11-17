@@ -46,9 +46,15 @@ test("audit keeps a metrics error visible after the event list loads", async ({ 
   await expect(page.getByRole("main").getByRole("alert")).toContainText("Không tải được số liệu.");
 });
 
-test("Judge input never reuses a previous PASS when the new request readback fails", async ({ page }) => {
+test("Judge input keeps its idempotency proof after readback failure and retries the same record", async ({ page }) => {
   await page.goto("/verify");
   await fillEmployeeIdentity(page);
+  const submissions: Array<{ key: string; proof: string }> = [];
+  page.on("request", request => {
+    if (request.method() === "POST" && request.url().endsWith("/api/support/requests")) {
+      submissions.push({ key: request.postDataJSON().idempotencyKey, proof: request.headers()["x-tracking-proof"] });
+    }
+  });
   await page.getByLabel("Yêu cầu tự do", { exact: true }).fill("Open port 3389 public");
   await page.getByRole("button", { name: "Đánh giá input mới" }).click();
   await expect(page.getByText(/^Kiểm tra lưu trữ: PASS:/)).toBeVisible();
@@ -62,4 +68,11 @@ test("Judge input never reuses a previous PASS when the new request readback fai
   await expect(page.getByText(/^Kiểm tra lưu trữ: PASS:/)).toHaveCount(0);
   await expect(page.getByText("Kiểm tra lưu trữ: Chưa xác minh: không đọc lại được hồ sơ qua API.", { exact: true })).toBeVisible();
   await expect(page.getByRole("link", { name: "Xem hướng dẫn / chuyển admin" })).toBeVisible();
+
+  await page.unroute("**/api/support/requests/*");
+  await page.getByRole("button", { name: "Đánh giá input mới" }).click();
+  await expect(page.getByText(/^Kiểm tra lưu trữ: PASS:/)).toBeVisible();
+  expect(submissions).toHaveLength(3);
+  expect(submissions[1].key).toBe(submissions[2].key);
+  expect(submissions[1].proof).toBe(submissions[2].proof);
 });

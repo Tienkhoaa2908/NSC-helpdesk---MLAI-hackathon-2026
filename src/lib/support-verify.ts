@@ -99,7 +99,7 @@ export type VerifyResult = {
 export async function runSupportCase(
   item: VerifyCase,
   fetcher: typeof fetch = fetch,
-  provenance?: { runId: string; requestId: string },
+  provenance?: { runId: string; requestId: string; trackingProof?: string },
 ): Promise<VerifyResult> {
   const result: VerifyResult = {
     caseId: item.id,
@@ -113,10 +113,16 @@ export async function runSupportCase(
     pass: false,
   };
   try {
+    const requestId = provenance?.requestId ?? crypto.randomUUID();
+    const trackingProof = provenance?.trackingProof ?? Array.from(
+      crypto.getRandomValues(new Uint8Array(32)),
+      byte => byte.toString(16).padStart(2, "0"),
+    ).join("");
     const response = await fetcher("/api/support/requests", {
       method: "POST",
       headers: {
         "content-type": "application/json",
+        "x-tracking-proof": trackingProof,
         ...(item.fault ? { "x-support-model-simulation": item.fault } : {}),
       },
       body: JSON.stringify({
@@ -127,7 +133,7 @@ export async function runSupportCase(
           ...item.fields,
         },
         confirmed: true,
-        idempotencyKey: provenance?.requestId ?? crypto.randomUUID(),
+        idempotencyKey: requestId,
         ...(provenance
           ? { verifyRunId: provenance.runId, verifyCaseId: item.id }
           : {}),

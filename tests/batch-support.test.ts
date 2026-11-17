@@ -12,7 +12,7 @@ import { incidentTopic, lexicalSimilarity, publicFaqTopic, INCIDENT_TTL_MS, FAQ_
 import { parseSupportQuery, supportPage } from "@/lib/support-query";
 import * as model from "@/lib/support-model";
 import * as repository from "@/lib/support-repository";
-import { ObjectId, type Db } from "mongodb";
+import type { Db } from "mongodb";
 import * as identityAuth from "@/lib/identity-auth";
 import { requireEmployeeIdentity } from "@/lib/support-http";
 import { GET } from "@/app/api/support/requests/[id]/route";
@@ -47,11 +47,18 @@ beforeEach(() => {
 afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks(); vi.unstubAllEnvs(); });
 
 it("uses the department from the Mongo-backed session rather than the caller's department", async () => {
+  const employee = {
+    id: "demoemployee", fullName: "Nhân Viên Giả Lập", department: "finance", status: "ACTIVE" as const,
+    profileId: crypto.randomUUID(), profileVersion: 1, roles: [], applicationId: crypto.randomUUID(),
+    createdAt: new Date().toISOString(),
+  };
   vi.spyOn(identityAuth, "requireIdentitySession").mockResolvedValue({
-    employee: { _id: new ObjectId(), id: "demoemployee", fullName: "Nhân Viên Giả Lập",
-      department: "finance", status: "ACTIVE", profileId: crypto.randomUUID(), profileVersion: 1,
-      roles: [], applicationId: crypto.randomUUID(), createdAt: new Date().toISOString() },
-    assurance: "demo",
+    employee,
+    principal: {
+      status: "ACTIVE", googleSub: "google-sub", email: "employee@gmail.com", name: employee.fullName,
+      assurance: "verified", canReviewIds: false, employee,
+    },
+    assurance: "verified",
   });
   const input = await requireEmployeeIdentity({ rawText: "VPN không kết nối", idempotencyKey: crypto.randomUUID(),
     fields: { employeeId: "demoemployee", department: "engineering" } },

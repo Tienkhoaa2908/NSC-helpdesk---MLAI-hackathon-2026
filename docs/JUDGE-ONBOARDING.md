@@ -1,5 +1,7 @@
 # Hướng dẫn giám khảo và truy cập bằng QR
 
+> **Tư liệu của bản thi MLAI 2026.** Các bước đăng nhập và màn hình bên dưới mô tả phiên bản tại thời điểm cuộc thi; Identity hiện dùng Google Sign-In và IT duyệt thủ công. Dùng [hướng dẫn nhân viên](EMPLOYEE-GUIDE.md), [hướng dẫn Admin](ADMIN-GUIDE.md) và [cấu hình Identity](IDENTITY-SETUP.md) cho luồng hiện tại. Hàng đợi Support vẫn là public demo.
+
 ## Đường demo Đề A trong vài phút
 
 1. Từ trang đầu chọn **Dành cho Admin**, đọc nhãn reviewer public demo,
@@ -34,7 +36,7 @@ Thay đổi có AI assistance, tiếp nối commit `1ed0954` trên nhánh `codex
 - Có thể bấm **Tiếp theo** hoặc **Bỏ qua hướng dẫn**. Mỗi vai trò được ghi nhận ngay khi bắt đầu, nên thoát giữa chừng rồi quay lại cũng không lặp.
 - Cờ `vng-guide-v1:intro`, `sender`, `reviewer` nằm trong `sessionStorage`. Refresh và quay về trang chọn vai trò không lặp; đóng tab rồi mở link trong tab mới sẽ có hướng dẫn lại. Tab được trình duyệt khôi phục/nhân bản có thể giữ session theo hành vi của trình duyệt. Khi storage bị chặn, bộ nhớ trang là phương án dự phòng, không duy trì qua refresh.
 
-Người gửi có ID đã cấp có thể đăng nhập demo; “Nhân viên mới?” mở đơn cấp ID ba bước, lưu MongoDB và chờ IT duyệt. Luồng này không bắt buộc cho giám khảo dùng Support/Verify. Quyền xử lý ID cần role do server gán, không lấy quyền từ reviewer demo. Đăng nhập ID-only hiện không dùng OTP và không chứng minh danh tính người thật. Xem [hướng dẫn ID](../README.md#đăng-nhập-cấp-id-và-phạm-vi-quyền) và [kết quả bản tích hợp mới](https://github.com/dakiemdarktharr/vng-support/blob/cd50d826003f2e49e8d52b3e695ad6fe74fe15b7/docs/archive/IDENTITY-UX-DELIVERY.md).
+Ở phiên bản cuộc thi, “Nhân viên mới?” mở đơn ID demo lưu MongoDB và chờ IT duyệt; đăng nhập ID-only không xác minh danh tính. Hiện tại, dùng [hướng dẫn cấu hình Google Sign-In](IDENTITY-SETUP.md). Reviewer demo công khai vẫn tách biệt với quyền duyệt đơn Identity.
 
 ## URL / QR
 

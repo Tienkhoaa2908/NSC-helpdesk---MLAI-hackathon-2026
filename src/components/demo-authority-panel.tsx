@@ -36,7 +36,7 @@ export function DemoAuthorityPanel() {
       <p>Sổ thử nghiệm cho VNG Support. Giữ nguyên quyết định policy của ticket hỗ trợ; không thực thi IAM hoặc cloud.</p>
       <Link href="/identity/review" className="identity-text-link">Về trang cấp ID</Link>{" · "}<Link href="/workspace" className="identity-text-link">Gửi yêu cầu hỗ trợ</Link>
     </div>
-    <Alert>Đăng nhập ID-only chưa xác minh người sử dụng. Entitlement và approval ở đây chỉ là demo, không phải bằng chứng IAM/ITSM production. Ngân sách chưa cấu hình luôn cần Capacity owner.</Alert>
+    <Alert>Google Sign-In xác minh tài khoản; IT đã duyệt profile và scope cho phiên này. Entitlement, approval và số liệu quota ở đây vẫn chỉ là mô phỏng, không phải bằng chứng IAM/ITSM hoặc billing Production. Ngân sách chưa cấu hình luôn cần Capacity owner.</Alert>
     {error && <Alert tone="error">{error} <Link href="/login">Đăng nhập lại</Link></Alert>}
     {notice && <p role="status" className="identity-card">{notice}</p>}
     {!snapshot && !error && <p role="status">Đang đọc MongoDB…</p>}

@@ -73,7 +73,7 @@ export const extractionSchema = z
     requestKind: z.enum(requestKinds),
     serviceGroup: z.enum(serviceGroups),
     intentLabel: z.string().min(1).max(80),
-    entities: z.record(z.string().max(300)),
+    entities: z.record(z.string(), z.string().max(300)),
     environment: z.enum(environments),
     requestedAction: z.string().max(100),
     riskSignals: z.array(z.enum(riskSignals)).max(30),

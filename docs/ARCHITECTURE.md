@@ -1,4 +1,4 @@
-# Kiến trúc VNG Support
+# Kiến trúc kỹ thuật — NoSleepClub Support Desk
 
 Ứng dụng Next.js App Router, TypeScript, React, MongoDB và Gemini API qua giao diện chat tương thích OpenAI. Tra cứu web dùng Google Search grounding riêng, chỉ chạy khi được bật. `src/domain/policy-source.ts` là nguồn phiên bản policy runtime; không lấy phiên bản từ một báo cáo lịch sử.
 
@@ -49,7 +49,9 @@ Sentiment là thông tin quan sát, không tự cấp quyền, đặt ưu tiên,
 
 ## Identity và dữ liệu
 
-Identity dùng Mongo transaction, unique indexes, session và role server. Cấp ID gắn job/profile có phiên bản và scope cụ thể. Đăng nhập ID-only được giữ để demo nhanh; role `identity-admin` do operator gán, không suy từ tên job hoặc level CSV. Sổ quyền/quota DEMO-SANDBOX không tạo entitlement IAM thật.
+Identity dùng Google OIDC authorization-code flow với state, nonce và PKCE; mặc định chỉ nhận email `gmail.com` đã xác minh. Khi cấu hình domain Workspace, email và claim `hd` phải khớp. Session ứng dụng gắn với `sub` ổn định và chỉ lưu hash của session token. Google xác minh tài khoản/email, còn IT phải xác minh nhân sự/phạm vi trước khi cấp ID nội bộ. `IDENTITY_ADMIN_EMAILS` giới hạn thao tác duyệt đơn; email và `sub` không tự tạo quyền nhân viên. ID là mã nội bộ, không phải mật khẩu. Sổ quyền/quota DEMO-SANDBOX không tạo entitlement IAM thật. Luồng reviewer Support vẫn là `public-demo` theo lựa chọn sản phẩm và không được bảo vệ bởi Identity session.
+
+Yêu cầu đã xác nhận nhận tracking token HMAC được tạo từ secret riêng và request ID; MongoDB chỉ lưu hash token. Trình duyệt gửi thêm proof ngẫu nhiên khi tạo yêu cầu, và hệ thống lưu riêng hash proof này. Proof chỉ dùng ở endpoint khôi phục receipt khi kết quả gửi không rõ; các route theo dõi/tiếp diễn chỉ yêu cầu token. Public reviewer APIs vẫn hiển thị hồ sơ, nên token chỉ kiểm soát route dành cho người gửi chứ không tạo tính bí mật cho ticket.
 
 Support và identity có collection riêng, có thể dùng cùng database được cấu hình cho ứng dụng. Support có memory-demo khi được cấu hình rõ; identity không có memory/CSV fallback. Không sửa hoặc di chuyển dữ liệu Production từ workflow phát triển UI.
 

@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 import type { SupportRequest } from "@/domain/contracts";
 import { allFields } from "@/domain/catalog";
 import { displayId, statusLabels, optionName } from "@/domain/presentation";
-import { browserApi } from "@/lib/browser-api";
+import { requesterApi } from "@/lib/requester-api";
 import { Alert, Button, Card, Textarea } from "./ui";
 import { SupportResult } from "./support-result";
 import { SupportField } from "./support-field";
@@ -17,6 +17,7 @@ import { mergeTrackedRequest } from "@/domain/tracking-state";
 export function RequestDetail({ id }: { id: string }) {
   const [request, setRequest] = useState<SupportRequest | null>(null),
     [error, setError] = useState("");
+  const [trackingToken, setTrackingToken] = useState("");
   const [pending, setPending] = useState(false),
     [clarification, setClarification] = useState(""),
     [followup, setFollowup] = useState(""),
@@ -24,9 +25,13 @@ export function RequestDetail({ id }: { id: string }) {
     [step, setStep] = useState(0),
     [copied, setCopied] = useState(false);
   async function refresh() {
+    if (!trackingToken) {
+      setError("Cần liên kết theo dõi đầy đủ để mở yêu cầu.");
+      return;
+    }
     try {
       setRequest(
-        await browserApi<SupportRequest>(`/api/support/requests/${id}`),
+        await requesterApi<SupportRequest>(`/api/support/track/${id}`, trackingToken),
       );
       setError("");
     } catch {
@@ -37,7 +42,13 @@ export function RequestDetail({ id }: { id: string }) {
     let current = true;
     setRequest(null);
     setError("");
-    void browserApi<SupportRequest>(`/api/support/requests/${id}`)
+    const token = new URLSearchParams(window.location.hash.slice(1)).get("token") ?? "";
+    setTrackingToken(/^[a-f0-9]{64}$/i.test(token) ? token : "");
+    if (!/^[a-f0-9]{64}$/i.test(token)) {
+      setError("Liên kết theo dõi thiếu mã truy cập. Hãy mở liên kết đầy đủ đã nhận sau khi gửi.");
+      return () => { current = false; };
+    }
+    void requesterApi<SupportRequest>(`/api/support/track/${id}`, token)
       .then((result) => {
         if (current) setRequest(result);
       })
@@ -49,7 +60,7 @@ export function RequestDetail({ id }: { id: string }) {
     };
   }, [id]);
   const canSync =
-    request !== null && !pending &&
+    request !== null && !!trackingToken && !pending &&
     !["COMPLETED", "STOPPED"].includes(request.status);
   useEffect(() => {
     if (!canSync) return;
@@ -62,9 +73,7 @@ export function RequestDetail({ id }: { id: string }) {
       ) return;
       inFlight = true;
       try {
-        const latest = await browserApi<SupportRequest>(
-          `/api/support/requests/${id}`,
-        );
+        const latest = await requesterApi<SupportRequest>(`/api/support/track/${id}`, trackingToken);
         if (current) {
           setRequest(previous => mergeTrackedRequest(previous, latest));
         }
@@ -86,14 +95,14 @@ export function RequestDetail({ id }: { id: string }) {
       window.removeEventListener("focus", resume);
       window.removeEventListener("online", resume);
     };
-  }, [id, canSync]);
+  }, [id, canSync, trackingToken]);
   async function update(path: string, body: object) {
     if (!request || pending) return;
     setPending(true);
     setError("");
     try {
-      const updated = await browserApi<SupportRequest>(
-        `/api/support/requests/${id}/${path}`, { ...body, version: request.version },
+      const updated = await requesterApi<SupportRequest>(
+        `/api/support/requests/${id}/${path}`, trackingToken, { ...body, version: request.version },
       );
       setRequest({ ...updated, sharedReplies: request.sharedReplies,
         ...(updated.incidentId === request.incidentId ? { incident: request.incident } : {}) });

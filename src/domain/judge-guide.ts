@@ -11,7 +11,7 @@ export const guideStages: Record<string, { role: GuideRole; steps: GuideStep[] }
     role: "sender",
     steps: [
       { target: "sender-mode", title: "1. Chọn cách gửi", text: "Bấm “Mô tả vấn đề” để viết tự do, hoặc “Chọn theo danh mục” để chọn nhu cầu cụ thể.", advanceOn: "click" },
-      { target: "sender-department", title: "Chọn phòng ban", text: "Chọn phòng ban và nhập mã nhân viên bắt buộc để liên kết, tra cứu yêu cầu. Mã khai báo chưa xác thực danh tính; khi thử nghiệm chỉ dùng dữ liệu minh họa.", advanceOn: "change" },
+      { target: "sender-department", title: "Chọn phòng ban", text: "Chọn phòng ban và kiểm tra mã nhân viên. Phiên Google đã được IT duyệt sẽ điền ID từ tài khoản; ở luồng demo, mã tự khai chỉ dùng để liên kết hồ sơ, không xác minh danh tính. Chỉ dùng dữ liệu minh họa.", advanceOn: "change" },
       { target: "sender-group", title: "2. Chọn nhóm hỗ trợ", text: "Chọn nhóm phù hợp. Chưa rõ thì giữ “Tôi chưa biết nhóm nào” và bấm Tiếp theo.", advanceOn: "change" },
       { target: "sender-intent", title: "3. Chọn nhu cầu", text: "Chọn việc cần hỗ trợ rồi điền các ô xuất hiện bên dưới. Chỉ nhập dữ liệu minh họa, không nhập mật khẩu.", advanceOn: "change" },
       { target: "sender-fields", title: "Điền thông tin theo danh mục", text: "Điền các ô bạn biết trong khung được chỉ. Không cần bịa thông tin còn thiếu. Khi xong, bấm Tiếp theo để thêm mô tả hoặc gửi yêu cầu." },
@@ -46,7 +46,7 @@ export const guideStages: Record<string, { role: GuideRole; steps: GuideStep[] }
   "reviewer-detail": {
     role: "reviewer",
     steps: [
-      { target: "reviewer-evidence", title: "3. Đọc yêu cầu", text: "Đọc nguyên văn và bản tóm tắt bằng Luna. Bản tóm tắt chỉ giúp đọc nhanh; mở Xem lịch sử & bằng chứng để đối chiếu quy tắc, thông tin còn thiếu và hướng dẫn đã gửi." },
+      { target: "reviewer-evidence", title: "3. Đọc yêu cầu", text: "Đọc nguyên văn và bản tóm tắt do trợ lý AI tạo. Bản tóm tắt chỉ giúp đọc nhanh; mở Xem lịch sử & bằng chứng để đối chiếu quy tắc, thông tin còn thiếu và hướng dẫn đã gửi." },
       { target: "reviewer-reason", title: "4. Tin nhắn trả lời", text: "Chọn một trong hai gợi ý xử lý hoặc nhập tin nhắn. Hỏi thêm thông tin sẽ soạn bản nháp riêng để bạn sửa và gửi. Khi duyệt, bạn có thể bỏ qua ô tin nhắn và bấm Tiếp theo.", advanceOn: "input" },
       { target: "reviewer-actions", title: "5. Chọn quyết định phù hợp", text: "Có thể hỏi thêm, từ chối, dừng hoặc duyệt khi được phép. Nút bị mờ là thao tác chưa đủ điều kiện. Điều chỉnh quyết định cần chọn trạng thái đích trước.", advanceOn: "click" },
       { target: "reviewer-history", title: "6. Kiểm tra nhật ký", text: "Mở Xem lịch sử & bằng chứng, chọn Lịch sử xử lý để xem trạng thái mới, người thao tác và tin nhắn vừa gửi. Hướng dẫn không tự duyệt hay gửi quyết định thay bạn." },

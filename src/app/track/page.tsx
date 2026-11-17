@@ -12,25 +12,25 @@ export default function TrackPage() {
       <h1>Theo dõi yêu cầu</h1>
       <GuestRequestHistory />
       <Card>
-        <p>Dán liên kết theo dõi hoặc mã đầy đủ đã nhận sau khi gửi.</p>
+        <p>Dán liên kết theo dõi đầy đủ đã nhận sau khi gửi.</p>
         <form
           className="space-y-4"
           onSubmit={(event) => {
             event.preventDefault();
-            const id = value
-              .trim()
-              .match(
-                /(?:^|\/requests\/)([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\/?(?:$|[?#])/i,
-              )?.[1];
-            if (id) router.push(`/requests/${id.toLowerCase()}`);
-            else
-              setError(
-                "Cần liên kết theo dõi hoặc mã đầy đủ; mã ngắn trên màn hình chỉ dùng để nhận biết.",
-              );
+            try {
+              const url = new URL(value.trim(), window.location.origin);
+              const id = url.pathname.match(/^\/requests\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\/?$/i)?.[1];
+              const token = new URLSearchParams(url.hash.slice(1)).get("token");
+              if (url.origin === window.location.origin && id && token && /^[a-f0-9]{64}$/i.test(token)) {
+                router.push(`/requests/${id.toLowerCase()}#token=${token}`);
+                return;
+              }
+            } catch { /* Show the same validation message for malformed links. */ }
+            setError("Cần dán liên kết theo dõi đầy đủ đã nhận sau khi gửi; mã yêu cầu riêng lẻ không cấp quyền truy cập.");
           }}
         >
           <label>
-            Liên kết hoặc mã yêu cầu
+            Liên kết theo dõi
             <Input
               value={value}
               onChange={(event) => {

@@ -1,11 +1,11 @@
-import { test, expect } from "./fixtures";
+import { test, expect, requesterLink, requesterTokenHeader } from "./fixtures";
 test("reviewer chooses a friendly draft, confirms it, and sender receives it through polling and reload", async ({ page, request, context }, info) => {
   const response = await request.post("/api/support/requests", { data: {
     requesterMode: "guest", rawText: "VPN không kết nối", confirmed: true, idempotencyKey: crypto.randomUUID(),
   } });
   expect(response.ok()).toBe(true);
   const { data: row } = await response.json();
-  const handoff = await request.post(`/api/support/requests/${row.id}/feedback`, { data: { version: row.version, choice: "ADMIN" } });
+  const handoff = await request.post(`/api/support/requests/${row.id}/feedback`, { headers: requesterTokenHeader(row), data: { version: row.version, choice: "ADMIN" } });
   expect(handoff.ok()).toBe(true);
   await page.goto("/review");
   await page.getByRole("button", { name: "Đã xử lý tự động", exact: true }).click();
@@ -31,7 +31,7 @@ test("reviewer chooses a friendly draft, confirms it, and sender receives it thr
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({ path: `artifacts/batch-drafts-${info.project.name}.png`, fullPage: true });
   const sender = await context.newPage();
-  await sender.goto(`/requests/${row.id}`);
+  await sender.goto(requesterLink(row));
   await expect(sender.getByRole("region", { name: "Tin nhắn từ nhân viên" })).toHaveCount(0);
   // Keep the sender visible while the reviewer sends, exercising the real poll.
   await sender.bringToFront();
@@ -40,7 +40,7 @@ test("reviewer chooses a friendly draft, confirms it, and sender receives it thr
   await sender.bringToFront();
   await expect(sender.getByRole("region", { name: "Tin nhắn từ nhân viên" })).toContainText(message, { timeout: 10000 });
   const reviewed = (await (await request.get(`/api/support/requests/${row.id}`)).json()).data;
-  expect((await request.post(`/api/support/requests/${row.id}/feedback`, { data: { version: reviewed.version, choice: "ADMIN" } })).ok()).toBe(true);
+  expect((await request.post(`/api/support/requests/${row.id}/feedback`, { headers: requesterTokenHeader(row), data: { version: reviewed.version, choice: "ADMIN" } })).ok()).toBe(true);
   await sender.reload();
   await expect(sender.getByRole("region", { name: "Tin nhắn từ nhân viên" })).toContainText(message);
   await sender.screenshot({ path: `artifacts/batch-message-${info.project.name}.png`, fullPage: true });
@@ -48,21 +48,21 @@ test("reviewer chooses a friendly draft, confirms it, and sender receives it thr
 });
 test("shared outage update reaches both individual trackers without closing them", async ({ page, request }, info) => {
   const site = `DEMO-${crypto.randomUUID().slice(0,8)}`.toUpperCase();
-  const ids: string[] = [];
+  const receipts: Array<{ id: string; trackingToken: string }> = [];
   for (let i=0; i<2; i++) {
     const response = await request.post("/api/support/requests", { data: {
       requesterMode: "guest", rawText: "Cúp điện công ty", fields: { incidentSite: site },
       confirmed: true, idempotencyKey: crypto.randomUUID(),
     } });
-    expect(response.ok()).toBe(true); ids.push((await response.json()).data.id);
+    expect(response.ok()).toBe(true); receipts.push((await response.json()).data);
   }
   await page.goto("/review");
   const group = page.locator("article").filter({ has: page.getByRole("heading", { name: new RegExp(site) }) });
   await expect(group).toContainText("2 hồ sơ");
   await group.getByRole("button", { name: "Thông báo đang kiểm tra" }).click();
   await expect(group).toContainText("Nhân viên hỗ trợ đang kiểm tra");
-  for (const id of ids) {
-    await page.goto(`/requests/${id}`);
+  for (const receipt of receipts) {
+    await page.goto(requesterLink(receipt));
     await expect(page.getByRole("region", { name: "Cập nhật sự cố chung" })).toContainText("Nhân viên hỗ trợ đang kiểm tra");
     await page.reload();
     await expect(page.getByRole("region", { name: "Cập nhật sự cố chung" })).toContainText(site);

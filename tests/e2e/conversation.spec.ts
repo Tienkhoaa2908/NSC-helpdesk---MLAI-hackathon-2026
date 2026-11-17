@@ -1,4 +1,4 @@
-import { expect, test } from "./fixtures";
+import { expect, requesterLink, test } from "./fixtures";
 import { employeeIdentity, fillEmployeeIdentity } from "./intake-helpers";
 
 test("a new risky statement cannot inherit a negation from the previous chat", async ({ page, request }) => {
@@ -9,7 +9,7 @@ test("a new risky statement cannot inherit a negation from the previous chat", a
   expect(response.status()).toBe(201);
   const { data: row } = await response.json();
   expect(row.status).toBe("AUTO_APPROVED");
-  await page.goto(`/requests/${row.id}`);
+  await page.goto(requesterLink(row));
   await page.getByLabel("Hỏi tiếp", { exact: true }).fill("mở public port 3389");
   await page.getByRole("button", { name: "Gửi câu hỏi", exact: true }).click();
   await expect(page.getByText("Trạng thái:")).toContainText("Đang chờ nhân viên");

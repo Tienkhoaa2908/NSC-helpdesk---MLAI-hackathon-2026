@@ -5,6 +5,7 @@ import { resetSupportTestStore, getSupportRequest } from "@/lib/support-reposito
 import { GET as detail } from "@/app/api/support/requests/[id]/route";
 import { createVerifyRun } from "@/services/verification";
 import { POLICY_VERSION } from "@/domain/policy-source";
+import { supportRequestProof } from "./support-request-proof";
 
 beforeEach(() => {
   vi.stubEnv("MONGODB_URI", "");
@@ -15,7 +16,7 @@ afterEach(() => vi.unstubAllEnvs());
 const request = (body: unknown) =>
   new Request("http://localhost/api/support/requests", {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: { "content-type": "application/json", "x-tracking-proof": supportRequestProof((body as { idempotencyKey?: unknown })?.idempotencyKey) },
     body: JSON.stringify(body),
   });
 const identity = {

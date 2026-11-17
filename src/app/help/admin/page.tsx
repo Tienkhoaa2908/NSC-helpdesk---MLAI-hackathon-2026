@@ -35,7 +35,7 @@ export default function AdminHelp() {
         </section>
         <section className="guide-note">
           <h2>Môi trường demo</h2>
-          <p>Reviewer hiện là không gian demo công khai, không phải cơ chế xác thực thành viên tổ chức. Chỉ dùng dữ liệu tổng hợp hoặc giả lập. Cấp ID nhân viên là luồng riêng, cần vai trò operator và không xác minh danh tính thật.</p>
+          <p>Hàng đợi reviewer Support là demo công khai, chỉ dùng dữ liệu tổng hợp hoặc giả lập. Quản trị cấp ID là luồng riêng, yêu cầu Google Sign-In có email trong <code>IDENTITY_ADMIN_EMAILS</code>; IT phải xác minh nhân sự và phạm vi trước khi duyệt. Quyền này không biến reviewer Support thành khu vực riêng tư hoặc IAM của tổ chức.</p>
           <p><Link href="/identity/review">Mở quản lý cấp ID →</Link></p>
         </section>
       </article>

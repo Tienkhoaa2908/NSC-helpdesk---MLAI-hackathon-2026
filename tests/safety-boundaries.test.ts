@@ -6,6 +6,7 @@ import { verifyApproval } from "@/services/approvals";
 import { extractWithModel } from "@/lib/support-model";
 import { resetSupportTestStore } from "@/lib/support-repository";
 import { POST } from "@/app/api/support/requests/route";
+import { supportRequestProof } from "./support-request-proof";
 import type { SupportInput } from "@/domain/contracts";
 beforeEach(() => {
   vi.stubEnv("AI_PROVIDER", "mock");
@@ -216,16 +217,15 @@ it("redacts JSON credentials, Vietnamese labels, URIs and keys through the activ
     `-----BEGIN PRIVATE KEY-----\n${value}\n-----END PRIVATE KEY-----`,
   ]) {
     expect(redact(text).text).not.toContain(value);
+    const body = intake(text, {
+      department: "engineering",
+      employeeId: "EMP-PRIVACY-TEST",
+    });
     const response = await POST(
       new Request("http://localhost/api/support/requests", {
         method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(
-          intake(text, {
-            department: "engineering",
-            employeeId: "EMP-PRIVACY-TEST",
-          }),
-        ),
+        headers: { "content-type": "application/json", "x-tracking-proof": supportRequestProof(body.idempotencyKey) },
+        body: JSON.stringify(body),
       }),
     );
     expect(await response.text()).not.toContain(value);

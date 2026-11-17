@@ -2,21 +2,26 @@ import { beforeEach, expect, it, vi } from "vitest";
 import { randomUUID } from "node:crypto";
 import type { Scope } from "@/domain/identity";
 import { decideIdentityApplication, submitIdentityApplication, trackIdentityApplication } from "@/services/identity";
-import { requireIdentitySession, startIdentityLogin } from "@/lib/identity-auth";
+import { createIdentitySession, identityPrincipalForRequest, requireIdentitySession } from "@/lib/identity-auth";
 import { identityHash } from "@/services/identity";
 import { requireEmployeeIdentity } from "@/lib/support-http";
+
 // Test-only adapter models rollback and compare-and-set; it is never a runtime fallback.
 const fake = vi.hoisted(() => ({ rows: {} as Record<string, Record<string, unknown>[]>, unavailable: false, failAudit: false }));
 vi.mock("@/lib/identity-store", () => {
+  function valueAt(row: Record<string, unknown>, path: string) {
+    return path.split(".").reduce<unknown>((value, key) => value && typeof value === "object" ? (value as Record<string, unknown>)[key] : undefined, row);
+  }
   function match(row: Record<string, unknown>, query: Record<string, unknown>) {
     return Object.entries(query).every(([key, value]) => {
+      const found = valueAt(row, key);
       if (value && typeof value === "object" && !(value instanceof Date)) {
         const rule = value as Record<string, unknown>;
-        if ("$in" in rule) return (rule.$in as unknown[]).includes(row[key]);
-        if ("$gt" in rule) return (row[key] as number) > (rule.$gt as number);
-        if ("$lt" in rule) return (row[key] as number) < (rule.$lt as number);
+        if ("$in" in rule) return (rule.$in as unknown[]).includes(found);
+        if ("$gt" in rule) return found instanceof Date && found > (rule.$gt as Date);
+        if ("$lt" in rule) return typeof found === "number" && found < (rule.$lt as number);
       }
-      return row[key] === value;
+      return found === value;
     });
   }
   function patch(row: Record<string, unknown>, update: Record<string, Record<string, unknown>>) {
@@ -34,6 +39,7 @@ vi.mock("@/lib/identity-store", () => {
         if (!row && options?.upsert) { row = { ...query, ...update.$setOnInsert }; rows.push(row); }
         if (row) patch(row, update); return structuredClone(row ?? null);
       },
+      deleteOne: async (query: Record<string, unknown>) => { const index = rows.findIndex((row) => match(row, query)); if (index < 0) return { deletedCount: 0 }; rows.splice(index, 1); return { deletedCount: 1 }; },
     };
   } };
   const store = async () => { if (fake.unavailable) throw new Error("DB_UNAVAILABLE"); return { db }; };
@@ -42,120 +48,121 @@ vi.mock("@/lib/identity-store", () => {
     try { return await work(db, {}); } catch (error) { fake.rows = snapshot; throw error; }
   } };
 });
+
 const scope: Scope = { environment: "sandbox", resource: "project", operation: "read", target: "project-demo" };
+const applicant = { sub: "google-sub-employee-alpha", email: "alpha@gmail.com" };
 const input = () => ({ id: randomUUID(), trackingToken: "a".repeat(64), fullName: "Nhân Viên Giả Lập Alpha", job: { kind: "new" as const, name: "Job giả lập", scopes: [scope] } });
 const decision = { action: "approve", version: 0, reason: "Đã xác minh qua quy trình thử nghiệm", approvedScopes: [scope] };
+const requestWithCookie = (token: string) => new Request("http://localhost", { headers: { cookie: `vng_identity=${token}` } });
 beforeEach(() => { fake.rows = {}; fake.unavailable = false; fake.failAudit = false; vi.unstubAllEnvs(); vi.unstubAllGlobals(); });
-it("persists pending applications idempotently without issuing an ID", async () => {
-  const request = input(); await submitIdentityApplication(request); await submitIdentityApplication(request);
-  expect(fake.rows.identity_applications).toHaveLength(1); expect(fake.rows.identity_employees).toBeUndefined();
+
+it("binds every access application to server-verified Google sub and email", async () => {
+  const request = input();
+  await submitIdentityApplication(request, applicant);
+  await submitIdentityApplication(request, applicant);
+  expect(fake.rows.identity_applications).toHaveLength(1);
+  expect(fake.rows.identity_applications[0].applicant).toEqual(applicant);
   expect(fake.rows.identity_applications[0]).not.toHaveProperty("trackingToken");
-  expect((await trackIdentityApplication(request.id, request.trackingToken)).employeeId).toBeUndefined();
-  await expect(submitIdentityApplication({ ...request, fullName: "Nhân Viên Giả Lập Beta" })).rejects.toMatchObject({ code: "APPLICATION_CONFLICT" });
+  expect(fake.rows.identity_employees).toHaveLength(0);
+  await expect(submitIdentityApplication({ ...request, id: randomUUID(), trackingToken: "b".repeat(64) }, applicant)).rejects.toMatchObject({ code: "APPLICATION_EXISTS" });
+  await expect(submitIdentityApplication({ ...request, applicant: { sub: "attacker", email: "attacker@gmail.com" } }, applicant)).rejects.toThrow();
 });
-it("requires the private tracking capability", async () => {
-  const request = input(); await submitIdentityApplication(request);
+it("requires the private tracking capability and does not expose applicant claims", async () => {
+  const request = input(); await submitIdentityApplication(request, applicant);
   await expect(trackIdentityApplication(request.id, "b".repeat(64))).rejects.toMatchObject({ status: 404 });
+  const tracked = await trackIdentityApplication(request.id, request.trackingToken);
+  expect(tracked).not.toHaveProperty("applicant");
+  expect(tracked.employeeId).toBeUndefined();
 });
-it("creates a pinned profile, account and audit only after approval", async () => {
-  const request = input(); await submitIdentityApplication(request); const result = await decideIdentityApplication(request.id, decision, "verified-it");
-  expect(result.employeeId).toBe("alphanvgl"); expect(fake.rows.identity_employees[0].roles).toEqual([]);
+it("creates an employee ID only after review and binds the account to the submitted Google sub", async () => {
+  const request = input(); await submitIdentityApplication(request, applicant);
+  const result = await decideIdentityApplication(request.id, decision, "reviewer@example.com");
+  expect(result.employeeId).toBe("alphanvgl");
+  expect(fake.rows.identity_employees[0]).toMatchObject({ googleSub: applicant.sub, email: applicant.email, status: "ACTIVE", roles: [] });
   expect(fake.rows.identity_profiles[0]).toMatchObject({ version: 1, scopes: [scope] });
   expect((await trackIdentityApplication(request.id, request.trackingToken)).grantedScopes).toEqual([scope]);
   expect(fake.rows.identity_audit.map((row) => row.action)).toEqual(["APPLICATION_SUBMITTED", "PROFILE_CREATED", "APPROVED"]);
-  await expect(decideIdentityApplication(request.id, decision, "verified-it")).rejects.toMatchObject({ code: "VERSION_CONFLICT" });
+  await expect(decideIdentityApplication(request.id, decision, "reviewer@example.com")).rejects.toMatchObject({ code: "VERSION_CONFLICT" });
 });
-it("pins existing job permissions and refuses permission modification", async () => {
+it("does not link a legacy/synthetic employee by matching name or employee ID", async () => {
+  fake.rows.identity_employees = [{ id: "old-synthetic-id", fullName: "Nhân Viên Giả Lập Alpha", status: "ACTIVE", profileId: "legacy", profileVersion: 1, roles: ["identity-admin"], applicationId: "legacy", createdAt: "2026-01-01" }];
+  const request = input(); await submitIdentityApplication(request, applicant);
+  const token = await createIdentitySession({ ...applicant, name: "Nhân Viên Giả Lập Alpha" });
+  const principal = await identityPrincipalForRequest(requestWithCookie(token));
+  expect(principal.status).toBe("PENDING");
+  expect(principal).not.toHaveProperty("employee");
+  await expect(requireIdentitySession(requestWithCookie(token))).rejects.toMatchObject({ code: "ACTIVE_EMPLOYEE_REQUIRED" });
+});
+it("treats the session cookie as an opaque verified session and activates it after approval", async () => {
+  const request = input(); await submitIdentityApplication(request, applicant);
+  const token = await createIdentitySession({ ...applicant, name: "Google Alpha" });
+  expect(fake.rows.identity_sessions[0]).toMatchObject({ hash: identityHash(token), googleSub: applicant.sub, email: applicant.email });
+  expect(fake.rows.identity_sessions[0]).not.toHaveProperty("token");
+  expect(fake.rows.identity_sessions[0]).not.toHaveProperty("accessToken");
+  expect(fake.rows.identity_sessions[0]).not.toHaveProperty("refreshToken");
+  expect((await identityPrincipalForRequest(requestWithCookie(token))).status).toBe("PENDING");
+  await decideIdentityApplication(request.id, decision, "reviewer@example.com");
+  const active = await identityPrincipalForRequest(requestWithCookie(token));
+  expect(active).toMatchObject({ status: "ACTIVE", employee: { id: "alphanvgl", googleSub: applicant.sub }, assurance: "verified" });
+  expect(active).not.toHaveProperty("id");
+  await expect(requireIdentitySession(requestWithCookie(token))).resolves.toMatchObject({ employee: { id: "alphanvgl" }, assurance: "verified" });
+});
+it("requires the server allowlist for identity-admin operations and fails closed when it is empty", async () => {
+  const admin = { sub: "google-sub-admin", email: "admin@gmail.com", name: "Admin" };
+  const token = await createIdentitySession(admin); const request = requestWithCookie(token);
+  await expect(requireIdentitySession(request, true)).rejects.toMatchObject({ code: "IT_AUTHORITY_REQUIRED" });
+  vi.stubEnv("IDENTITY_ADMIN_EMAILS", "other@gmail.com, ADMIN@gmail.com");
+  await expect(requireIdentitySession(request, true)).resolves.toMatchObject({ principal: { status: "ADMIN", email: "admin@gmail.com", canReviewIds: true } });
+  await expect(requireIdentitySession(request)).rejects.toMatchObject({ code: "ACTIVE_EMPLOYEE_REQUIRED" });
+});
+it("pins existing job permissions and refuses modifications", async () => {
   const profile = { id: randomUUID(), version: 2, active: true, scopes: [scope], name: "Profile giả lập", createdAt: new Date().toISOString(), createdBy: "operator" };
-  fake.rows.identity_profiles = [profile]; const request = { ...input(), job: { kind: "existing", profileId: profile.id, version: 2 } };
-  await submitIdentityApplication(request);
-  await expect(decideIdentityApplication(request.id, decision, "verified-it")).rejects.toMatchObject({ code: "PROFILE_IMMUTABLE" });
-  await decideIdentityApplication(request.id, { action: "approve", version: 0, reason: decision.reason }, "verified-it");
+  fake.rows.identity_profiles = [profile]; const request = { ...input(), job: { kind: "existing" as const, profileId: profile.id, version: 2 } };
+  await submitIdentityApplication(request, applicant);
+  await expect(decideIdentityApplication(request.id, decision, "reviewer@example.com")).rejects.toMatchObject({ code: "PROFILE_IMMUTABLE" });
+  await decideIdentityApplication(request.id, { action: "approve", version: 0, reason: decision.reason }, "reviewer@example.com");
   expect(fake.rows.identity_profiles).toHaveLength(1); expect(fake.rows.identity_employees[0].profileVersion).toBe(2);
 });
 it("does not grant scopes outside the submitted request", async () => {
-  const request = input(); await submitIdentityApplication(request);
-  await expect(decideIdentityApplication(request.id, { ...decision, approvedScopes: [{ ...scope, target: "another-project" }] }, "verified-it")).rejects.toMatchObject({ code: "SCOPE_ESCALATION" });
+  const request = input(); await submitIdentityApplication(request, applicant);
+  await expect(decideIdentityApplication(request.id, { ...decision, approvedScopes: [{ ...scope, target: "another-project" }] }, "reviewer@example.com")).rejects.toMatchObject({ code: "SCOPE_ESCALATION" });
   expect(fake.rows.identity_employees ?? []).toHaveLength(0);
 });
-it("keeps rejected applications and reasons without accounts", async () => {
-  const request = input(); await submitIdentityApplication(request);
-  await decideIdentityApplication(request.id, { action: "reject", version: 0, reason: "Cần xác minh lại phạm vi công việc" }, "verified-it");
+it("keeps rejected applications and reasons without creating an account", async () => {
+  const request = input(); await submitIdentityApplication(request, applicant);
+  await decideIdentityApplication(request.id, { action: "reject", version: 0, reason: "Cần xác minh lại phạm vi công việc" }, "reviewer@example.com");
   expect((await trackIdentityApplication(request.id, request.trackingToken))).toMatchObject({ status: "REJECTED", reason: "Cần xác minh lại phạm vi công việc" });
-  expect(fake.rows.identity_employees).toBeUndefined();
+  expect(fake.rows.identity_employees ?? []).toHaveLength(0);
 });
-it("records collisions and requires deliberate IT disambiguation", async () => {
-  const first = input(); await submitIdentityApplication(first); await decideIdentityApplication(first.id, decision, "verified-it");
-  const second = input(); await submitIdentityApplication(second);
-  await expect(decideIdentityApplication(second.id, { ...decision, suffix: "2" }, "verified-it")).rejects.toMatchObject({ code: "SUFFIX_NOT_NEEDED" });
-  await expect(decideIdentityApplication(second.id, decision, "verified-it")).rejects.toMatchObject({ code: "ID_COLLISION" });
+it("requires a Google-bound application before approval", async () => {
+  const request = input();
+  fake.rows.identity_applications = [{ ...request, job: request.job, profile: null, requestedScopes: [scope], trackingHash: identityHash(request.trackingToken), fingerprint: "legacy", status: "PENDING", version: 0, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }];
+  await expect(decideIdentityApplication(request.id, decision, "reviewer@example.com")).rejects.toMatchObject({ code: "GOOGLE_IDENTITY_REQUIRED" });
+  expect(fake.rows.identity_employees ?? []).toHaveLength(0);
+});
+it("records collisions and requires deliberate reviewer disambiguation", async () => {
+  const first = input(); await submitIdentityApplication(first, applicant); await decideIdentityApplication(first.id, decision, "reviewer@example.com");
+  const second = input(); await submitIdentityApplication(second, { sub: "google-sub-beta", email: "beta@gmail.com" });
+  await expect(decideIdentityApplication(second.id, { ...decision, suffix: "2" }, "reviewer@example.com")).rejects.toMatchObject({ code: "SUFFIX_NOT_NEEDED" });
+  await expect(decideIdentityApplication(second.id, decision, "reviewer@example.com")).rejects.toMatchObject({ code: "ID_COLLISION" });
   expect((await trackIdentityApplication(second.id, second.trackingToken)).status).toBe("ID_CONFLICT");
-  await decideIdentityApplication(second.id, { ...decision, version: 1, suffix: "2" }, "verified-it");
+  await decideIdentityApplication(second.id, { ...decision, version: 1, suffix: "2" }, "reviewer@example.com");
   expect(fake.rows.identity_employees.map((row) => row.id)).toEqual(["alphanvgl", "alphanvgl-2"]);
 });
 it("rolls back profile/account/decision when audit writing fails", async () => {
-  const request = input(); await submitIdentityApplication(request); fake.failAudit = true;
-  await expect(decideIdentityApplication(request.id, decision, "verified-it")).rejects.toThrow("AUDIT_UNAVAILABLE");
+  const request = input(); await submitIdentityApplication(request, applicant); fake.failAudit = true;
+  await expect(decideIdentityApplication(request.id, decision, "reviewer@example.com")).rejects.toThrow("AUDIT_UNAVAILABLE");
   expect(fake.rows.identity_employees ?? []).toHaveLength(0); expect(fake.rows.identity_profiles ?? []).toHaveLength(0);
   expect(fake.rows.identity_applications[0].status).toBe("PENDING");
 });
 it("fails all application writes when Mongo is unavailable", async () => {
-  fake.unavailable = true; await expect(submitIdentityApplication(input())).rejects.toThrow("DB_UNAVAILABLE"); expect(fake.rows).toEqual({});
+  fake.unavailable = true; await expect(submitIdentityApplication(input(), applicant)).rejects.toThrow("DB_UNAVAILABLE"); expect(fake.rows).toEqual({});
 });
-async function account() { const request = input(); await submitIdentityApplication(request); await decideIdentityApplication(request.id, decision, "verified-it"); return fake.rows.identity_employees[0]; }
-it("permits an active issued ID but ordinary accounts cannot approve identities", async () => {
-  const employee = await account();
-  const login = await startIdentityLogin({ employeeId: "ALPHANVGL" }); expect(login.assurance).toBe("demo");
-  const request = new Request("http://localhost", { headers: { cookie: `vng_identity=${login.token}` } });
-  expect((await requireIdentitySession(request)).assurance).toBe("demo");
-  await expect(requireIdentitySession(request, true)).rejects.toMatchObject({ status: 403 });
-  employee.status = "DISABLED"; await expect(requireIdentitySession(request)).rejects.toMatchObject({ status: 401 });
-});
-it("rejects unknown or disabled IDs without creating sessions", async () => {
-  await expect(startIdentityLogin({ employeeId: "unknown" })).rejects.toMatchObject({ status: 401 });
-  const employee = await account(); employee.status = "DISABLED";
-  await expect(startIdentityLogin({ employeeId: "alphanvgl" })).rejects.toMatchObject({ status: 401 });
-  expect(fake.rows.identity_sessions ?? []).toHaveLength(0);
-});
-it("binds submitted Support identity to the active session instead of trusting changed form data", async () => {
-  await account(); const login = await startIdentityLogin({ employeeId: "alphanvgl" });
-  const request = new Request("http://localhost", { headers: { cookie: `vng_identity=${login.token}` } });
+it("binds Support identity to the active verified session instead of form data", async () => {
+  const request = input(); await submitIdentityApplication(request, applicant); await decideIdentityApplication(request.id, decision, "reviewer@example.com");
+  const token = await createIdentitySession({ ...applicant, name: "Google Alpha" });
+  const requestWithIdentity = requestWithCookie(token);
   const body = { mode: "freeform", serviceGroup: "NETWORK_VPN", rawText: "VPN không kết nối", fields: { department: "engineering", employeeId: "someone-else" }, confirmed: false, idempotencyKey: randomUUID() };
-  await expect(requireEmployeeIdentity(body, request)).rejects.toMatchObject({ code: "IDENTITY_MISMATCH", status: 403 });
-  expect((await requireEmployeeIdentity({ ...body, fields: { ...body.fields, employeeId: "ALPHANVGL" } }, request)).fields.employeeId).toBe("alphanvgl");
-});
-it("allows only operator-assigned IT roles and rechecks revocation on every request", async () => {
-  const employee = await account(); employee.roles = ["identity-admin"];
-  const relay = vi.fn(); vi.stubGlobal("fetch", relay);
-  const login = await startIdentityLogin({ employeeId: "alphanvgl" });
-  expect(login).toMatchObject({ assurance: "demo", canReviewIds: true });
-  expect(login).not.toHaveProperty("challengeId"); expect(relay).not.toHaveBeenCalled();
-  expect(fake.rows.identity_sessions[0].hash).toBe(identityHash(login.token));
-  expect(fake.rows.identity_sessions[0]).not.toHaveProperty("token");
-  const request = new Request("http://localhost", { headers: { cookie: `vng_identity=${login.token}` } });
-  expect((await requireIdentitySession(request, true)).assurance).toBe("demo");
-  employee.roles = [];
-  await expect(requireIdentitySession(request, true)).rejects.toMatchObject({ status: 403 });
-});
-it.each([{ verified: true }, { roles: ["identity-admin"] }, { assurance: "verified" }])(
-  "rejects client-supplied verification or authority: %j", async (extra) => {
-    await account(); await expect(startIdentityLogin({ employeeId: "alphanvgl", ...extra })).rejects.toThrow();
-    expect(fake.rows.identity_sessions ?? []).toHaveLength(0);
-  },
-);
-it("rejects expired sessions even for an IT account", async () => {
-  const employee = await account(); employee.roles = ["identity-admin"];
-  const login = await startIdentityLogin({ employeeId: "alphanvgl" });
-  fake.rows.identity_sessions[0].expiresAt = new Date(0);
-  await expect(requireIdentitySession(new Request("http://localhost", { headers: { cookie: `vng_identity=${login.token}` } }), true)).rejects.toMatchObject({ status: 401 });
-});
-it("rolls back a new session when its audit cannot be written", async () => {
-  await account(); fake.failAudit = true;
-  await expect(startIdentityLogin({ employeeId: "alphanvgl" })).rejects.toThrow("AUDIT_UNAVAILABLE");
-  expect(fake.rows.identity_sessions ?? []).toHaveLength(0);
-});
-it("does not advertise legacy session assurance as current identity verification", async () => {
-  await account(); const login = await startIdentityLogin({ employeeId: "alphanvgl" });
-  fake.rows.identity_sessions[0].assurance = "verified";
-  expect((await requireIdentitySession(new Request("http://localhost", { headers: { cookie: `vng_identity=${login.token}` } }))).assurance).toBe("demo");
+  await expect(requireEmployeeIdentity(body, requestWithIdentity)).rejects.toMatchObject({ code: "IDENTITY_MISMATCH", status: 403 });
+  await expect(requireEmployeeIdentity({ ...body, fields: { ...body.fields, employeeId: "ALPHANVGL" } }, requestWithIdentity)).resolves.toMatchObject({ fields: { employeeId: "alphanvgl" } });
 });

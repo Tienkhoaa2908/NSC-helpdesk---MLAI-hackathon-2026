@@ -1,4 +1,4 @@
-import { expect, test } from "./fixtures";
+import { expect, requesterLink, test } from "./fixtures";
 
 for (const [label, destination] of [
   ["Tôi cần hỗ trợ", "/login"],
@@ -101,8 +101,8 @@ test("request skeleton resolves to the original record and followup shows AI pro
   const row = (await saved.json()).data;
   let release!: () => void;
   const gate = new Promise<void>(resolve => { release = resolve; });
-  await page.route(`**/api/support/requests/${row.id}`, async route => { await gate; await route.continue(); });
-  await page.goto(`/requests/${row.id}`);
+  await page.route(`**/api/support/track/${row.id}`, async route => { await gate; await route.continue(); });
+  await page.goto(requesterLink(row));
   const requestSkeleton = page.locator(".content-skeleton").filter({ hasText: "Đang tải yêu cầu…" });
   await expect(requestSkeleton).toBeVisible();
   await page.screenshot({ path: `artifacts/motion-skeleton-${info.project.name}.png`, fullPage: true, animations: "disabled" });
@@ -126,7 +126,7 @@ test("changing reduced-motion preference cancels a curtain immediately", async (
   await expect(page.locator(".route-curtain")).toBeAttached();
   await page.emulateMedia({ reducedMotion: "reduce" });
   await expect(page.locator(".route-curtain")).toHaveCount(0);
-  await expect(page.getByLabel("ID nhân viên", { exact: true })).toBeEditable();
+  await expect(page.getByRole("button", { name: "Đăng nhập bằng Google", exact: true })).toBeVisible();
 });
 
 test("a stalled API releases the pending UI at the deadline without clearing the draft", async ({ page }) => {

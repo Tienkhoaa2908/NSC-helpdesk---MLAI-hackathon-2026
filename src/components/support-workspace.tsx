@@ -3,7 +3,7 @@ import { incidentTopic } from "@/domain/shared-support";
 import { companyServiceGroups, isCompanyService } from "@/domain/company-support";
 import { useEffect, useState } from "react";
 import { GuestRequestHistory } from "./guest-request-history";
-import { rememberGuestRequest } from "@/lib/guest-request-history";
+import { rememberGuestRequest, rememberPendingGuestRequest, removePendingGuestRequest } from "@/lib/guest-request-history";
 import { identityApi } from "@/components/identity-ui";
 import { useRouter } from "next/navigation";
 import {
@@ -64,12 +64,15 @@ const familiar: ServiceGroup[] = [
 ];
 export function SupportWorkspace({ guest = false }: { guest?: boolean }) {
   const router = useRouter();
-  const [account, setAccount] = useState<{ id: string; assurance: string } | null>(null);
+  const [account, setAccount] = useState<{ id: string } | null>(null);
   useEffect(() => {
     if (guest) return;
     let active = true;
-    void identityApi<{ id: string; assurance: string; department?: string }>("session").then((session) => {
-      if (active) { setAccount(session); setInput((current) => ({ ...current, fields: { ...current.fields, employeeId: session.id, ...(session.department ? { department: session.department } : {}) } })); }
+    void identityApi<{ status: "ACTIVE" | "PENDING" | "ADMIN"; id?: string; department?: string }>("session").then((session) => {
+      if (active && session.status === "ACTIVE" && session.id) {
+        setAccount({ id: session.id });
+        setInput((current) => ({ ...current, fields: { ...current.fields, employeeId: session.id!, ...(session.department ? { department: session.department } : {}) } }));
+      }
     }).catch(() => { /* Public judge demo remains available without an account. */ });
     return () => { active = false; };
   }, [guest]);
@@ -83,6 +86,7 @@ export function SupportWorkspace({ guest = false }: { guest?: boolean }) {
     idempotencyKey: "",
   });
   const [preview, setPreview] = useState<Preview | null>(null),
+    [trackingProof, setTrackingProof] = useState(""),
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
   useEffect(() => {
@@ -100,6 +104,7 @@ export function SupportWorkspace({ guest = false }: { guest?: boolean }) {
   function edit(next: Partial<SupportInput>) {
     setInput((current) => ({ ...current, ...next, previewId: undefined }));
     setPreview(null);
+    setTrackingProof("");
     setError("");
   }
   async function analyze() {
@@ -120,14 +125,17 @@ export function SupportWorkspace({ guest = false }: { guest?: boolean }) {
     }
     setBusy(true);
     setError("");
+    const idempotencyKey = crypto.randomUUID();
+    const trackingProof = Array.from(crypto.getRandomValues(new Uint8Array(32)), byte => byte.toString(16).padStart(2, "0")).join("");
     try {
       const value = await browserApi<Preview>("/api/support/preview", {
         ...input,
         previewId: undefined,
-        idempotencyKey: crypto.randomUUID(),
+        idempotencyKey,
       });
       setInput(value.input);
       setPreview(value);
+      setTrackingProof(trackingProof);
     } catch (error) {
       setError(
         error instanceof Error
@@ -140,15 +148,21 @@ export function SupportWorkspace({ guest = false }: { guest?: boolean }) {
   }
   async function submit() {
     if (!preview || busy) return;
+    if (!trackingProof) {
+      setError("Không thể xác nhận biên nhận cho yêu cầu này. Hãy tải lại preview trước khi gửi.");
+      return;
+    }
     setBusy(true);
     setError("");
     try {
-      const row = await browserApi<SupportRequest>("/api/support/requests", {
+      rememberPendingGuestRequest(preview.input.idempotencyKey, trackingProof);
+      const receipt = await browserApi<SupportRequest & { trackingToken: string }>("/api/support/requests", {
         ...preview.input,
         confirmed: true,
-      });
-      if (guest) rememberGuestRequest(row.id);
-      router.push(`/requests/${row.id}`);
+      }, { "x-tracking-proof": trackingProof });
+      if (guest && rememberGuestRequest(receipt.id, receipt.trackingToken))
+        removePendingGuestRequest(receipt.id);
+      router.push(`/requests/${receipt.id}#token=${receipt.trackingToken}`);
     } catch (error) {
       setError(
         error instanceof Error
@@ -193,7 +207,7 @@ export function SupportWorkspace({ guest = false }: { guest?: boolean }) {
   return (
     <main className="page page-narrow page-enter" data-guide-stage={guest ? undefined : preview ? "sender-preview" : "sender-form"}>
       <h1>Tôi cần hỗ trợ</h1>
-      {account && <Alert>ID {account.id} · Truy cập demo, chưa xác minh danh tính. <button type="button" className="identity-text-link" onClick={async () => { try { await identityApi("logout", {}); setAccount(null); edit({ fields: { ...input.fields, employeeId: "" } }); } catch (cause) { setError((cause as Error).message); } }}>Đăng xuất</button></Alert>}
+      {account && <Alert>Tài khoản nhân viên đang hoạt động · ID {account.id}. <button type="button" className="identity-text-link" onClick={async () => { try { await identityApi("logout", {}); setAccount(null); edit({ fields: { ...input.fields, employeeId: "" } }); } catch (cause) { setError((cause as Error).message); } }}>Đăng xuất</button></Alert>}
       <p className="page-description">
         Bạn cứ mô tả vấn đề bằng lời của mình. Chúng tôi sẽ giúp bạn tìm hướng
         xử lý phù hợp.

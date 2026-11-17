@@ -27,6 +27,11 @@ export default function VerifyPage() {
   const [judge, setJudge] = useState(""),
     [judged, setJudged] = useState<SupportRequest | null>(null),
     [error, setError] = useState("");
+  const judgeSubmission = useRef<{
+    inputKey: string;
+    idempotencyKey: string;
+    trackingProof: string;
+  } | null>(null);
   const cases = supportVerifyCases.filter((item) => item.pack === pack);
   const [currentRun, setCurrentRun] = useState<VerifyRun | null>(null);
   const [history, setHistory] = useState<
@@ -172,12 +177,24 @@ export default function VerifyPage() {
     setJudged(null);
     setReadback("");
     try {
+      const inputKey = JSON.stringify({ rawText: judge, fields: identity });
+      if (!judgeSubmission.current || judgeSubmission.current.inputKey !== inputKey) {
+        judgeSubmission.current = {
+          inputKey,
+          idempotencyKey: crypto.randomUUID(),
+          trackingProof: Array.from(
+            crypto.getRandomValues(new Uint8Array(32)),
+            (byte) => byte.toString(16).padStart(2, "0"),
+          ).join(""),
+        };
+      }
+      const submission = judgeSubmission.current;
       const row = await browserApi<SupportRequest>("/api/support/requests", {
         rawText: judge,
         fields: identity,
         confirmed: true,
-        idempotencyKey: crypto.randomUUID(),
-      });
+        idempotencyKey: submission.idempotencyKey,
+      }, { "x-tracking-proof": submission.trackingProof });
       setJudged(row);
       setReadback("Đang kiểm tra…");
       try {
@@ -190,6 +207,7 @@ export default function VerifyPage() {
         throw error;
       }
       setJudge("");
+      judgeSubmission.current = null;
     } catch (error) {
       setError(error instanceof Error ? error.message : "API error");
     } finally {
@@ -427,7 +445,7 @@ export default function VerifyPage() {
               {result.requestId && (
                 <Link
                   className="text-accent underline"
-                  href={`/requests/${result.requestId}`}
+                  href={`/review?requestId=${result.requestId}`}
                 >
                   Mở request / audit
                 </Link>
@@ -456,7 +474,11 @@ export default function VerifyPage() {
               Yêu cầu tự do
               <Textarea
                 value={judge}
-                onChange={(event) => setJudge(event.target.value)}
+                onChange={(event) => {
+                  const value = event.target.value;
+                  if (value !== judge) judgeSubmission.current = null;
+                  setJudge(value);
+                }}
                 maxLength={6000}
                 required
               />
@@ -476,7 +498,7 @@ export default function VerifyPage() {
               />
               <Link
                 className="text-accent underline"
-                href={`/requests/${judged.id}`}
+                href={`/review?requestId=${judged.id}`}
               >
                 Xem hướng dẫn / chuyển admin
               </Link>

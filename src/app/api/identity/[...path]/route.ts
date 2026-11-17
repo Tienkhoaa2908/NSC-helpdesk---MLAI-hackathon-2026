@@ -1,11 +1,11 @@
 import { z } from "zod";
 import { applicationInputSchema, evaluateScope, profileSchema, scopeSchema, type IdentityApplication, type JobProfile } from "@/domain/identity";
 import { successResponse } from "@/lib/api-response";
-import { identityRateLimit, identitySessionCookie, logoutIdentity, requireIdentitySession, startIdentityLogin } from "@/lib/identity-auth";
+import { identityClientRateLimitKey, identityPrincipalForRequest, identityRateLimit, identitySessionCookie, logoutIdentity, requireIdentitySession } from "@/lib/identity-auth";
 import { identityStore, identityTransaction } from "@/lib/identity-store";
 import { supportApi, supportBody } from "@/lib/support-http";
 import { SupportError } from "@/lib/support-repository";
-import { decideIdentityApplication, identityAudit, listIdentityProfiles, submitIdentityApplication, trackIdentityApplication } from "@/services/identity";
+import { decideIdentityApplication, identityAudit, listIdentityProfiles, myIdentityApplication, submitIdentityApplication, trackIdentityApplication } from "@/services/identity";
 import { mongoDemoAuthority, requestDemoGrant, decideDemoGrant, updateDemoUsage, checkDemoAuthority } from "@/services/demo-authority";
 
 export const dynamic = "force-dynamic";
@@ -19,8 +19,14 @@ export async function GET(request: Request, context: Context) {
     }
     if (path.join("/") === "profiles") return listIdentityProfiles();
     if (path.join("/") === "session") {
-      const { employee, assurance } = await requireIdentitySession(request);
-      return { id: employee.id, name: employee.fullName, department: employee.department, assurance, canReviewIds: employee.roles.includes("identity-admin") };
+      const principal = await identityPrincipalForRequest(request);
+      return { status: principal.status, ...(principal.status === "ACTIVE" && principal.employee ? { id: principal.employee.id } : {}),
+        name: principal.name, email: principal.email, ...(principal.status === "ACTIVE" ? { department: principal.employee?.department } : {}),
+        assurance: principal.assurance, canReviewIds: principal.canReviewIds, applicationStatus: principal.applicationStatus };
+    }
+    if (path.join("/") === "my-application") {
+      const principal = await identityPrincipalForRequest(request);
+      return myIdentityApplication(principal.googleSub);
     }
     if (path.length === 2 && path[0] === "applications") return trackIdentityApplication(z.string().uuid().parse(path[1]), z.string().regex(/^[a-f0-9]{64}$/).parse(request.headers.get("x-tracking-token")));
     await requireIdentitySession(request, true);
@@ -31,7 +37,7 @@ export async function GET(request: Request, context: Context) {
       const pending = z.enum(["pending", "all"]).parse(params.get("status") ?? "all");
       const isReview = path[0] === "review";
       const query = isReview && pending === "pending" ? { status: { $in: ["PENDING", "ID_CONFLICT"] as const } } : {};
-      const rows = await db.collection<IdentityApplication>(isReview ? "identity_applications" : "identity_audit").find(query, { projection: isReview ? { _id: 0, trackingHash: 0, fingerprint: 0 } : { _id: 0 } }).sort(isReview ? { createdAt: -1, id: 1 } : { at: -1, id: 1 }).skip((page - 1) * 50).limit(51).toArray();
+      const rows = await db.collection<IdentityApplication>(isReview ? "identity_applications" : "identity_audit").find(query, { projection: isReview ? { _id: 0, trackingHash: 0, fingerprint: 0, "applicant.sub": 0 } : { _id: 0 } }).sort(isReview ? { createdAt: -1, id: 1 } : { at: -1, id: 1 }).skip((page - 1) * 50).limit(51).toArray();
       return { items: rows.slice(0, 50), hasMore: rows.length > 50 };
     }
     throw new SupportError("NOT_FOUND", "Không tìm thấy chức năng.", 404);
@@ -50,17 +56,7 @@ export async function POST(request: Request, context: Context) {
       if (route === "authority/usage") return successResponse(await updateDemoUsage(body, employee.id));
       return successResponse(await checkDemoAuthority(body, employee));
     }
-    if (route === "verify") throw new SupportError("OTP_REMOVED", "OTP đã được bỏ khỏi bản demo. Đăng nhập lại bằng ID.", 410);
-    if (route === "login") {
-      await identityRateLimit("authentication", 100);
-      const result = await startIdentityLogin(body);
-      if ("token" in result && result.token) {
-        const response = successResponse({ assurance: result.assurance, canReviewIds: result.canReviewIds });
-        response.headers.set("set-cookie", identitySessionCookie(result.token));
-        return response;
-      }
-      return successResponse(result);
-    }
+    if (route === "verify" || route === "login") throw new SupportError("ID_LOGIN_DISABLED", "Đăng nhập bằng ID đã được tắt. Dùng nút Đăng nhập bằng Google.", 410);
     if (route === "logout") {
       await logoutIdentity(request);
       const response = successResponse({ signedOut: true });
@@ -69,8 +65,11 @@ export async function POST(request: Request, context: Context) {
     }
     if (route === "applications") {
       const input = applicationInputSchema.parse(body);
-      await identityRateLimit("applications", 30);
-      return successResponse(await submitIdentityApplication(input), { status: 201 });
+      await identityRateLimit(`applications:client:${identityClientRateLimitKey(request)}`, 30);
+      const principal = await identityPrincipalForRequest(request);
+      if (principal.status !== "PENDING") throw new SupportError("IDENTITY_ALREADY_ACTIVE", "Tài khoản này đã có quyền sử dụng hệ thống hoặc quản trị danh tính.", 409);
+      await identityRateLimit(`applications:account:${principal.googleSub}`, 5);
+      return successResponse(await submitIdentityApplication(input, { sub: principal.googleSub, email: principal.email }), { status: 201 });
     }
     if (route === "access") {
       const { employee, assurance } = await requireIdentitySession(request);
@@ -84,8 +83,8 @@ export async function POST(request: Request, context: Context) {
       return successResponse({ ...result, assurance, executed: false });
     }
     if (path.length === 2 && path[0] === "review") {
-      const { employee } = await requireIdentitySession(request, true);
-      return successResponse(await decideIdentityApplication(z.string().uuid().parse(path[1]), body, employee.id));
+      const { principal } = await requireIdentitySession(request, true);
+      return successResponse(await decideIdentityApplication(z.string().uuid().parse(path[1]), body, principal.email));
     }
     throw new SupportError("NOT_FOUND", "Không tìm thấy chức năng.", 404);
   } catch (error) { return supportApi(async () => { throw error; }); }

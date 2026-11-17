@@ -27,7 +27,7 @@ test("authority UI labels demo, shows Mongo failure without a success receipt an
   await page.route("**/api/identity/authority/request", (route) => route.fulfill({ status: 503, json: { success: false, error: { message: "MongoDB không khả dụng. Chưa lưu đơn." } } }));
   await page.goto("/identity/authority");
   await expect(page.getByRole("heading", { name: "DEMO-SANDBOX", exact: true })).toBeVisible();
-  await expect(page.getByText("Đăng nhập ID-only chưa xác minh người sử dụng.", { exact: false })).toBeVisible();
+  await expect(page.getByText(/Google Sign-In xác minh tài khoản/)).toBeVisible();
   await page.getByLabel("Thời hạn (giờ, tối đa 24)").fill("4");
   await page.getByLabel("Lý do", { exact: true }).fill("Thử nghiệm dữ liệu giả lập");
   await page.getByRole("button", { name: "Gửi đơn quyền demo" }).click();

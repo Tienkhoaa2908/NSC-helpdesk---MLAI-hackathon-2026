@@ -30,7 +30,7 @@ test("sender sees safe guidance and progress; staff retains sentiment, expected 
     source: "rule-based",
     sentiment: "neutral",
   });
-  await expect(page).toHaveURL(new RegExp(`/requests/${saved.id}$`));
+  await expect(page).toHaveURL(new RegExp(`/requests/${saved.id}#token=${saved.trackingToken}$`));
   // Understanding a physical fix must not silently complete a device issue.
   await expect(
     page.getByRole("button", { name: "Tôi đã hiểu", exact: true }),

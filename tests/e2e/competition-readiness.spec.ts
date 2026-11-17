@@ -1,4 +1,4 @@
-import { expect, freshTest as test } from "./fixtures";
+import { expect, freshTest as test, requesterLink } from "./fixtures";
 import { employeeIdentity, fillEmployeeIdentity } from "./intake-helpers";
 
 test("judge can enter from home, run De A, inspect audit and try a new input with keyboard", async ({ page }) => {
@@ -21,21 +21,21 @@ test("judge can enter from home, run De A, inspect audit and try a new input wit
   await expect(page.getByText("Ban tiếp nhận: Ban IT", { exact: false }).first()).toBeVisible();
   const resultsUrl = page.url();
   await page.getByRole("link", { name: "Mở request / audit" }).last().click();
-  await page.getByText("Lịch sử yêu cầu và hướng dẫn", { exact: true }).click();
-  await expect(page.locator(".support-timeline")).toBeVisible();
-  await expect(page.locator(".support-timeline time").first()).toBeVisible();
-  await expect(page.locator("main")).not.toContainText("Rule, evidence");
-  const requestId = new URL(page.url()).pathname.split("/").at(-1);
-  await page.goto(`/review?requestId=${requestId}`);
+  await expect(page).toHaveURL(/\/review\?requestId=/);
   await page.getByRole("button", { name: "Xem lịch sử & bằng chứng", exact: true }).click();
   await page.getByRole("tab", { name: /^Lịch sử xử lý/ }).click();
+  await expect(page.locator(".support-timeline")).toBeVisible();
+  await expect(page.locator(".support-timeline time").first()).toBeVisible();
+  await expect(page.locator("main")).toContainText("Rule, evidence và thông tin còn thiếu");
+  const requestId = new URL(page.url()).searchParams.get("requestId");
+  expect(requestId).toBeTruthy();
   await page.getByText("Rule, evidence và thông tin còn thiếu", { exact: true }).last().click();
   await expect(page.locator(".support-timeline")).toContainText("SEC-002");
   await page.goto(resultsUrl);
   await fillEmployeeIdentity(page);
   await page.getByLabel("Yêu cầu tự do").fill("VPN không kết nối; lý do: kiểm tra mạng thử nghiệm");
   await page.getByRole("button", { name: "Đánh giá input mới" }).click();
-  await expect(page.getByRole("link", { name: "Xem hướng dẫn / chuyển admin" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Xem hướng dẫn / chuyển admin" })).toHaveAttribute("href", /\/review\?requestId=/);
   await expect(page.getByRole("heading", { name: "Có thể hỗ trợ an toàn" })).toBeVisible();
 });
 
@@ -53,7 +53,7 @@ test("synthetic PII and JSON OTP stay masked in API, audit and rendered history"
   expect(events.status()).toBe(200);
   const audit = await events.text();
   for (const value of values) expect(audit).not.toContain(value);
-  await page.goto(`/requests/${data.id}`);
+  await page.goto(requesterLink(data));
   await expect(page.getByText("Trạng thái:")).toBeVisible();
   for (const value of values) await expect(page.locator("body")).not.toContainText(value);
   await expect(page.locator("body")).toContainText("REDACTED");

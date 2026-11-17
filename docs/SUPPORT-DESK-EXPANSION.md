@@ -1,5 +1,7 @@
 # Support Desk: IT, Commercial và HR
 
+> Tài liệu ghi lại đề xuất và giới hạn trong giai đoạn mở rộng; các mô tả đăng nhập ID-only là bối cảnh của bản cũ. Bản hiện tại dùng Google Sign-In cho Identity nhưng vẫn giữ Support reviewer public demo. Xem [Identity setup](IDENTITY-SETUP.md) và [Privacy Inventory](PRIVACY-INVENTORY.md) để biết ranh giới hiện tại.
+
 ## Hợp đồng
 
 - Giao diện xử lý có đúng ba tab: **Ban IT**, **Ban Commercial**, **Ban HR**. Các chuyên môn được ánh xạ nội bộ, không tạo thêm tab.

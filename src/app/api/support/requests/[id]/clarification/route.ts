@@ -2,19 +2,20 @@ import {
   supportApi,
   supportBody,
   requestId,
-  requireDemoReviewer,
   enforceDemoRateLimit,
 } from "@/lib/support-http";
 import { clarifySupport } from "@/services/review";
+import { requireRequesterTracking } from "@/lib/support-tracking";
 export async function POST(
   request: Request,
   context: { params: Promise<{ id: string }> },
 ) {
   return supportApi(async () => {
     enforceDemoRateLimit(request, "mutation");
-    requireDemoReviewer();
+    const id = requestId((await context.params).id);
+    await requireRequesterTracking(id, request.headers.get("x-tracking-token"));
     return clarifySupport(
-      requestId((await context.params).id),
+      id,
       await supportBody(request),
     );
   });

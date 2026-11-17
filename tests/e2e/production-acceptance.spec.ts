@@ -42,7 +42,7 @@ for (const [name, text, action, intent] of [
     const savedResponse = page.waitForResponse(r => r.url().endsWith("/api/support/requests") && r.request().method() === "POST");
     await page.locator('[data-guide="sender-confirm"]').click();
     const saved = (await (await savedResponse).json()).data;
-    await expect(page).toHaveURL(new RegExp(`/requests/${saved.id}$`));
+    await expect(page).toHaveURL(new RegExp(`/requests/${saved.id}#token=${saved.trackingToken}$`));
     if (name === "printer") {
       await page.getByLabel("Hỏi tiếp", { exact: true }).fill("Tôi chưa làm được, nhờ nhân viên hỗ trợ.");
       await page.getByRole("button", { name: "Gửi câu hỏi", exact: true }).click();

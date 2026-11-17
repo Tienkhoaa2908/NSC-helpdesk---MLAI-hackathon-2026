@@ -1,4 +1,4 @@
-import { expect, test } from "./fixtures";
+import { expect, requesterLink, test } from "./fixtures";
 import { employeeIdentity, fillEmployeeIdentity } from "./intake-helpers";
 
 test("affect-only feedback keeps the ticket open until an explicit outcome", async ({ page, request }) => {
@@ -7,7 +7,7 @@ test("affect-only feedback keeps the ticket open until an explicit outcome", asy
   } });
   expect(response.status()).toBe(201);
   const { data: row } = await response.json();
-  await page.goto(`/requests/${row.id}`);
+  await page.goto(requesterLink(row));
   for (const text of ["Tôi rất hài lòng.", "Tôi rất bực mình."]) {
     await page.getByLabel("Hỏi tiếp", { exact: true }).fill(text);
     await page.getByRole("button", { name: "Gửi câu hỏi", exact: true }).click();
@@ -43,7 +43,7 @@ for (const text of ["tôi không vào acc youtube được", "tôi không vào a
 }
 test("reviewer can select separate policy and authority queues", async ({ page }) => {
   const create = async (rawText: string) => {
-    const response = await page.request.post("/api/support/requests", { data: { ...employeeIdentity, rawText, confirmed: true, idempotencyKey: crypto.randomUUID() } });
+    const response = await page.request.post("/api/support/requests", { headers: { "x-tracking-proof": crypto.randomUUID().replaceAll("-", "") + crypto.randomUUID().replaceAll("-", "") }, data: { ...employeeIdentity, rawText, confirmed: true, idempotencyKey: crypto.randomUUID() } });
     expect(response.ok(), await response.text()).toBe(true);
     return (await response.json()).data.id as string;
   };

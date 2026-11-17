@@ -14,7 +14,7 @@ export default function EmployeeHelp() {
         </nav>
         <section>
           <h2>1. Chọn cách gửi</h2>
-          <p>Chọn <strong>Tôi cần hỗ trợ</strong> để đăng nhập bằng ID đã cấp. Nếu chưa có tài khoản, chọn <strong>Đăng nhập không cần tài khoản</strong> để dùng luồng demo; luồng này không xác minh danh tính hoặc quyền nhân viên. Có thể gửi đơn xin cấp ID bằng lựa chọn <strong>Nhân viên mới?</strong>.</p>
+          <p>Chọn <strong>Tôi cần hỗ trợ</strong> rồi đăng nhập bằng Google với tài khoản đã được IT duyệt. Nếu chưa có ID, đăng nhập Google và chọn <strong>Nhân viên mới?</strong> để gửi đơn; IT xác minh nhân sự và phạm vi trước khi cấp ID. ID nội bộ không phải mật khẩu. Muốn thử luồng công khai, chọn <strong>Đăng nhập không cần tài khoản</strong>; luồng demo này không xác minh người dùng.</p>
         </section>
         <section>
           <h2>2. Mô tả vấn đề</h2>
@@ -26,12 +26,12 @@ export default function EmployeeHelp() {
         </section>
         <section>
           <h2>4. Theo dõi hồ sơ</h2>
-          <p>Lưu liên kết đầy đủ. Trên trang theo dõi, bạn có thể trả lời câu hỏi làm rõ, hỏi tiếp, báo đã giải quyết, báo vẫn còn lỗi hoặc yêu cầu nhân viên hỗ trợ.</p>
+          <p>Lưu liên kết đầy đủ. Token trong liên kết cho phép người gửi đọc và tiếp tục hồ sơ; reviewer Support vẫn có thể xem hồ sơ trên hàng đợi công khai, vì vậy chỉ dùng dữ liệu tổng hợp trên website public. Trên trang theo dõi, bạn có thể trả lời câu hỏi làm rõ, hỏi tiếp, báo đã giải quyết, báo vẫn còn lỗi hoặc yêu cầu nhân viên hỗ trợ.</p>
           <p><Link href="/track">Mở trang theo dõi yêu cầu →</Link></p>
         </section>
         <section className="guide-note">
           <h2>Giới hạn môi trường demo</h2>
-          <p>ID và phòng ban tự khai chỉ liên kết hồ sơ, không chứng minh danh tính thật. Hướng dẫn tự động theo policy và kho tri thức; trường hợp thiếu căn cứ, vượt thẩm quyền hoặc có rủi ro được hỏi thêm hoặc chuyển nhân viên. Không gửi dữ liệu nhạy cảm.</p>
+          <p>Google Sign-In xác minh tài khoản Google, không xác nhận người dùng là nhân viên. IT phải kiểm tra đơn trước khi cấp ID. Phòng ban tự khai trong luồng demo chỉ liên kết hồ sơ. Hướng dẫn tự động theo policy và kho tri thức; trường hợp thiếu căn cứ, vượt thẩm quyền hoặc có rủi ro được hỏi thêm hoặc chuyển nhân viên. Không gửi dữ liệu nhạy cảm.</p>
         </section>
       </article>
     </main>

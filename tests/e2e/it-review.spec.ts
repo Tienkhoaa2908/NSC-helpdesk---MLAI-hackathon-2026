@@ -1,4 +1,4 @@
-import { test, expect } from "./fixtures";
+import { test, expect, requesterTokenHeader } from "./fixtures";
 import { employeeIdentity } from "./intake-helpers";
 
 test("redesigned workspace preserves the knowledge-review filter and candidate evidence", async ({
@@ -18,6 +18,7 @@ test("redesigned workspace preserves the knowledge-review filter and candidate e
   const feedback = await request.post(
     `/api/support/requests/${row.id}/feedback`,
     {
+      headers: requesterTokenHeader(row),
       data: {
         version: row.version,
         choice: "RESOLVED",

@@ -21,7 +21,7 @@ test("record a raw demo and verify reviewer override, stop and audit", async ({
   });
   const page = await context.newPage();
   await page.addInitScript(() => {
-    for (const role of ["intro", "sender", "reviewer"]) sessionStorage.setItem(`vng-guide-v1:${role}`, "seen");
+    for (const role of ["intro", "sender-intro", "reviewer-intro", "sender", "reviewer"]) sessionStorage.setItem(`vng-guide-v1:${role}`, "seen");
   });
   const video = page.video();
   try {
@@ -37,11 +37,11 @@ test("record a raw demo and verify reviewer override, stop and audit", async ({
       .fill("Tôi tắt máy tính lúc về được không?");
     await page.getByRole("button", { name: "Gửi", exact: true }).click();
     await page.getByRole("button", { name: "Xác nhận và gửi yêu cầu" }).click();
-    await expect(page).toHaveURL(/\/requests\/[a-f0-9-]+$/);
+    await expect(page).toHaveURL(/\/requests\/[a-f0-9-]+#token=[a-f0-9]{64}$/);
     await expect(page.getByText("Trạng thái:")).toContainText(
       "Đã có hướng dẫn",
     );
-    const id = page.url().split("/").at(-1);
+    const id = new URL(page.url()).pathname.split("/").at(-1);
     await page
       .getByRole("button", {
         name: "D. Chuyển cho nhân viên hỗ trợ",

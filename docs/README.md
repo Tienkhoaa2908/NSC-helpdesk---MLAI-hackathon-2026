@@ -14,6 +14,7 @@
 | --- | --- |
 | Kiến trúc, luồng xử lý và sơ đồ | [ARCHITECTURE](ARCHITECTURE.md), [diagrams](diagrams/) |
 | Cấu hình Gemini, model và API key | [AI-CONFIGURATION](AI-CONFIGURATION.md) |
+| Google Sign-In, MongoDB Identity và cấp ID | [IDENTITY-SETUP](IDENTITY-SETUP.md) |
 | Cài đặt, môi trường và vận hành | [RUNBOOK](../RUNBOOK.md) |
 | Policy runtime | [`src/domain/policy-source.ts`](../src/domain/policy-source.ts), [`src/domain/policy.ts`](../src/domain/policy.ts) |
 

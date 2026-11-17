@@ -62,7 +62,7 @@ test("old help route and workspace alias share preview, edit and v3 submit", asy
     fullPage: true,
   });
   await page.getByRole("button", { name: "Xác nhận và gửi yêu cầu" }).click();
-  await expect(page).toHaveURL(/\/requests\/[a-f0-9-]+$/);
+  await expect(page).toHaveURL(/\/requests\/[a-f0-9-]+#token=[a-f0-9]{64}$/);
   await expect(
     page.getByRole("button", { name: "D. Chuyển cho nhân viên hỗ trợ" }),
   ).toBeVisible();
@@ -83,7 +83,7 @@ test("explain stays open, handoff is explicit and rejected request shows current
   await page.getByRole("button", { name: "Gửi", exact: true }).click();
   await expect(page.getByText("CHƯA GỬI YÊU CẦU")).toBeVisible();
   await page.getByRole("button", { name: "Xác nhận và gửi yêu cầu" }).click();
-  await expect(page).toHaveURL(/\/requests\/[a-f0-9-]+$/);
+  await expect(page).toHaveURL(/\/requests\/[a-f0-9-]+#token=[a-f0-9]{64}$/);
   await page.getByLabel("Bước cần giải thích").selectOption("1");
   await page.getByRole("button", { name: "C. Giải thích bước này" }).click();
   await expect(

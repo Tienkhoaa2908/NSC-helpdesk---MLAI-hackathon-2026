@@ -10,7 +10,7 @@ test("role entry and compact login stay reachable by keyboard and browser back",
   await entry.focus();
   await page.keyboard.press("Enter");
   await expect(page).toHaveURL(/\/login$/);
-  await expect(page.getByLabel("ID nhân viên", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Đăng nhập bằng Google", exact: true })).toBeVisible();
   await page.screenshot({ animations: "disabled", path: `artifacts/ui-login-${info.project.name}.png`, fullPage: true });
   await page.getByText("Hướng dẫn & tùy chọn", { exact: true }).focus();
   await page.keyboard.press("Enter");

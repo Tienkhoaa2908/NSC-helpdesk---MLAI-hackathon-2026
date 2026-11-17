@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { employeeIdPattern, normalizeEmployeeId } from "./employee-identity";
+import { employeeIdPattern } from "./employee-identity";
 
 export function generateEmployeeId(fullName: string): string {
   const parts = fullName.normalize("NFD").replace(/[\u0300-\u036f]/g, "")
@@ -55,14 +55,16 @@ export const applicationInputSchema = z.object({
 export type ApplicationInput = z.infer<typeof applicationInputSchema>;
 export type IdentityAudit = { id: string; at: string; actor: string; action: string; subject: string; reason: string; version?: number };
 export type IdentityApplication = {
-  id: string; fullName: string; job: ApplicationInput["job"]; profile: JobProfile | null;
+  id: string; fullName: string; applicant?: IdentityApplicant; job: ApplicationInput["job"]; profile: JobProfile | null;
   requestedScopes: Scope[]; trackingHash: string; fingerprint: string;
   status: "PENDING" | "ID_CONFLICT" | "APPROVED" | "REJECTED"; version: number;
   createdAt: string; updatedAt: string; decisionReason?: string; decidedBy?: string;
   employeeId?: string; grantedProfile?: { id: string; version: number };
 };
+export type IdentityApplicant = { sub: string; email: string };
 export type EmployeeAccount = {
   department?: string;
+  googleSub?: string; email?: string;
   id: string; fullName: string; status: "ACTIVE" | "DISABLED"; profileId: string; profileVersion: number;
   roles: Array<"identity-admin">; createdAt: string; applicationId: string;
   // Legacy delivery metadata; not used by ID-only login and never returned publicly.
@@ -73,7 +75,6 @@ export const decisionSchema = z.object({
   reason: z.string().trim().min(8).max(1000),
   approvedScopes: scopesSchema.optional(), suffix: z.string().regex(/^[1-9][0-9]{0,3}$/).optional(),
 }).strict();
-export const loginSchema = z.object({ employeeId: z.string().trim().transform(normalizeEmployeeId).pipe(z.string().regex(employeeIdPattern)) }).strict();
 export function evaluateScope(granted: Scope[], requested: Scope) {
   if (!granted.some((scope) => scopeKey(scope) === scopeKey(requested)))
     return { allowed: false, bucket: "OUT_OF_SCOPE", reason: "Thao tác hoặc đích không nằm trong profile đã duyệt." };

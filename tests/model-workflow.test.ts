@@ -14,6 +14,7 @@ import type { SupportInput } from "@/domain/contracts";
 import { guidanceTemplate } from "@/domain/guidance";
 import { evaluatePolicy } from "@/domain/policy";
 import { POST } from "@/app/api/support/requests/route";
+import { supportRequestProof } from "./support-request-proof";
 
 beforeEach(() => {
   vi.stubEnv("AI_PROVIDER", "mock");
@@ -46,14 +47,16 @@ it("VPN support with additional platform context retains model enrichment with e
 });
 it("model unavailable and invalid output fail safe through the production submission API", async () => {
   for (const fault of ["unavailable", "invalid"]) {
+    const submission = input("Need troubleshooting support");
     const response = await POST(
       new Request("http://localhost/api/support/requests", {
         method: "POST",
         headers: {
           "content-type": "application/json",
+          "x-tracking-proof": supportRequestProof(submission.idempotencyKey),
           "x-support-model-simulation": fault,
         },
-        body: JSON.stringify(input("Need troubleshooting support")),
+        body: JSON.stringify(submission),
       }),
     );
     const body = await response.json();

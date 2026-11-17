@@ -4,6 +4,7 @@ import { extractIntake, extractText } from "@/domain/text";
 import { prepareInput, submitSupport } from "@/services/support";
 import { getSupportRequest, resetSupportTestStore } from "@/lib/support-repository";
 import { POST } from "@/app/api/support/requests/route";
+import { supportRequestProof } from "./support-request-proof";
 import { verifyApproval } from "@/services/approvals";
 import extended from "../challenge/mlai-2026/data/ground-truth/extended_ticket_cases.json";
 import crossFunction from "../challenge/mlai-2026/data/ground-truth/enterprise_cross_function_cases.json";
@@ -414,9 +415,10 @@ it("routes repair to the simulated workflow instead of a guidance bubble", () =>
 });
 it("does not reflect attacker-controlled field names in validation errors", async () => {
   const privateKey = "SYNTHETIC_PRIVATE_FIELD_482";
+  const body = { ...intake("Restart laptop"), fields: { [privateKey]: "x".repeat(301) } };
   const response = await POST(new Request("http://localhost/api/support/requests", {
-    method: "POST", headers: { "content-type": "application/json" },
-    body: JSON.stringify({ ...intake("Restart laptop"), fields: { [privateKey]: "x".repeat(301) } }),
+    method: "POST", headers: { "content-type": "application/json", "x-tracking-proof": supportRequestProof(body.idempotencyKey) },
+    body: JSON.stringify(body),
   }));
   expect(response.status).toBe(422);
   expect(await response.text()).not.toContain(privateKey);

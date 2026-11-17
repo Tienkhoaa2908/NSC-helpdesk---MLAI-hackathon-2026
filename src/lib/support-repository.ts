@@ -14,10 +14,11 @@ export class SupportError extends Error {
     super(message);
   }
 }
-type Document = { _id: string; data: SupportRequest };
+type Document = { _id: string; data: SupportRequest; trackingTokenHash?: string; trackingProofHash?: string };
+type StoredSupportRequest = { request: SupportRequest; trackingTokenHash?: string; trackingProofHash?: string };
 type Runtime = {
   supportV3Previews?: Map<string, SupportPreview>;
-  supportV3Requests?: Map<string, SupportRequest>;
+  supportV3Requests?: Map<string, StoredSupportRequest>;
   supportV3Mongo?: MongoClient;
   supportV3Budgets?: Map<string, number>;
   supportV3IndexReady?: Promise<string>;
@@ -86,9 +87,32 @@ export async function getSupportRequest(
 ): Promise<SupportRequest | null> {
   const db = supportDatabase();
   const row = db
-    ? (await supportRequests(db).findOne({ _id: id }))?.data
-    : memory().get(id);
-  return row ? structuredClone(row) : null;
+    ? await supportRequests(db).findOne({ _id: id }, { projection: { data: 1 } })
+    : null;
+  const stored = db ? row?.data : memory().get(id)?.request;
+  return stored ? structuredClone(stored) : null;
+}
+export async function getSupportRequestTrackingHash(id: string): Promise<string | null> {
+  const db = supportDatabase();
+  if (db) {
+    const row = await supportRequests(db).findOne(
+      { _id: id },
+      { projection: { _id: 0, trackingTokenHash: 1 } },
+    );
+    return typeof row?.trackingTokenHash === "string" ? row.trackingTokenHash : null;
+  }
+  return memory().get(id)?.trackingTokenHash ?? null;
+}
+export async function getSupportRequestTrackingProofHash(id: string): Promise<string | null> {
+  const db = supportDatabase();
+  if (db) {
+    const row = await supportRequests(db).findOne(
+      { _id: id },
+      { projection: { _id: 0, trackingProofHash: 1 } },
+    );
+    return typeof row?.trackingProofHash === "string" ? row.trackingProofHash : null;
+  }
+  return memory().get(id)?.trackingProofHash ?? null;
 }
 export async function listSupportRequests(
   allForLocal = false,
@@ -105,18 +129,20 @@ export async function listSupportRequests(
     ).map((row) => row.data);
   }
   return structuredClone(
-    [...memory().values()]
+    [...memory().values()].map((row) => row.request)
       .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
       .slice(0, allForLocal ? undefined : 200),
   );
 }
 export async function insertSupportRequest(
   request: SupportRequest,
+  trackingTokenHash?: string,
+  trackingProofHash?: string,
 ): Promise<boolean> {
   const db = supportDatabase();
   if (db) {
     try {
-      await supportRequests(db).insertOne({ _id: request.id, data: request });
+      await supportRequests(db).insertOne({ _id: request.id, data: request, ...(trackingTokenHash ? { trackingTokenHash } : {}), ...(trackingProofHash ? { trackingProofHash } : {}) });
       return true;
     } catch (error) {
       if (error instanceof MongoServerError && error.code === 11000)
@@ -125,7 +151,7 @@ export async function insertSupportRequest(
     }
   }
   if (memory().has(request.id)) return false;
-  memory().set(request.id, structuredClone(request));
+  memory().set(request.id, { request: structuredClone(request), ...(trackingTokenHash ? { trackingTokenHash } : {}), ...(trackingProofHash ? { trackingProofHash } : {}) });
   return true;
 }
 // Request, assistance history and audit events are embedded in one atomic Mongo document.
@@ -143,6 +169,8 @@ export async function updateSupportRequest(
       "Yêu cầu đã thay đổi. Tải lại trước khi thao tác.",
       409,
     );
+  const trackingTokenHash = await getSupportRequestTrackingHash(id);
+  const trackingProofHash = await getSupportRequestTrackingProofHash(id);
   const draft = structuredClone(existing);
   update(draft);
   draft.version = version + 1;
@@ -151,7 +179,7 @@ export async function updateSupportRequest(
   if (db) {
     const result = await db
       .collection<Document>("v3_support_requests")
-      .replaceOne({ _id: id, "data.version": version }, { data: draft });
+      .replaceOne({ _id: id, "data.version": version }, { data: draft, ...(trackingTokenHash ? { trackingTokenHash } : {}), ...(trackingProofHash ? { trackingProofHash } : {}) });
     if (!result.matchedCount)
       throw new SupportError(
         "VERSION_CONFLICT",
@@ -159,13 +187,14 @@ export async function updateSupportRequest(
         409,
       );
   } else {
-    if (memory().get(id)?.version !== version)
+    const stored = memory().get(id);
+    if (stored?.request.version !== version)
       throw new SupportError(
         "VERSION_CONFLICT",
         "Yêu cầu đã thay đổi. Tải lại.",
         409,
       );
-    memory().set(id, structuredClone(draft));
+    memory().set(id, { request: structuredClone(draft), ...(trackingTokenHash ? { trackingTokenHash } : {}), ...(trackingProofHash ? { trackingProofHash } : {}) });
   }
   return structuredClone(draft);
 }

@@ -1,4 +1,4 @@
-import { test, expect } from "./fixtures";
+import { test, expect, requesterLink, requesterTokenHeader } from "./fixtures";
 import type { SupportRequest } from "../../src/domain/contracts";
 
 for (const source of ["draft", "manual"] as const) {
@@ -7,12 +7,13 @@ for (const source of ["draft", "manual"] as const) {
       requesterMode: "guest", rawText: "Need database access", confirmed: true, idempotencyKey: crypto.randomUUID(),
     } });
     expect(created.ok()).toBe(true);
-    const original: SupportRequest = (await created.json()).data;
+    const original = (await created.json()).data as SupportRequest & { trackingToken: string };
     const handoff = await request.post(`/api/support/requests/${original.id}/feedback`, {
+      headers: requesterTokenHeader(original),
       data: { version: original.version, choice: "ADMIN" },
     });
     expect(handoff.ok()).toBe(true);
-    const row: SupportRequest = (await handoff.json()).data;
+    const row: SupportRequest & { trackingToken: string } = { ...(await handoff.json()).data, trackingToken: original.trackingToken };
     expect(row.status).toBe("ESCALATED");
     await page.goto(`/review?requestId=${row.id}`);
     const send = page.getByRole("button", { name: "Gửi cho người gửi", exact: true });
@@ -40,7 +41,7 @@ for (const source of ["draft", "manual"] as const) {
     expect(beforeSend.version).toBe(row.version);
     expect(beforeSend.events.some((event: { senderMessage?: string }) => event.senderMessage)).toBe(false);
     const sender = await context.newPage();
-    await sender.goto(`/requests/${row.id}`);
+    await sender.goto(requesterLink(row));
     await expect(sender.getByRole("region", { name: "Tin nhắn từ nhân viên" })).toHaveCount(0);
     await sender.bringToFront();
     await send.click();
@@ -67,7 +68,7 @@ test("failed sends preserve the draft, and retry sends it only once", async ({ p
     requesterMode: "guest", rawText: "VPN không kết nối", confirmed: true, idempotencyKey: crypto.randomUUID(),
   } });
   expect(created.ok()).toBe(true);
-  const row: SupportRequest = (await created.json()).data;
+  const row = (await created.json()).data as SupportRequest & { trackingToken: string };
   await page.goto(`/review?requestId=${row.id}`);
   const composer = page.getByLabel("Tin nhắn cho người gửi");
   const send = page.getByRole("button", { name: "Gửi cho người gửi", exact: true });
