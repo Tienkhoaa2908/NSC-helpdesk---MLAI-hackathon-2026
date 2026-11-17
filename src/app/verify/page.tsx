@@ -436,7 +436,7 @@ export default function VerifyPage() {
           ))}
         </div>
         <Card>
-          <h2 className="mb-3 text-xl font-bold">Judge input mới</h2>
+          <h2 className="mb-3 text-xl font-bold">Tình huống mới để thử</h2>
           <p className="mb-3 text-sm">
             Nhập một yêu cầu chưa có trong fixture. Kết quả lưu thành hồ sơ demo
             để kiểm tra reviewer và audit.

@@ -14,7 +14,7 @@ const panels = {
     caption: "Chọn phản hồi phù hợp hoặc nhập câu hỏi tiếp theo",
   },
   reviewer: {
-    title: "Dành cho nhân viên · Human reviewer",
+    title: "Dành cho Admin · xử lý yêu cầu",
     rows: ["① Mở một yêu cầu trong danh sách", "② Đọc nội dung, bằng chứng và rủi ro", "③ Nhập lý do cho quyết định của bạn"],
     button: "Hỏi thêm thông tin",
     caption: "Chọn thao tác được phép → xem lịch sử xử lý",

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import Link from "next/link";
 import { GUIDE_SESSION_PREFIX, guideStages, type GuideRole } from "@/domain/judge-guide";
 import { GuideIllustration } from "./guide-illustration";
 import { usePathname } from "next/navigation";
@@ -194,42 +195,41 @@ export function JudgeGuide({ children }: { children: ReactNode }) {
   return (
     <>
       <div ref={content} inert={intro ? true : undefined} style={mobileTipSpace ? { paddingBottom: mobileTipSpace } : undefined}>{children}</div>
-      <dialog ref={dialog} className="guide-modal" aria-labelledby="judge-guide-title" onCancel={(event) => { event.preventDefault(); dismissIntro(); }} onKeyDown={(event) => {
+      <dialog ref={dialog} className="guide-modal" aria-labelledby="support-guide-title" onCancel={(event) => { event.preventDefault(); dismissIntro(); }} onKeyDown={(event) => {
         if (event.key !== "Tab") return;
-        const controls = event.currentTarget.querySelectorAll<HTMLElement>('button, [tabindex="0"]');
+        const controls = event.currentTarget.querySelectorAll<HTMLElement>('a[href], button, [tabindex="0"]');
         const first = controls[0], last = controls[controls.length - 1];
         if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
         else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
       }}>
         <header className="guide-modal-heading">
-          <p className="eyebrow">CHÀO MỪNG BAN GIÁM KHẢO</p>
-          <h2 id="judge-guide-title">Bắt đầu cùng VNG Support</h2>
-          <p>Thử website qua hai vai trò. Mũi tên đỏ sẽ chỉ chỗ cần thao tác.</p>
+          <p className="eyebrow">HƯỚNG DẪN SỬ DỤNG</p>
+          <h2 id="support-guide-title">Bắt đầu cùng VNG Support</h2>
+          <p>Chọn hướng dẫn phù hợp với công việc bạn cần thực hiện.</p>
         </header>
         <div className="guide-modal-scroll" tabIndex={0} aria-label="Nội dung hướng dẫn sử dụng">
           <section>
-            <h3>Đăng nhập và cấp ID</h3>
-            <p>Chọn “Tôi cần hỗ trợ” ở trang đầu để đăng nhập bằng ID đã được IT cấp. Truy cập bằng ID là demo, chưa xác minh danh tính. Chọn “Nhân viên mới?” để gửi họ tên, job và phạm vi quyền; lưu liên kết theo dõi. Chỉ sau khi quản trị viên duyệt mới có ID chính thức. Quyền xử lý ID cần vai trò riêng do operator cấp; đăng nhập chỉ bằng ID là demo, chưa xác minh người sử dụng.</p>
+            <h3>1. Nhân viên gửi yêu cầu</h3>
+            <p>Chọn <strong>Tôi cần hỗ trợ</strong> để đăng nhập bằng ID đã cấp, hoặc chọn luồng không cần tài khoản để gửi yêu cầu demo. Mã ID trong bản demo chỉ liên kết hồ sơ và không xác minh danh tính.</p>
           </section>
           <section>
-            <h3>1. Tôi cần hỗ trợ — trải nghiệm người gửi</h3>
-            <p>Chọn <strong>Tôi cần hỗ trợ</strong> ở trang đầu rồi đăng nhập; hoặc mở <strong>Hướng dẫn & tùy chọn → Trải nghiệm demo</strong> để thử bằng dữ liệu giả lập. Chọn phòng ban và nhập mã nhân viên (cả hai đều bắt buộc); mã dùng để liên kết, tra cứu hồ sơ nhưng chưa xác thực danh tính. Viết vấn đề hoặc chọn danh mục, điền thông tin rồi bấm <strong>Gửi</strong>. Ví dụ: “VPN không kết nối”.</p>
+            <h3>Gửi yêu cầu hỗ trợ</h3>
+            <p>Chọn mô tả tự do hoặc danh mục, điền những dữ kiện bạn biết rồi bấm <strong>Gửi</strong> để xem preview. Ví dụ: “VPN không kết nối”. Preview chưa lưu hồ sơ; kiểm tra nội dung trước khi xác nhận.</p>
             <GuideIllustration kind="sender" />
-            <p>Đọc phản hồi, sửa nếu cần rồi bấm <strong>Xác nhận và gửi yêu cầu</strong>. Với câu hỏi trò chuyện, bấm <strong>Lưu và tiếp tục trò chuyện</strong> để mở trang theo dõi.</p>
+            <p>Đọc phản hồi, sửa nếu cần rồi bấm <strong>Xác nhận và gửi yêu cầu</strong>. Với câu hỏi trò chuyện, bấm <strong>Lưu và tiếp tục trò chuyện</strong> để mở trang theo dõi. <Link className="button primary" href="/send-help">Bấm để gửi yêu cầu hỗ trợ</Link></p>
             <GuideIllustration kind="feedback" />
             <p>Thử A/B/C/D tùy kết quả: đã giải quyết, vẫn lỗi, giải thích thêm hoặc chuyển nhân viên. Có thể hỏi tiếp, bổ sung dữ kiện và mở lịch sử. Lưu liên kết nếu muốn xem lại yêu cầu.</p>
           </section>
           <section>
-            <h3>2. Dành cho Admin — nhân viên xử lý</h3>
-            <p>Về trang đầu bằng logo <strong>VNG Support</strong>, chọn <strong>Dành cho Admin</strong>. Mở một hồ sơ, đọc bằng chứng và lý do xử lý trước khi quyết định.</p>
+            <h3>2. Admin xử lý yêu cầu</h3>
+            <p>Mở hàng đợi, tìm một hồ sơ, đọc dữ kiện và bằng chứng trước khi phản hồi. <Link href="/help/admin">Mở hướng dẫn Admin</Link>.</p>
             <GuideIllustration kind="reviewer" />
-            <p>Chọn thao tác được phép: hỏi thêm, duyệt, từ chối, dừng hoặc điều chỉnh. Duyệt không bắt buộc lý do; các quyết định khác cần lý do cụ thể. Nút bị mờ nghĩa là chưa đủ điều kiện. Kiểm tra <strong>Lịch sử xử lý</strong> để đối chiếu kết quả.</p>
-            <p>Nếu danh sách trống, tạo yêu cầu demo trước. Có thể thử “Mở port 3389 public” để xem luồng cần nhân viên; yêu cầu rủi ro không được duyệt tùy tiện.</p>
+            <p>Chọn thao tác phù hợp với điều kiện của hồ sơ. Mở <strong>Lịch sử xử lý</strong> để đối chiếu kết quả. <Link href="/review">Mở hàng đợi Admin</Link></p>
           </section>
           <section className="guide-note">
-            <h3>Mẹo khi kiểm tra</h3>
-            <p>Trang <strong>Kiểm thử</strong> dành cho các case Verify; chọn nguồn Case Verify trong bộ lọc nếu muốn tìm chúng. Đây là demo mô phỏng, không cấp quyền hay thay đổi hạ tầng thật. Chỉ dùng dữ liệu minh họa.</p>
-            <p>Hướng dẫn mỗi vai trò chỉ hiện lần đầu trong tab này. Quay lại vai trò sẽ không lặp lại; đóng tab và mở link trong tab mới để bắt đầu lại.</p>
+            <h3>Hướng dẫn riêng theo vai trò</h3>
+            <p>Không gian Admin và ID demo không xác minh danh tính, không cấp quyền tổ chức và không thay đổi hạ tầng thật. Chỉ dùng dữ liệu minh họa.</p>
+            <p><Link href="/help/employee">Hướng dẫn nhân viên</Link> · <Link href="/help/admin">Hướng dẫn Admin</Link> · <Link href="/send-help">Gửi yêu cầu hỗ trợ</Link></p>
           </section>
         </div>
         <div className="guide-modal-footer"><button className="button primary" onClick={dismissIntro}>Đã hiểu</button></div>
@@ -242,7 +242,7 @@ export function JudgeGuide({ children }: { children: ReactNode }) {
             <path d={`M ${tipLeft + 160} ${dockTop ? tipTop + (tip.current?.offsetHeight ?? 210) : viewport.height - 12 - (tip.current?.offsetHeight ?? 210)} Q ${targetX + 45} ${targetY + (dockTop ? -50 : 50)} ${targetX} ${targetY}`} stroke="#dc2626" strokeWidth="4" fill="none" strokeLinecap="round" markerEnd="url(#live-guide-arrow)" />
           </svg>
           <aside ref={tip} className="guide-tip" role="region" aria-label="Hướng dẫn thao tác" style={{ left: tipLeft, maxHeight: tipMaxHeight, ...(dockTop ? { top: tipTop } : { bottom: 12 }) }}>
-            <p className="eyebrow">{guideStages[guide.stage].role === "sender" ? "NGƯỜI GỬI" : "HUMAN REVIEWER"}</p>
+            <p className="eyebrow">{guideStages[guide.stage].role === "sender" ? "NGƯỜI GỬI" : "ADMIN"}</p>
             <div aria-live="polite"><h3>{step.title}</h3><p>{step.text}</p></div>
             <div className="guide-tip-actions">
               {(!last || !waitingStages.includes(guide.stage)) && <button className="button primary" onClick={next}>{last ? "Hoàn tất hướng dẫn" : "Tiếp theo"}</button>}

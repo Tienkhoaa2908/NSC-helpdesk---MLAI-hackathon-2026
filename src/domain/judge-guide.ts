@@ -33,7 +33,7 @@ export const guideStages: Record<string, { role: GuideRole; steps: GuideStep[] }
       { target: "sender-feedback", title: "Thử các lựa chọn hỗ trợ", text: "A: đã giải quyết. B: vẫn lỗi. C: giải thích một bước. D: chuyển nhân viên. Chỉ bấm lựa chọn đúng với kết quả bạn muốn kiểm tra.", advanceOn: "click" },
       { target: "sender-followup", title: "Tiếp tục hỏi hoặc bổ sung", text: "Nhập câu hỏi tiếp theo hoặc thông tin còn thiếu rồi bấm nút gửi bên dưới. Mỗi lần gửi đều được kiểm tra lại.", advanceOn: "input" },
       { target: "sender-followup-send", title: "Gửi nội dung tiếp theo", text: "Bấm để gửi câu hỏi hoặc phần bổ sung. Nếu có lỗi, nội dung vẫn được giữ để bạn sửa và thử lại.", advanceOn: "click" },
-      { target: "sender-history", title: "Xem lại toàn bộ quá trình", text: "Bấm mở lịch sử để xem hướng dẫn và các lần xử lý. Bạn đã biết luồng người gửi; có thể về trang đầu để thử vai trò nhân viên.", advanceOn: "click" },
+      { target: "sender-history", title: "Xem lại toàn bộ quá trình", text: "Bấm mở lịch sử để xem hướng dẫn và các lần xử lý. Bạn đã biết luồng người gửi; có thể mở hướng dẫn Admin để biết cách tiếp nhận hồ sơ.", advanceOn: "click" },
     ],
   },
   "reviewer-list": {
