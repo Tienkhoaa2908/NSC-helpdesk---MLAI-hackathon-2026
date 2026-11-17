@@ -62,7 +62,7 @@ it("retries a transient timeout once within the same model call budget", async (
 it("uses low Gemini reasoning effort without changing the system and user prompts", async () => {
   vi.stubEnv("AI_PROVIDER", "gemini");
   vi.stubEnv("GEMINI_API_KEY", "synthetic-unused-key");
-  const transport = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => response(200));
+  const transport = vi.fn<typeof fetch>(async () => response(200));
   vi.stubGlobal("fetch", transport);
   await expect(callModel(call, {})).resolves.toBe("{}");
   const [, init] = transport.mock.calls[0];

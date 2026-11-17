@@ -278,7 +278,8 @@ export async function callModel(
         if (attempts >= maxAttempts || !transientFailure(error) ||
             totalMs - (Date.now() - startedAt) < 1000) throw failure;
         retryReason = `RETRY_${failure.reason}`;
-        await new Promise(resolve => setTimeout(resolve, 150));
+        const retryDelayMs = Math.min(1000 * 2 ** (attempts - 1), 2000);
+        await new Promise(resolve => setTimeout(resolve, retryDelayMs));
       }
     }
     throw new ModelFailure("MODEL_UNAVAILABLE", "TIMEOUT");
