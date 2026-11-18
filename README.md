@@ -15,7 +15,7 @@
 
 > **Vietnamese below** · [Tiếng Việt](#phần-tiếng-việt)
 >
-> **MLAI Hackathon 2026:** First Prize, VNG Track · Third Place Overall. [HUTECH results announcement](https://www.facebook.com/hutechuniversity/posts/pfbid02aDmtNL88SKFYwZUSW7gRMWut1BLRCKFEPxb2ZkhA3j2vRQx8P5epe2AaP63dhZ82l) · [Competition website](https://ai-network.hcmut.edu.vn/mlai2026)
+> **MLAI Hackathon 2026:** First Prize, VNG Track · Third Place Overall. [Results announcement](https://www.facebook.com/hutechuniversity/posts/pfbid02aDmtNL88SKFYwZUSW7gRMWut1BLRCKFEPxb2ZkhA3j2vRQx8P5epe2AaP63dhZ82l) · [Competition website](https://ai-network.hcmut.edu.vn/mlai2026)
 
 **Contents:** [My contributions](#my-contributions) · [Product workflow](#product-workflow) · [Architecture](#technical-architecture) · [Interface walkthrough](#interface-walkthrough) · [Run locally](#run-locally) · [Vietnamese](#phần-tiếng-việt)
 
