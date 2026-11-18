@@ -19,6 +19,7 @@ const apiErrorCopy: Record<string, { vi: string; en: string }> = {
   RATE_LIMITED: { vi: "Quá nhiều lần thử. Vui lòng chờ rồi thử lại.", en: "Too many attempts. Wait a moment and try again." },
   IDENTITY_STORAGE_UNAVAILABLE: { vi: "Cơ sở dữ liệu tài khoản chưa sẵn sàng. Vui lòng thử lại sau.", en: "The account database is unavailable. Try again later." },
   IDENTITY_EMAIL_NOT_CONFIGURED: { vi: "Email cấp tài khoản chưa được cấu hình. Liên hệ quản trị viên.", en: "Account email is not configured. Contact the administrator." },
+  IDENTITY_EMAIL_NOT_APPROVED: { vi: "Gửi email cấp tài khoản đang tắt cho đến khi mẫu nội dung được duyệt.", en: "Account email is disabled until its templates are approved." },
   EMAIL_NOT_CONFIGURED: { vi: "Email cấp tài khoản chưa được cấu hình. Liên hệ quản trị viên.", en: "Account email is not configured. Contact the administrator." },
   ACCOUNT_REQUEST_EMAIL_FAILED: { vi: "Đơn đã được lưu nhưng chưa gửi được email cho quản trị viên. Hãy thử lại sau.", en: "Your request was saved, but the administrator notification could not be sent. Try again later." },
   EMAIL_DELIVERY_FAILED: { vi: "Chưa gửi được email. Đơn có thể đã được lưu; hãy thử gửi lại sau.", en: "The email could not be sent. Your request may have been saved; try again later." },
@@ -26,6 +27,9 @@ const apiErrorCopy: Record<string, { vi: string; en: string }> = {
   ACCOUNT_REQUEST_EXISTS: { vi: "Email này đã có yêu cầu đang chờ xử lý.", en: "A request for this email is already pending." },
   ACCOUNT_REQUEST_PROCESSING: { vi: "Yêu cầu này đang được xử lý. Hãy thử lại sau.", en: "This request is being processed. Try again shortly." },
   ACCOUNT_REQUEST_CHANGED: { vi: "Yêu cầu đã thay đổi. Hãy gửi lại sau.", en: "The request changed. Please submit it again." },
+  ACCOUNT_REQUEST_ALREADY_DECIDED: { vi: "Yêu cầu này đã được xử lý.", en: "This request has already been decided." },
+  ACCOUNT_OUTCOME_EMAIL_FAILED: { vi: "Chưa gửi được email kết quả. Quản trị viên có thể thử lại từ danh sách.", en: "The result email could not be sent. The administrator can retry from the request list." },
+  ACCOUNT_CREDENTIAL_EMAIL_FAILED: { vi: "Chưa gửi được thông tin đăng nhập. Tài khoản chưa được kích hoạt; quản trị viên có thể thử lại.", en: "Sign-in details could not be sent. The account remains inactive; the administrator can retry." },
   VALIDATION_ERROR: { vi: "Kiểm tra lại họ tên và địa chỉ Gmail.", en: "Check the name and Gmail address and try again." },
 };
 
@@ -135,16 +139,18 @@ export function NewIdentityApplication() {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [submittedEmail, setSubmittedEmail] = useState("");
+  const [notificationSent, setNotificationSent] = useState(false);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
     setBusy(true);
     try {
-      await identityApi<{ id: string; status: string }>("applications", {
+      const result = await identityApi<{ id: string; status: string; notificationStatus: "SENT" | "FAILED" }>("applications", {
         fullName: fullName.trim().replace(/\s+/g, " "),
         email: email.trim().toLowerCase(),
       });
+      setNotificationSent(result.notificationStatus === "SENT");
       setSubmittedEmail(email.trim().toLowerCase());
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : localized("Chưa gửi được yêu cầu. Thử lại.", "Could not submit the request. Try again.", locale));
@@ -157,9 +163,13 @@ export function NewIdentityApplication() {
     return (
       <main className="identity-page">
         <section className="identity-card" aria-labelledby="application-sent-title">
-          <span className="eyebrow">{localized("ĐÃ GỬI YÊU CẦU", "REQUEST SENT", locale)}</span>
-          <h1 id="application-sent-title">{localized("Yêu cầu cấp tài khoản đã được gửi", "Your account request has been sent", locale)}</h1>
-          <p>{localized(`Quản trị viên đã nhận yêu cầu cho ${submittedEmail}. Sau khi xác nhận, thông tin đăng nhập sẽ được gửi tới địa chỉ này.`, `The administrator has received the request for ${submittedEmail}. After approval, sign-in details will be sent to this address.`, locale)}</p>
+          <span className="eyebrow">{notificationSent ? localized("ĐÃ GỬI YÊU CẦU", "REQUEST SENT", locale) : localized("ĐÃ LƯU YÊU CẦU", "REQUEST SAVED", locale)}</span>
+          <h1 id="application-sent-title">{notificationSent
+            ? localized("Yêu cầu cấp tài khoản đã được gửi", "Your account request has been sent", locale)
+            : localized("Yêu cầu đã lưu, chưa gửi được email", "Your request was saved, but the email was not sent", locale)}</h1>
+          <p>{notificationSent
+            ? localized(`Quản trị viên đã nhận yêu cầu cho ${submittedEmail}. Sau khi xác nhận, thông tin đăng nhập sẽ được gửi tới địa chỉ này.`, `The administrator has received the request for ${submittedEmail}. After approval, sign-in details will be sent to this address.`, locale)
+            : localized(`Yêu cầu cho ${submittedEmail} đã được lưu. Quản trị viên cần kiểm tra danh sách yêu cầu; email thông báo chưa gửi được.`, `The request for ${submittedEmail} was saved. The administrator can find it in the request list, but the notification email was not sent.`, locale)}</p>
           <div className="identity-note demo-credentials" role="note">
             <strong>{localized("Bạn có thể trải nghiệm ngay", "You can try the system now", locale)}</strong>
             <p>{localized("ID", "ID", locale)}: <code>guest01</code></p>

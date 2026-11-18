@@ -7,6 +7,7 @@
 | Nhân viên gửi và theo dõi yêu cầu | [Hướng dẫn nhân viên](EMPLOYEE-GUIDE.md) |
 | Admin tiếp nhận, phản hồi và kiểm tra yêu cầu | [Hướng dẫn Admin](ADMIN-GUIDE.md) |
 | Bắt đầu nhanh theo vai trò | [Mục lục hướng dẫn](USAGE.md) |
+| Ban giám khảo chạy các bộ Verify của MLAI 2026 | [Hướng dẫn kiểm thử](JUDGE-ONBOARDING.md) |
 
 ## Kiến trúc và phát triển
 

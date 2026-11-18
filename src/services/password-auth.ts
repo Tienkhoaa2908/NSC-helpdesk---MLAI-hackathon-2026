@@ -1,7 +1,7 @@
 import { randomUUID, timingSafeEqual } from "node:crypto";
 import bcrypt from "bcryptjs";
 import { passwordLoginSchema, type PasswordAccount } from "@/domain/password-identity";
-import { identityClientRateLimitKey, identityRateLimit, createPasswordSession, recordPasswordLoginFailure } from "@/lib/identity-auth";
+import { configuredAdminId, identityClientRateLimitKey, identityRateLimit, createPasswordSession, recordPasswordLoginFailure } from "@/lib/identity-auth";
 import { identityStore } from "@/lib/identity-store";
 import { SupportError } from "@/lib/support-repository";
 
@@ -33,7 +33,7 @@ export async function authenticatePasswordAccount(value: unknown, request: Reque
   await identityRateLimit(`login:client:${clientKey}`, 30);
   await identityRateLimit(`login:account:${input.employeeId}`, 5, 15 * 60_000);
 
-  const adminId = process.env.IDENTITY_ADMIN_ID?.trim().toLowerCase() ?? "";
+  const adminId = configuredAdminId();
   const adminPassword = process.env.IDENTITY_ADMIN_PASSWORD ?? "";
   if (adminId && input.employeeId === adminId && adminPassword.length >= 12 && sameSecret(adminPassword, input.password)) {
     const email = process.env.IDENTITY_ADMIN_EMAIL?.trim().toLowerCase() ?? "";

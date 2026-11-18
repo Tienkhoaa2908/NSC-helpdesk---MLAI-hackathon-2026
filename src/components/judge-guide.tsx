@@ -238,7 +238,7 @@ export function JudgeGuide({ children }: { children: ReactNode }) {
           </section>
           <section className="guide-note">
             <h3>{t("Hướng dẫn theo vai trò", "Role-specific guides")}</h3>
-            <p>{t("Tài khoản demo không xác minh danh tính nhân viên, không cấp quyền tổ chức và không thay đổi hạ tầng thật. Chỉ dùng dữ liệu minh họa.", "Demo accounts do not verify employee identity, grant organizational access, or change real infrastructure. Use synthetic data only.")}</p>
+            <p>{t("Tài khoản demo không xác minh danh tính nhân viên, không cấp quyền tổ chức và không thay đổi hạ tầng thật. Trong public-demo, requester đã đăng nhập có thể xem Support, audit và Verify; danh sách cấp tài khoản chỉ Admin mới xem được. Chỉ dùng dữ liệu tổng hợp.", "Demo accounts do not verify employee identity, grant organizational access, or change real infrastructure. In public-demo mode, signed-in requesters can explore Support, audit, and Verify; only Admins can view account requests. Use synthetic data only.")}</p>
             <p><Link href="/help/employee">{t("Hướng dẫn nhân viên", "Employee guide")}</Link> · <Link href="/help/admin">{t("Hướng dẫn Admin", "Admin guide")}</Link> · <Link href="/send-help">{t("Gửi yêu cầu hỗ trợ", "Submit a support request")}</Link></p>
           </section>
         </div>

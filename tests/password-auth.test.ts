@@ -111,5 +111,6 @@ it("issues an opaque HttpOnly cookie and marks it Secure in production", () => {
   expect(cookie).toContain("HttpOnly");
   expect(cookie).toContain("SameSite=Lax");
   expect(cookie).toContain("Secure");
+  expect(cookie).not.toContain("Max-Age");
   expect(identitySessionCookie("", true)).toContain("Max-Age=0");
 });

@@ -8,6 +8,10 @@ export const identityCookie = "vng_identity";
 const SESSION_LIFETIME_MS = 8 * 60 * 60_000;
 const hash = (value: string) => createHash("sha256").update(value).digest("hex");
 
+export function configuredAdminId() {
+  return (process.env.IDENTITY_ADMIN_ID || process.env.IDENTITY_ADMIN_EMAIL || "").trim().toLowerCase();
+}
+
 type IdentitySession = {
   hash: string;
   authMethod: "password";
@@ -81,7 +85,7 @@ export async function identityPrincipalForRequest(request: Request): Promise<Ide
   }, { projection: { _id: 0 } });
   if (!session) throw new SupportError("AUTHENTICATION_REQUIRED", "Phiên đã hết hạn hoặc không còn hợp lệ. Đăng nhập lại bằng ID và mật khẩu.", 401);
   if (session.principalType === "identity-admin") {
-    const adminId = process.env.IDENTITY_ADMIN_ID?.trim().toLowerCase() ?? "";
+    const adminId = configuredAdminId();
     const adminPassword = process.env.IDENTITY_ADMIN_PASSWORD ?? "";
     const currentCredentialHash = hash(`${adminId}\u0000${adminPassword}`);
     if (!adminId || !adminPassword || session.loginId !== adminId || session.adminCredentialHash !== currentCredentialHash)
@@ -114,7 +118,7 @@ export async function createPasswordSession(input: {
   const token = randomBytes(32).toString("hex");
   const now = new Date();
   const adminCredentialHash = input.principalType === "identity-admin"
-    ? hash(`${process.env.IDENTITY_ADMIN_ID?.trim().toLowerCase() ?? ""}\u0000${process.env.IDENTITY_ADMIN_PASSWORD ?? ""}`)
+    ? hash(`${configuredAdminId()}\u0000${process.env.IDENTITY_ADMIN_PASSWORD ?? ""}`)
     : undefined;
   await identityTransaction(async (db, mongoSession) => {
     await db.collection<IdentitySession>("identity_sessions").insertOne({
@@ -194,5 +198,6 @@ export async function logoutIdentity(request: Request) {
 }
 
 export function identitySessionCookie(token: string, clear = false) {
-  return `${identityCookie}=${token}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${clear ? 0 : Math.floor(SESSION_LIFETIME_MS / 1000)}${process.env.NODE_ENV === "production" ? "; Secure" : ""}`;
+  const expiry = clear ? "; Max-Age=0" : "";
+  return `${identityCookie}=${token}; HttpOnly; SameSite=Lax; Path=/${expiry}${process.env.NODE_ENV === "production" ? "; Secure" : ""}`;
 }

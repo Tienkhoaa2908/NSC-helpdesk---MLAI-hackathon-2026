@@ -212,7 +212,8 @@ hợp lệ, quyền model và quota API; thay tên model không sửa được k
 ### Biến môi trường Identity
 
 - `IDENTITY_ADMIN_ID` và `IDENTITY_ADMIN_PASSWORD`: thông tin đăng nhập Admin; chỉ lưu ở server secret store. Dùng một mật khẩu dài, duy nhất.
-- `IDENTITY_ADMIN_EMAIL`: hộp thư nhận đơn và link xác nhận cấp tài khoản.
+- `IDENTITY_ADMIN_EMAIL`: hộp thư nhận thông báo đơn cấp tài khoản và địa chỉ liên hệ trong thư kết quả.
+- `IDENTITY_EMAIL_ENABLED`: mặc định `false`; chỉ bật sau khi duyệt mẫu email và cấu hình SMTP.
 - `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM`: cấu hình gửi email. Với Gmail, dùng `smtp.gmail.com`, port `465` hoặc `587`, và App Password sau khi bật 2-Step Verification. Không dùng mật khẩu Gmail chính.
 - `APP_BASE_URL`: origin HTTPS của website, dùng làm gốc cho liên kết email. Local có thể dùng `http://localhost:3000` trong môi trường phát triển.
 - `IDENTITY_MONGODB_URI`: Mongo Identity riêng tùy chọn; nếu rỗng, dùng `MONGODB_URI`. `IDENTITY_MONGODB_DB` mặc định `nsclub_support_desk`.
@@ -222,13 +223,13 @@ Nếu Gmail SMTP thiếu App Password, Vercel không kết nối được SMTP, 
 
 ### Gửi đơn và cấp tài khoản
 
-1. Người dùng nhập họ tên và email. Không yêu cầu ngày sinh, mật khẩu hiện có, OTP hoặc giấy tờ tùy thân. Email tự khai chưa được xác minh độc lập trước lúc cấp.
-2. Chỉ Admin có thể đọc danh sách đơn; danh sách chỉ đọc và không có nút duyệt. API reviewer Support, tóm tắt, audit, sự kiện, chỉ số, lịch sử, danh sách và chi tiết hồ sơ cũng yêu cầu phiên Admin.
-3. Admin kiểm tra yêu cầu qua email nhận được rồi mở liên kết cấp tài khoản. Liên kết là token bearer, dùng một lần và hết hạn sau một giờ. Mở bằng `GET` cấp tài khoản ngay; phần mềm quét link có thể tự kích hoạt trước khi Admin bấm. Đây là lựa chọn của bản demo, không dùng với tài khoản hoặc dữ liệu tổ chức.
-4. Hệ thống dùng email người đăng ký làm ID, sinh mật khẩu ngẫu nhiên năm chữ số, lưu hash mật khẩu trong MongoDB và gửi thông tin tới email đăng ký. Mật khẩu này chỉ dùng trong demo; không tái sử dụng.
-5. Tài khoản mẫu công khai dành cho người gửi yêu cầu là `guest01 / 12345`. Không nhập dữ liệu nhân viên, ticket hoặc doanh nghiệp thật bằng tài khoản này.
+1. Người dùng nhập họ tên và Gmail. Đơn được lưu trong MongoDB trước khi gửi thông báo; nếu email tắt hoặc gửi thất bại, đơn vẫn được giữ với trạng thái gửi lỗi để Admin xử lý sau. Email tự khai chưa được xác minh độc lập.
+2. Khi `IDENTITY_EMAIL_ENABLED=true` và SMTP đã cấu hình, server gửi thông báo song ngữ đến hộp thư Admin. Nút trong thư chỉ mở danh sách yêu cầu ở `/identity/review`; mở URL bằng `GET` không thay đổi dữ liệu.
+3. Admin đăng nhập bằng ID và mật khẩu đã cấu hình, rồi chọn xác nhận cấp tài khoản hoặc từ chối. Danh sách đơn và API quyết định chỉ dành cho Admin.
+4. Khi cấp, Gmail trở thành ID đăng nhập, server sinh mật khẩu demo ngẫu nhiên năm chữ số, chỉ lưu hash bcrypt và gửi thông tin qua email. Tài khoản chỉ hoạt động sau khi email gửi thành công. Khi từ chối, hệ thống gửi email kết quả; lỗi gửi có thể được thử lại từ danh sách.
+5. Trong `public-demo`, tài khoản `guest01 / 12345` và các requester đã đăng nhập có thể xem, thao tác khu Support reviewer, audit và Verify. Chế độ này chỉ dùng dữ liệu tổng hợp, không nhập dữ liệu nhân viên, ticket thật hoặc thông tin doanh nghiệp.
 
-Ứng dụng không xác minh Gmail là của nhân viên và không có SSO/Workspace, phân quyền tổ chức theo team hay quy trình khôi phục mật khẩu production. Danh sách mail và nội dung đơn là dữ liệu cá nhân; chỉ dùng mailbox test do bạn kiểm soát.
+Ứng dụng không có SSO/Workspace, phân quyền tổ chức theo team hoặc quy trình khôi phục mật khẩu production. Danh sách mail và nội dung đơn là dữ liệu cá nhân; chỉ dùng mailbox test do bạn kiểm soát.
 
 ### Sổ quyền/quota DEMO-SANDBOX
 
@@ -244,13 +245,13 @@ node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"
 
 Không tái sử dụng Admin/SMTP secret, đưa secret vào Git, terminal log được chia sẻ hoặc chat. Đổi `SUPPORT_TRACKING_SECRET` sẽ làm các tracking link cũ mất hiệu lực. Nếu tracking secret thiếu hoặc sai, việc gửi request Production trả 503. Request cũ chưa có tracking hash không mở được requester follow-up.
 
-Các API reviewer Support, tóm tắt, audit, sự kiện, metrics, lịch sử, danh sách và chi tiết hồ sơ đều yêu cầu phiên Admin. Tracking token/proof chỉ cho phép người gửi dùng route theo dõi/tiếp tục và khôi phục receipt; chúng không cấp quyền reviewer. Tài khoản requester demo được chia sẻ công khai, nên chỉ dùng dữ liệu synthetic trên Production.
+API reviewer Support, tóm tắt, audit, sự kiện, metrics, lịch sử, danh sách và chi tiết hồ sơ yêu cầu tài khoản đã đăng nhập. Trong `public-demo`, requester và Admin đều có thể truy cập khu Support review; danh sách cấp tài khoản và API quyết định Identity vẫn chỉ dành cho Admin. Tracking token/proof chỉ cho phép người gửi dùng route theo dõi/tiếp tục và khôi phục receipt; chúng không cấp quyền reviewer. Tài khoản requester demo được chia sẻ công khai, nên chỉ dùng dữ liệu tổng hợp trên Production.
 
 Sau khi đổi biến môi trường trên Vercel, tạo deployment mới. Luồng gửi đơn/cấp tài khoản qua email chưa hoạt động cho tới khi cấu hình Admin, SMTP và MongoDB. Chỉ xác nhận email vận hành sau khi kiểm tra end-to-end bằng mailbox thử nghiệm do bạn kiểm soát.
 
 ## Kiểm tra bản trình diễn
 
-Support reviewer và audit yêu cầu đăng nhập Admin. Tài khoản người gửi demo được chia sẻ công khai; chỉ dùng dữ liệu tổng hợp. Màn hình người gửi không hiển thị sentiment, expected result hoặc audit thô; Admin xem các trường này sau khi xác thực bằng phiên server. Đây là đăng nhập demo, không phải SSO hoặc IAM production.
+Support reviewer, audit và Verify yêu cầu đăng nhập. Trong `public-demo`, mọi requester đã đăng nhập đều có thể truy cập các khu này; chỉ dùng dữ liệu tổng hợp. Trang yêu cầu cấp tài khoản và thao tác duyệt/từ chối vẫn dành riêng cho Admin. Màn hình người gửi không hiển thị sentiment, expected result hoặc audit thô; khu Support reviewer trình diễn quy trình demo, không phải SSO hoặc IAM production.
 
 Trước buổi trình diễn, kiểm tra máy in, VPN, reset có làm rõ, yêu cầu mở port nguy hiểm, DNS, hỏi tiếp, handoff và tra cứu lại trên desktop/mobile. Kiểm tra bằng lời gọi thật khi được phép, đối chiếu SHA và lưu receipt; dọn đúng ID dữ liệu giả lập vừa tạo sau khi lưu bằng chứng. Không chạy Verify bằng dữ liệu nghiệp vụ hoặc xóa theo điều kiện rộng.
 
@@ -264,7 +265,7 @@ Dependency audit cần tách runtime và toolchain. Rà soát ngày 18/11/2026: 
 
 Support Desk dùng ba ban điều phối `IT`, `COMMERCIAL`, `HR`; `decision.division` do server xác định, không nhận từ browser/model. Query `division` lọc ở server trước tổng số/phân trang/gộp; hồ sơ cũ đọc theo service group. Không migration dữ liệu hoặc thay quyền identity. Index mới `division_queue` hỗ trợ hàng đợi. [Hợp đồng, bộ 30 ca và đánh giá điều hành](docs/SUPPORT-DESK-EXPANSION.md).
 
-Runtime API chỉ cho phép profile `public-demo` khi chạy production build; profile này cho phép luồng demo và tài khoản mẫu, còn reviewer APIs vẫn yêu cầu phiên Admin. Các giá trị khác bị chặn `ORGANIZATION_AUTH_REQUIRED`. Health báo `productionReady: false`; chưa có SSO/RBAC tổ chức thực tế. Không đưa dữ liệu công ty thật vào demo. Đánh giá go-live vẫn **Not ready** cho đến khi có xác thực tổ chức, phân quyền từng ban, policy tổ chức và bằng chứng phục hồi/vận hành thật. Cấu hình Mongo/API key hoặc CI xanh không thay thế các điều kiện đó.
+Runtime Production chỉ mở Support API khi `SUPPORT_ACCESS_MODE=public-demo`; chế độ này yêu cầu phiên tài khoản cho reviewer APIs nhưng cho phép mọi requester đã đăng nhập truy cập khu Support review. Danh sách đơn Identity và quyết định cấp/từ chối luôn yêu cầu phiên Admin. Các giá trị `SUPPORT_ACCESS_MODE` khác bị chặn bằng `ORGANIZATION_AUTH_REQUIRED`. Health báo `productionReady: false`; chưa có SSO/RBAC tổ chức thực tế. Không đưa dữ liệu công ty thật vào demo. Đánh giá go-live vẫn **Not ready** cho đến khi có xác thực tổ chức, phân quyền từng ban, policy tổ chức và bằng chứng phục hồi/vận hành thật. Cấu hình Mongo/API key hoặc CI xanh không thay thế các điều kiện đó.
 
 Verify nghiệp vụ có bucket 90 request/phút/client sau khi server kiểm tra đúng fixture/run; request nội bộ giữ cùng client để không dùng chung bucket loopback giữa các lượt chạy. Intake thông thường vẫn 30/phút và mutation 15/phút. Bucket ingress 90/phút chặn body không hợp lệ; bộ nhớ limiter có giới hạn. Đây là limiter theo process của demo, không phải kiểm soát abuse phân tán.
 

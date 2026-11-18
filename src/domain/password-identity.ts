@@ -36,6 +36,8 @@ export type AccountRequest = {
   fullName: string;
   email: string;
   status: "PENDING" | "APPROVED";
+  // `status` is the legacy completion field; this records the actual decision.
+  finalDecision?: "APPROVED" | "REJECTED" | null;
   notificationStatus: "PENDING" | "SENT" | "FAILED";
   approvalTokenHash: string | null;
   approvalExpiresAt: Date;

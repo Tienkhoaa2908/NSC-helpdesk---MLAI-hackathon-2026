@@ -1,6 +1,6 @@
 # Hướng dẫn Admin tiếp nhận và xử lý yêu cầu
 
-Admin đăng nhập bằng ID và mật khẩu được cấu hình phía máy chủ. Các API review, audit, kiểm thử và danh sách đơn cấp tài khoản yêu cầu phiên Admin.
+Admin đăng nhập bằng ID và mật khẩu được cấu hình phía máy chủ. Trong `public-demo`, mọi requester đã đăng nhập cũng có thể dùng khu Support review, audit và Verify; vì vậy chỉ dùng dữ liệu tổng hợp trên deployment này. Danh sách yêu cầu cấp tài khoản và API duyệt/từ chối vẫn yêu cầu phiên Admin.
 
 ## Tiếp nhận yêu cầu
 
@@ -23,10 +23,10 @@ Một số yêu cầu có thể được liên kết theo chủ đề và địa
 ## Kiểm thử và yêu cầu cấp tài khoản
 
 - [Kiểm thử / Verify](https://nsclub-support-desk.vercel.app/verify) là khu vực chạy các bộ tình huống của yêu cầu MLAI Hackathon 2026, track VNG và thử input mới. Bộ dữ liệu gồm test chung, bộ 15 tình huống theo brief và bộ VNG Verify gồm 5 ca (3 tự động, 2 chuyển tiếp). Các ca dùng cùng API policy và đọc lại lịch sử; kết quả là kiểm thử workflow synthetic, không phải benchmark độc lập của model.
-- [Cấp ID nhân viên](https://nsclub-support-desk.vercel.app/identity/review) hiển thị đơn cấp tài khoản ở chế độ chỉ đọc. Chỉ tài khoản Admin của chủ hệ thống xem được họ tên và Gmail; màn hình không có nút duyệt/cấp. Việc cấp tài khoản thực hiện qua liên kết một lần gửi đến email Admin. Mở liên kết sẽ gửi ID và mật khẩu tạm cho người đăng ký.
+- [Cấp ID nhân viên](https://nsclub-support-desk.vercel.app/identity/review) chỉ hiển thị cho Admin và có các thao tác xác nhận cấp hoặc từ chối. Email thông báo chỉ mở danh sách; Admin phải đăng nhập rồi chọn một quyết định. Khi cấp, hệ thống gửi Gmail đăng nhập và mật khẩu demo ngẫu nhiên năm chữ số tới người đăng ký. Nếu gửi email lỗi, yêu cầu vẫn còn trong danh sách để thử lại.
 
 ## Phạm vi demo
 
-Tài khoản `guest01 / 12345` dành cho người gửi yêu cầu thử nghiệm bằng dữ liệu tổng hợp. Nó không có quyền truy cập reviewer. Hệ thống ID/mật khẩu và luồng xác nhận qua email trình diễn cách quản lý tài khoản; chúng không thay thế IAM, xác minh nhân sự hoặc quy trình cấp quyền của tổ chức.
+Tài khoản `guest01 / 12345` và các requester đã đăng nhập có thể mở khu Support reviewer khi `public-demo` được bật; không nhập dữ liệu hỗ trợ thật hoặc dữ liệu cá nhân. Khu Cấp ID vẫn chỉ dành cho Admin. Hệ thống ID/mật khẩu và luồng email trình diễn cách quản lý tài khoản; chúng không thay thế IAM, xác minh nhân sự hoặc quy trình cấp quyền của tổ chức.
 
 Mở [hướng dẫn Admin trong ứng dụng](https://nsclub-support-desk.vercel.app/help/admin) hoặc xem [mục lục hướng dẫn](USAGE.md).

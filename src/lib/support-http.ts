@@ -5,7 +5,7 @@ import { supportInputSchema } from "@/domain/input";
 import { employeeIdentityError } from "@/domain/employee-identity";
 import { safeInput } from "@/domain/text";
 import { validateVerificationInput } from "@/services/verification";
-import { identityPrincipalForRequest, requireIdentitySession } from "./identity-auth";
+import { identityPrincipalForRequest } from "./identity-auth";
 import { isGuestDepartment } from "@/domain/guest-session";
 
 type RateWindow = { startedAt: number; count: number };
@@ -87,8 +87,15 @@ export async function supportBody(request: Request) {
   }
 }
 export async function requireDemoReviewer(request: Request) {
-  const { principal } = await requireIdentitySession(request, true);
-  return `identity-admin:${principal.id}`;
+  const principal = await identityPrincipalForRequest(request);
+  if (principal.status === "ADMIN" && principal.canReviewIds)
+    return `identity-admin:${principal.id}`;
+  // Authenticated requester accounts can explore the public demo's support
+  // workspace. Identity applications remain protected by the stricter
+  // Admin-only guard in the identity API and page.
+  if (principal.status === "ACTIVE" && process.env.SUPPORT_ACCESS_MODE === "public-demo")
+    return `demo-reviewer:${principal.id}`;
+  throw new SupportError("IT_AUTHORITY_REQUIRED", "Tài khoản này chưa có quyền xem khu vực xử lý hỗ trợ.", 403);
 }
 export async function requireEmployeeIdentity(value: unknown, request?: Request) {
   const input = supportInputSchema.parse(value);

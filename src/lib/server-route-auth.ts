@@ -1,6 +1,6 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { identityPrincipalForRequest } from "@/lib/identity-auth";
+import { identityPrincipalForRequest, type IdentityPrincipal } from "@/lib/identity-auth";
 
 async function currentPrincipal() {
   const incoming = await headers();
@@ -10,14 +10,24 @@ async function currentPrincipal() {
   return identityPrincipalForRequest(new Request(`${protocol}://${host}/api/identity/session`, { headers: incoming }));
 }
 
-export async function requireAdminPage(path: "/review" | "/audit" | "/verify" | "/identity/review") {
+export async function getCurrentIdentityPrincipal(): Promise<IdentityPrincipal | null> {
+  try {
+    return await currentPrincipal();
+  } catch {
+    return null;
+  }
+}
+
+export async function requireSupportReviewPage(path: "/review" | "/audit" | "/verify") {
   let principal;
   try {
     principal = await currentPrincipal();
   } catch {
     redirect(`/login?next=${encodeURIComponent(path)}`);
   }
-  if (principal.status !== "ADMIN") redirect(`/login?next=${encodeURIComponent(path)}`);
+  if (principal.status === "ADMIN") return;
+  if (principal.status === "ACTIVE" && process.env.SUPPORT_ACCESS_MODE === "public-demo") return;
+  redirect(`/login?next=${encodeURIComponent(path)}`);
 }
 
 export async function requireRequesterPage() {

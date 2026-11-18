@@ -69,3 +69,16 @@ it("accepts Next's localhost API URL only with the opt-in secret and fixed port"
   } });
   await expect(identityPrincipalForRequest(externalRequest)).rejects.toMatchObject({ code: "AUTHENTICATION_REQUIRED", status: 401 });
 });
+
+it("allows authenticated requester accounts into the public demo reviewer area", async () => {
+  const secret = "e".repeat(64);
+  vi.stubEnv("NODE_ENV", "production");
+  vi.stubEnv("SUPPORT_E2E_PRODUCTION", "true");
+  vi.stubEnv("SUPPORT_E2E_IDENTITY_SECRET", secret);
+  vi.stubEnv("SUPPORT_ACCESS_MODE", "public-demo");
+  const requester = new Request("http://127.0.0.1:3227/api/support/requests", { headers: {
+    "x-support-e2e-identity": secret,
+    "x-support-e2e-role": "requester",
+  } });
+  await expect(requireDemoReviewer(requester)).resolves.toBe("demo-reviewer:EMP-E2E-001");
+});

@@ -42,28 +42,29 @@ nhãn nguồn. Nội dung, evidence và explanation sentiment vẫn đi qua reda
 validation trước persistence. Feedback lưu assessment đã kiểm tra cùng nguồn
 model/fallback khi có; dữ liệu lịch sử thiếu trường này không được backfill.
 
-- API reviewer Support yêu cầu phiên Admin cho hàng đợi, hồ sơ, sự kiện, lịch sử,
-  summary và audit. Ẩn nút trong UI không thay kiểm tra quyền phía server.
-- Đơn xin cấp tài khoản thu họ tên và email do người dùng nhập; email trở thành
+- Trong `public-demo`, mọi requester đã xác thực có thể đọc và thao tác khu Support
+  reviewer. Chỉ triển khai chế độ này với dữ liệu tổng hợp; không dùng dữ liệu yêu
+  cầu thật hoặc dữ liệu cá nhân. Khu cấp tài khoản và API quyết định Identity vẫn
+  yêu cầu phiên Admin. Ẩn nút trong UI không thay kiểm tra quyền phía server.
+- Đơn xin cấp tài khoản thu họ tên và Gmail do người dùng nhập; Gmail trở thành
   ID đăng nhập sau khi được cấp. Email chưa được xác minh độc lập trước khi Admin
   cấp tài khoản. Chỉ phiên Admin mới xem danh sách đơn; không render danh sách
   email cho người dùng công khai.
 - Tài khoản Admin lấy ID/mật khẩu từ biến môi trường server. Không lưu mật khẩu
   Admin trong Mongo hay gửi qua email. Tài khoản requester demo `guest01 / 12345`
-  là thông tin đăng nhập dùng chung, không xác minh người sử dụng; chỉ dùng dữ liệu
-  synthetic qua tài khoản này.
+  là thông tin đăng nhập dùng chung, không xác minh người sử dụng; không cho tài
+  khoản này tiếp cận dữ liệu support thật.
 - Hệ thống sinh mật khẩu ngẫu nhiên năm chữ số cho tài khoản demo và chỉ lưu hash
   trong MongoDB. Mật khẩu gửi qua email có thể đọc được bởi người kiểm soát hộp
   thư và hạ tầng mail; không dùng mật khẩu này ngoài demo hoặc dùng lại mật khẩu
   cá nhân. Độ dài này không đạt chuẩn mật khẩu production.
-- Liên kết cấp tài khoản trong email là bearer token dùng một lần, hết hạn sau
-  một giờ. Mở liên kết qua `GET` cấp tài khoản ngay theo quyết định UX hiện tại.
-  Bộ lọc/phần mềm quét link email có thể tự kích hoạt liên kết trước khi Admin
-  bấm. Đây là rủi ro đã chấp nhận cho demo; không dùng quy trình này cho tài khoản
-  tổ chức. Giữ token khỏi log, chat và nơi lưu trữ công khai.
+- Email thông báo Admin chứa liên kết chỉ mở trang danh sách. Chỉ hành động
+  POST sau khi Admin xác thực mới có thể cấp hoặc từ chối tài khoản; mở liên kết
+  bằng `GET` không đổi trạng thái. Mẫu email cần được duyệt trước khi bật SMTP.
 - Tracking token và recovery proof của Support chỉ được lưu dạng hash. Token
-  giới hạn route theo dõi/tiếp diễn của người gửi; phiên Admin riêng bảo vệ API
-  reviewer. Token theo dõi không thay thế xác thực Admin.
+  giới hạn route theo dõi/tiếp diễn của người gửi; khu Support reviewer dùng
+  phiên tài khoản trong `public-demo`, còn Identity review luôn dùng phiên Admin.
+  Token theo dõi không thay thế xác thực phiên reviewer.
 - Kiểm thử hiện dùng dữ liệu synthetic và mock/spies; chưa có bằng chứng kiểm thử
   email giao thật, rate limit Mongo trên Production, hoặc phục hồi/restart database
   Identity thật. Không coi bài test local là chứng nhận bảo mật.

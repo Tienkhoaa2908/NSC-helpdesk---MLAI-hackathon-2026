@@ -6,7 +6,7 @@ Support Desk tiếp nhận mô tả sự cố, tạo bản xem trước để b�
 
 1. Tại trang chủ, chọn **Tôi cần hỗ trợ** rồi nhập ID và mật khẩu. Tài khoản thử nghiệm là `guest01 / 12345`; chỉ dùng dữ liệu tổng hợp.
 2. Nếu chưa có tài khoản, chọn **Nhân viên mới?**, nhập họ tên và Gmail. Đơn được lưu trong MongoDB và chỉ chủ hệ thống có thể xem.
-3. Chủ hệ thống kiểm tra yêu cầu qua email và cấp tài khoản. Gmail đã đăng ký trở thành ID đăng nhập; mật khẩu tạm gồm năm chữ số và được gửi qua email đó. Sau khi nhận thông tin, đăng nhập lại bằng ID và mật khẩu.
+3. Email thông báo mở danh sách riêng cho Admin; Admin đăng nhập rồi xác nhận hoặc từ chối. Gmail đã đăng ký trở thành ID đăng nhập; mật khẩu tạm gồm năm chữ số và được gửi qua email đó. Nếu email thông báo chưa gửi được, đơn vẫn nằm trong danh sách riêng để Admin xử lý sau khi cấu hình email.
 
 Đơn cấp tài khoản chưa được duyệt sẽ không cho phép đăng nhập. Tài khoản mới không được cấp quyền Admin.
 
@@ -26,6 +26,7 @@ Một số yêu cầu đủ điều kiện có thể được liên kết theo c
 
 - Tên và Gmail trong đơn cấp tài khoản chỉ hiển thị cho Admin. Website không xác minh độc lập quan hệ lao động; chủ hệ thống cần kiểm tra người yêu cầu trước khi cấp tài khoản.
 - Tài khoản mẫu `guest01 / 12345` và mật khẩu năm chữ số chỉ phục vụ trình diễn với dữ liệu tổng hợp. Không dùng cho tài khoản hoặc thông tin doanh nghiệp thật.
+- Trong `public-demo`, requester đã đăng nhập có thể xem hàng đợi Support, audit và Verify; chỉ danh sách cấp tài khoản cùng thao tác duyệt dành cho Admin. Dữ liệu demo phải là dữ liệu tổng hợp.
 - Policy và kho tri thức hỗ trợ hướng dẫn. Yêu cầu thiếu bằng chứng, vượt thẩm quyền hoặc có rủi ro được hỏi thêm hoặc chuyển cho người xử lý.
 - Liên kết theo dõi là thông tin truy cập hồ sơ; không chia sẻ liên kết cho người khác.
 

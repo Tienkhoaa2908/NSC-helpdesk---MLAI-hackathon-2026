@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { divisionLabel } from "@/domain/support-divisions";
 import { localizeKnownPolicyCopy } from "@/i18n/policy-copy";
-import { identityApprovalPage } from "@/lib/identity-mailer";
 
 describe("known policy copy localization", () => {
   it("translates known deterministic decision text only in English", () => {
@@ -50,19 +49,4 @@ describe("support division labels", () => {
     expect(divisionLabel("HR", "en")).toBe("Human Resources");
     expect(divisionLabel("HR", "vi")).toBe("Ban HR");
   });
-});
-
-it("renders the account approval result in Vietnamese and English", async () => {
-  const response = identityApprovalPage({
-    titleVi: "Tài khoản đã được cấp",
-    titleEn: "Account issued",
-    messageVi: "Đã gửi thông tin đăng nhập tới test@example.com.",
-    messageEn: "Sign-in details were sent to test@example.com.",
-  }, true);
-  const html = await response.text();
-  expect(html).toContain('lang="vi"');
-  expect(html).toContain('lang="en"');
-  expect(html).toContain("Tài khoản đã được cấp");
-  expect(html).toContain("Account issued");
-  expect(html).toContain("You can close this page.");
 });

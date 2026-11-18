@@ -189,6 +189,23 @@ li {
   min-width: 54px;
   padding-inline: 11px;
 }
+.identity-session-label {
+  max-width: min(34vw, 340px);
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+.identity-session-label strong { color: var(--ink); }
+.identity-signout {
+  border: 0;
+  background: transparent;
+  color: #ad390d;
+  cursor: pointer;
+  padding: 9px 8px;
+  border-radius: 8px;
+}
+.identity-signout:hover { background: #fff0e9; }
 .site-header nav a:hover,
 .site-header nav a[aria-current="page"] {
   background: #fff0e9;

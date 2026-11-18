@@ -1,11 +1,12 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { compare } from "bcryptjs";
-import { approveAccountRequest, listAccountRequests, submitAccountRequest } from "@/services/account-requests";
+import { decideAccountRequest, listAccountRequests, submitAccountRequest } from "@/services/account-requests";
 
 const fake = vi.hoisted(() => ({
   rows: {} as Record<string, Record<string, unknown>[]>,
   notices: [] as Array<Record<string, unknown>>,
   credentials: [] as Array<Record<string, unknown>>,
+  rejections: [] as Array<Record<string, unknown>>,
   failNotice: false,
   failCredentials: false,
   duplicatePendingRequest: false,
@@ -96,29 +97,33 @@ vi.mock("@/lib/identity-mailer", () => ({
     if (fake.failCredentials) throw new Error("SMTP failure");
     fake.credentials.push(structuredClone(input));
   }),
+  sendAccountRequestRejected: vi.fn(async (input: Record<string, unknown>) => {
+    if (fake.failCredentials) throw new Error("SMTP failure");
+    fake.rejections.push(structuredClone(input));
+  }),
 }));
 
 beforeEach(() => {
   fake.rows = {};
   fake.notices = [];
   fake.credentials = [];
+  fake.rejections = [];
   fake.failNotice = false;
   fake.failCredentials = false;
   fake.duplicatePendingRequest = false;
 });
 afterEach(() => vi.restoreAllMocks());
 
-it("stores a Gmail application and only the hash of its one-time approval token", async () => {
+it("stores a Gmail request and sends the Admin a non-mutating review link", async () => {
   const result = await submitAccountRequest({ fullName: "  Đào   Tiến Khoa ", email: "KHOA.DEMO@gmail.com" });
   const row = fake.rows.identity_account_requests[0];
   const notice = fake.notices[0];
-  const token = String(notice.approvalToken);
 
   expect(result).toMatchObject({ status: "PENDING" });
   expect(row).toMatchObject({ id: result.id, fullName: "Đào Tiến Khoa", email: "khoa.demo@gmail.com", status: "PENDING", notificationStatus: "SENT" });
-  expect(row.approvalTokenHash).not.toBe(token);
-  expect(row.approvalTokenHash).toMatch(/^[a-f0-9]{64}$/);
-  expect(notice.email).toBe("khoa.demo@gmail.com");
+  expect(row.approvalTokenHash).toBeNull();
+  expect(notice).toMatchObject({ id: result.id, fullName: "Đào Tiến Khoa", email: "khoa.demo@gmail.com" });
+  expect(notice).not.toHaveProperty("approvalToken");
   expect((await listAccountRequests("pending", 1)).items).toMatchObject([{ status: "PENDING", email: "khoa.demo@gmail.com" }]);
   await expect(submitAccountRequest({ fullName: "Demo User", email: "person@example.com" })).rejects.toThrow("Chỉ chấp nhận địa chỉ Gmail.");
 });
@@ -132,10 +137,24 @@ it("returns a conflict when concurrent submissions race on the pending-email ind
   expect(fake.rows.identity_account_requests).toHaveLength(0);
 });
 
-it("issues a random five-digit password, activates the account after delivery and consumes the approval link", async () => {
-  await submitAccountRequest({ fullName: "Đào Tiến Khoa", email: "khoa.demo@gmail.com" });
-  const token = String(fake.notices[0].approvalToken);
-  const result = await approveAccountRequest(token);
+it("keeps a request in Mongo and reports failed Admin notification delivery", async () => {
+  fake.failNotice = true;
+
+  const result = await submitAccountRequest({ fullName: "Demo User", email: "notify-failure@gmail.com" });
+
+  expect(result).toMatchObject({ status: "PENDING", notificationStatus: "FAILED" });
+  expect(fake.rows.identity_account_requests[0]).toMatchObject({
+    fullName: "Demo User",
+    email: "notify-failure@gmail.com",
+    status: "PENDING",
+    notificationStatus: "FAILED",
+  });
+  expect((await listAccountRequests("pending", 1)).items).toMatchObject([{ status: "DELIVERY_FAILED" }]);
+});
+
+it("issues a random five-digit password after an explicit Admin approval", async () => {
+  const submitted = await submitAccountRequest({ fullName: "Đào Tiến Khoa", email: "khoa.demo@gmail.com" });
+  const result = await decideAccountRequest(submitted.id, "APPROVE", "admin@gmail.com");
   const account = fake.rows.identity_password_accounts[0];
   const request = fake.rows.identity_account_requests[0];
   const email = fake.credentials[0];
@@ -145,23 +164,49 @@ it("issues a random five-digit password, activates the account after delivery an
   expect(account).toMatchObject({ loginId: "khoa.demo@gmail.com", email: "khoa.demo@gmail.com", role: "requester", kind: "employee", status: "ACTIVE" });
   expect(account.passwordHash).not.toBe(email.password);
   expect(await compare(String(email.password), String(account.passwordHash))).toBe(true);
-  expect(request).toMatchObject({ status: "APPROVED", notificationStatus: "SENT", approvalTokenHash: null });
-  await expect(approveAccountRequest(token)).rejects.toMatchObject({ code: "ACCOUNT_APPROVAL_INVALID" });
+  expect(request).toMatchObject({ status: "APPROVED", finalDecision: "APPROVED", notificationStatus: "SENT", approvalTokenHash: null });
+  await expect(decideAccountRequest(submitted.id, "APPROVE", "admin@gmail.com")).rejects.toMatchObject({ code: "ACCOUNT_REQUEST_ALREADY_DECIDED" });
   await expect(submitAccountRequest({ fullName: "Đào Tiến Khoa", email: "khoa.demo@gmail.com" })).rejects.toMatchObject({ code: "ACCOUNT_ALREADY_ACTIVE" });
   expect(await listAccountRequests("all", 1)).toMatchObject({ items: [{ status: "ISSUED" }] });
 });
 
-it("leaves a failed credential delivery inactive and allows retry with the same link", async () => {
-  await submitAccountRequest({ fullName: "Demo User", email: "retry@gmail.com" });
-  const token = String(fake.notices[0].approvalToken);
+it("leaves a failed credential delivery inactive and allows an Admin to retry", async () => {
+  const submitted = await submitAccountRequest({ fullName: "Demo User", email: "retry@gmail.com" });
   fake.failCredentials = true;
 
-  await expect(approveAccountRequest(token)).rejects.toMatchObject({ code: "ACCOUNT_CREDENTIAL_EMAIL_FAILED", status: 503 });
+  await expect(decideAccountRequest(submitted.id, "APPROVE", "admin@gmail.com")).rejects.toMatchObject({ code: "ACCOUNT_CREDENTIAL_EMAIL_FAILED", status: 503 });
   expect(fake.rows.identity_password_accounts[0]).toMatchObject({ status: "PENDING_DELIVERY" });
-  expect(fake.rows.identity_account_requests[0]).toMatchObject({ status: "PENDING", notificationStatus: "FAILED" });
+  expect(fake.rows.identity_account_requests[0]).toMatchObject({ status: "PENDING", finalDecision: "APPROVED", notificationStatus: "FAILED" });
 
   fake.failCredentials = false;
-  await approveAccountRequest(token);
+  await decideAccountRequest(submitted.id, "APPROVE", "admin@gmail.com");
   expect(fake.rows.identity_password_accounts[0].status).toBe("ACTIVE");
-  expect(fake.rows.identity_account_requests[0]).toMatchObject({ status: "APPROVED", approvalTokenHash: null });
+  expect(fake.rows.identity_account_requests[0]).toMatchObject({ status: "APPROVED", finalDecision: "APPROVED", approvalTokenHash: null });
+});
+
+it("records a rejection, sends a fixed outcome email and allows retry if delivery fails", async () => {
+  const submitted = await submitAccountRequest({ fullName: "Demo User", email: "reject@gmail.com" });
+  fake.failCredentials = true;
+
+  await expect(decideAccountRequest(submitted.id, "REJECT", "admin@gmail.com"))
+    .rejects.toMatchObject({ code: "ACCOUNT_OUTCOME_EMAIL_FAILED", status: 503 });
+  expect(fake.rows.identity_account_requests[0]).toMatchObject({
+    status: "PENDING", finalDecision: "REJECTED", notificationStatus: "FAILED",
+  });
+  expect((await listAccountRequests("pending", 1)).items).toMatchObject([{ status: "REJECTION_DELIVERY_FAILED" }]);
+
+  fake.failCredentials = true;
+  await expect(decideAccountRequest(submitted.id, "REJECT", "admin@gmail.com"))
+    .rejects.toMatchObject({ code: "ACCOUNT_OUTCOME_EMAIL_FAILED", status: 503 });
+  expect(fake.rows.identity_account_requests[0]).toMatchObject({
+    status: "PENDING", finalDecision: "REJECTED", notificationStatus: "FAILED",
+  });
+  fake.failCredentials = false;
+  await decideAccountRequest(submitted.id, "REJECT", "admin@gmail.com");
+  expect(fake.rejections).toMatchObject([{ email: "reject@gmail.com", fullName: "Demo User" }]);
+  expect(fake.rows.identity_account_requests[0]).toMatchObject({
+    status: "APPROVED", finalDecision: "REJECTED", notificationStatus: "SENT",
+  });
+  expect(fake.rows.identity_password_accounts ?? []).toHaveLength(0);
+  expect((await listAccountRequests("all", 1)).items).toMatchObject([{ status: "REJECTED" }]);
 });

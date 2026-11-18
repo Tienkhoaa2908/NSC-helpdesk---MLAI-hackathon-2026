@@ -38,7 +38,7 @@ export default function AdminHelp() {
         </section>
         <section className="guide-note">
           <h2><LocaleText vi="Môi trường demo" en="Demo environment" /></h2>
-          <p><LocaleText vi="Hàng đợi reviewer Support dùng dữ liệu tổng hợp hoặc giả lập. Trang quản lý cấp ID chỉ hiển thị yêu cầu; việc xác nhận cấp tài khoản được thực hiện qua email của quản trị viên. Không dùng dữ liệu công ty thật trên website demo." en="The Support reviewer queue uses synthetic or simulated data. The employee ID page displays requests only; an administrator confirms account issuance through email. Do not use real company data on the demo website." /></p>
+          <p><LocaleText vi="Trong public-demo, tài khoản requester đã đăng nhập cũng có thể xem hàng đợi Support, audit và Verify; chỉ dùng dữ liệu tổng hợp. Trang yêu cầu cấp tài khoản chỉ dành cho Admin, có thao tác xác nhận hoặc từ chối. Email thông báo chỉ mở danh sách; Admin đăng nhập rồi chọn quyết định. Khi bật email, hệ thống tự gửi thông tin đăng nhập hoặc kết quả từ chối đến người yêu cầu." en="In public-demo mode, signed-in requester accounts can also view the Support queue, audit history, and Verify; use synthetic data only. Account requests are Admin-only and have explicit approve and reject actions. The notification email only opens the list; an Admin signs in and chooses an action. When email is configured and enabled, the system sends sign-in details or the rejection result to the applicant." /></p>
           <p><Link href="/identity/review"><LocaleText vi="Mở quản lý cấp ID →" en="Open employee ID requests →" /></Link></p>
         </section>
       </article>

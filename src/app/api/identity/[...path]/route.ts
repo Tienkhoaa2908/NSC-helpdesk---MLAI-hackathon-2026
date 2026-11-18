@@ -5,7 +5,7 @@ import { identityStore } from "@/lib/identity-store";
 import { supportApi, supportBody } from "@/lib/support-http";
 import { SupportError } from "@/lib/support-repository";
 import { authenticatePasswordAccount } from "@/services/password-auth";
-import { listAccountRequests, submitAccountRequest } from "@/services/account-requests";
+import { decideAccountRequest, listAccountRequests, submitAccountRequest } from "@/services/account-requests";
 import { mongoDemoAuthority, requestDemoGrant, decideDemoGrant, updateDemoUsage, checkDemoAuthority } from "@/services/demo-authority";
 
 export const dynamic = "force-dynamic";
@@ -76,6 +76,14 @@ export async function POST(request: Request, context: Context) {
       await identityRateLimit(`account-request:email:${input.email.toLowerCase()}`, 2, 60 * 60_000);
       return successResponse(await submitAccountRequest(input), { status: 201 });
     }
+    if (route === "review/decision") {
+      const { principal } = await requireIdentitySession(request, true);
+      const input = z.object({
+        id: z.string().uuid(),
+        decision: z.enum(["APPROVE", "REJECT"]),
+      }).strict().parse(await supportBody(request));
+      return successResponse(await decideAccountRequest(input.id, input.decision, principal.loginId));
+    }
     if (route.startsWith("authority/")) {
       const { employee } = await requireIdentitySession(request);
       await identityRateLimit(`authority:${employee.id}`, 20);
@@ -98,7 +106,7 @@ export async function POST(request: Request, context: Context) {
       return successResponse({ ...result, assurance: "password", executed: false });
     }
     if (["verify", "review"].includes(route) || route.startsWith("review/"))
-      throw new SupportError("IDENTITY_APPROVAL_DISABLED", "Yêu cầu cấp tài khoản chỉ được duyệt qua liên kết một lần trong email.", 410);
+      throw new SupportError("IDENTITY_APPROVAL_DISABLED", "Thao tác cấp tài khoản cần phiên Admin đã đăng nhập.", 403);
     if (route === "google/start")
       throw new SupportError("GOOGLE_SIGN_IN_DISABLED", "Đăng nhập Google đã được thay bằng ID và mật khẩu.", 410);
     throw new SupportError("NOT_FOUND", "Không tìm thấy chức năng.", 404);

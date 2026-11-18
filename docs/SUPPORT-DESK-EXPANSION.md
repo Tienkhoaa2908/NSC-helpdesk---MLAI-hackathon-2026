@@ -1,6 +1,6 @@
 # Support Desk: IT, Commercial và HR
 
-> Tài liệu ghi lại đề xuất, giới hạn và đánh giá theo các mốc lịch sử. Bản hiện tại dùng ID/mật khẩu; API reviewer, audit và kiểm thử yêu cầu phiên Admin. Tài khoản mẫu `guest01 / 12345` chỉ gửi yêu cầu synthetic. Đây vẫn là demo, không phải IAM của tổ chức. Xem [Identity setup](IDENTITY-SETUP.md) và [Privacy Inventory](PRIVACY-INVENTORY.md) để biết ranh giới hiện tại.
+> Tài liệu ghi lại đề xuất, giới hạn và đánh giá theo các mốc lịch sử. Bản hiện tại dùng ID/mật khẩu; trong `public-demo`, requester đã đăng nhập có thể dùng API reviewer, audit và kiểm thử với dữ liệu tổng hợp. Danh sách cấp tài khoản và thao tác duyệt vẫn chỉ dành cho Admin. Đây vẫn là demo, không phải IAM của tổ chức. Xem [Identity setup](IDENTITY-SETUP.md) và [Privacy Inventory](PRIVACY-INVENTORY.md) để biết ranh giới hiện tại.
 
 ## Hợp đồng
 
@@ -11,7 +11,7 @@
 - Hỏi quy trình có thể nhận hướng dẫn chuẩn bị an toàn. Nghỉ phép, thanh toán, hợp đồng, quyền lợi và thay đổi dữ liệu cần người phụ trách. Không bịa chính sách VNG, số ngày phép, hạn mức, SLA hoặc hành động bên ngoài.
 - Vấn đề riêng tư và nguy hiểm vật lý đã nhận diện không gửi sang model bên ngoài. Câu hỏi chính sách giữ giới hạn nguồn đã xác minh; hướng dẫn không xác nhận quyền lợi.
 - Nhiều yêu cầu thuộc các ban khác nhau cần tách/làm rõ; rủi ro bảo mật kỹ thuật vẫn ưu tiên Ban IT. Cache không chia sẻ hồ sơ nhân sự, thương mại hoặc dữ liệu cá nhân.
-- Tab là điều phối trong demo, **không phải RBAC hoặc bằng chứng đã thông báo cho chuyên viên**. Phiên ID-only/reviewer công khai chưa phù hợp dữ liệu thật.
+- Tab là điều phối trong demo, **không phải RBAC hoặc bằng chứng đã thông báo cho chuyên viên**. Tài khoản demo dùng chung và khu Support reviewer trong public-demo không phù hợp với dữ liệu thật.
 
 ## Kiểm chứng
 
