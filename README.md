@@ -91,31 +91,49 @@ The 15-case judge dataset and five-case VNG pack satisfy the competition’s sce
 
 The screenshots below were captured from the [official live deployment](https://nsclub-support-desk.vercel.app), not from another repository.
 
-### Role selection
+### Role selection and language
 
-![Official website home page with requester and Admin entry points](docs/images/official-home.png)
+![Official Vietnamese homepage with sign-in, registration and role entry points](docs/images/official-home.png)
 
-The home page directs requesters and Admin reviewers to their login flows. Visitors can sign in with the published demo credentials `guest01 / 12345` to try the requester workflow; use synthetic data only.
+The home page routes requesters and Admin reviewers to their sign-in flow and includes account registration and a persistent language switch.
 
-### Requester intake and follow-up
+![Official English homepage](docs/images/official-home-en.png)
 
-![Support request form on the official website](docs/images/official-employee-intake.png)
+The English view translates the same entry points and help content.
 
-Requesters can describe the issue freely or select a support category. The form asks for only the context needed to route and assess the request; a preview is shown before a saved case is created.
+### Sign-in and account requests
+
+![Employee ID and password sign-in on the official website](docs/images/official-login.png)
+
+Employees sign in with an issued ID or email and password. The published `guest01 / 12345` account is limited to synthetic requester data.
+
+![New account request form on the official website](docs/images/official-registration.png)
+
+The request form collects a full name and Gmail address. The email becomes the employee login ID; the system owner reviews the request and issues a temporary five-digit password through the email confirmation flow.
+
+![English account request form](docs/images/official-registration-en.png)
+
+The same account request is available in English from the language switch.
+
+### Requester workflow
 
 ![Requester usage guide on the official website](docs/images/official-employee-guide.png)
 
-The requester guide explains how to review a response, confirm or revise it, then use the case link to answer a clarification or continue the conversation. If the system lacks sufficient evidence or model assistance is unavailable, the policy path can ask for more information or route the case for human review instead of claiming it was resolved.
+The guide explains how to sign in, describe a support issue, inspect the AI and policy preview, confirm the request, and continue from its tracking link. Previewing alone does not create a saved case.
+
+![Requester guide in English](docs/images/official-employee-guide-en.png)
+
+The system can provide routine guidance, request missing facts, or route a case for human review when evidence, policy, authority, or model availability does not support an automatic response.
 
 ### Admin review and audit
 
-![Admin support queue on the official website](docs/images/official-admin-queue.png)
-
-The Admin workspace supports filtering and opening a case to inspect its evidence, policy outcome and history before taking an available action. Decisions are recorded for later review.
-
 ![Admin usage guide on the official website](docs/images/official-admin-guide.png)
 
-The Admin guide covers queue triage, reviewer actions, incident updates and Verify. Support review and audit APIs require an Admin session. The owner-only identity request list is read-only; account issuance happens from a single-use link in the owner’s email. The applicant receives their email address as the login ID and a random five-digit demo password. Opening the link acts immediately and may be triggered by an email security scanner. This demo is not a substitute for an organization’s IAM or HR verification process.
+The Admin guide covers queue triage, evidence review, allowed actions, incident updates, audit history and Verify. Support review APIs require an authenticated Admin session.
+
+![Admin guide in English](docs/images/official-admin-guide-en.png)
+
+The owner-only identity request list is read-only; account issuance happens through a single-use link in the owner’s email. The applicant receives their email address as the login ID and a random five-digit demo password. Opening the link acts immediately and may be triggered by an email security scanner. This demo is not a substitute for an organization’s IAM or HR verification process.
 
 ## Run locally
 
@@ -238,31 +256,49 @@ Bộ 15 tình huống giám khảo và bộ VNG 5 ca đáp ứng yêu cầu tìn
 
 Ảnh dưới đây được chụp từ [website chính thức đang triển khai](https://nsclub-support-desk.vercel.app), không lấy từ repo khác.
 
-### Chọn vai trò
+### Chọn vai trò và ngôn ngữ
 
-![Trang chủ website chính thức với lối vào dành cho người gửi và Admin](docs/images/official-home.png)
+![Trang chủ tiếng Việt trên website chính thức với đăng nhập, đăng ký và lối vào theo vai trò](docs/images/official-home.png)
 
-Trang chủ đưa người gửi và Admin đến luồng đăng nhập tương ứng. Đăng nhập bằng `guest01 / 12345` để thử luồng gửi yêu cầu; chỉ nhập dữ liệu tổng hợp.
+Trang chủ đưa người gửi và Admin đến luồng đăng nhập tương ứng, đồng thời có đăng ký tài khoản và nút đổi ngôn ngữ.
 
-### Người gửi yêu cầu và trao đổi tiếp
+![Trang chủ tiếng Anh trên website chính thức](docs/images/official-home-en.png)
 
-![Biểu mẫu yêu cầu hỗ trợ trên website chính thức](docs/images/official-employee-intake.png)
+Phiên bản tiếng Anh giữ nguyên các lối vào và hướng dẫn tương ứng.
 
-Người gửi có thể mô tả tự do hoặc chọn danh mục hỗ trợ. Biểu mẫu thu thập ngữ cảnh cần thiết để đánh giá và định tuyến; hệ thống hiển thị preview trước khi tạo hồ sơ đã lưu.
+### Đăng nhập và yêu cầu cấp tài khoản
+
+![Màn hình đăng nhập bằng ID nhân viên và mật khẩu](docs/images/official-login.png)
+
+Nhân viên đăng nhập bằng ID hoặc email đã được cấp và mật khẩu. Tài khoản `guest01 / 12345` chỉ dùng để trải nghiệm với dữ liệu tổng hợp.
+
+![Biểu mẫu yêu cầu cấp tài khoản trên website chính thức](docs/images/official-registration.png)
+
+Biểu mẫu nhận họ tên và Gmail. Email trở thành ID đăng nhập; chủ hệ thống xem xét yêu cầu và cấp mật khẩu tạm gồm năm chữ số qua luồng xác nhận email.
+
+![Biểu mẫu yêu cầu cấp tài khoản bằng tiếng Anh](docs/images/official-registration-en.png)
+
+Người dùng có thể chuyển biểu mẫu sang tiếng Anh bằng nút đổi ngôn ngữ.
+
+### Luồng nhân viên
 
 ![Hướng dẫn sử dụng dành cho nhân viên trên website chính thức](docs/images/official-employee-guide.png)
 
-Hướng dẫn cho người gửi giải thích cách đọc phản hồi, xác nhận hoặc sửa yêu cầu, sau đó dùng liên kết hồ sơ để trả lời câu hỏi xác minh hoặc tiếp tục hội thoại. Nếu thiếu bằng chứng hoặc mô hình không khả dụng, policy có thể yêu cầu thêm thông tin hay chuyển nhân viên xử lý, thay vì khẳng định sự cố đã được giải quyết.
+Hướng dẫn mô tả cách đăng nhập, nêu vấn đề, kiểm tra preview AI và policy, xác nhận gửi rồi tiếp tục qua liên kết theo dõi. Chỉ xem preview chưa tạo hồ sơ đã lưu.
+
+![Hướng dẫn nhân viên bằng tiếng Anh](docs/images/official-employee-guide-en.png)
+
+Hệ thống có thể hướng dẫn tình huống thường quy, hỏi thêm dữ kiện còn thiếu hoặc chuyển hồ sơ cho người xử lý khi bằng chứng, policy, thẩm quyền hay khả năng model chưa đủ để tự trả lời.
 
 ### Admin review và audit
 
-![Hàng đợi yêu cầu Admin trên website chính thức](docs/images/official-admin-queue.png)
-
-Không gian Admin hỗ trợ lọc hàng đợi và mở hồ sơ để xem bằng chứng, kết quả policy và lịch sử trước khi chọn một thao tác được phép. Các quyết định được ghi lại để tra cứu.
-
 ![Hướng dẫn sử dụng dành cho Admin trên website chính thức](docs/images/official-admin-guide.png)
 
-Hướng dẫn Admin mô tả cách phân loại hàng đợi, phản hồi người gửi, cập nhật sự cố và chạy Verify. API review và audit yêu cầu phiên Admin. Danh sách yêu cầu cấp tài khoản chỉ đọc và chỉ dành cho chủ hệ thống; cấp tài khoản xảy ra khi mở liên kết dùng một lần trong email, sau đó thông tin đăng nhập được gửi đến email người đăng ký. Liên kết cấp ngay khi mở, có thể bị trình quét email tự động kích hoạt và hết hạn sau một giờ. Luồng này không thay thế IAM hoặc quy trình xác minh nhân sự của tổ chức.
+Hướng dẫn Admin trình bày cách phân loại hàng đợi, đối chiếu bằng chứng, chọn thao tác được phép, cập nhật sự cố, xem audit và chạy Verify. API xử lý yêu cầu cần phiên Admin đã xác thực.
+
+![Hướng dẫn Admin bằng tiếng Anh](docs/images/official-admin-guide-en.png)
+
+Danh sách yêu cầu cấp tài khoản chỉ đọc và chỉ dành cho chủ hệ thống; việc cấp tài khoản diễn ra qua liên kết dùng một lần trong email của chủ hệ thống. Người đăng ký nhận email của họ làm ID và mật khẩu demo ngẫu nhiên gồm năm chữ số. Mở liên kết sẽ cấp ngay và có thể bị trình quét bảo mật email tự động kích hoạt. Luồng demo này không thay thế IAM hay quy trình xác minh nhân sự của tổ chức.
 
 ## Chạy local
 
