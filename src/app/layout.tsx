@@ -16,7 +16,7 @@ const nunito = localFont({
 export async function generateMetadata(): Promise<Metadata> {
   const savedLocale = (await cookies()).get("app_locale")?.value;
   return {
-    title: "NSClub helpdesk",
+    title: "NSClub Help Desk",
     description: savedLocale === "en"
       ? "Get help with work, technology, commerce, and HR through AI-assisted guidance, references, and a clear review process."
       : "Hỗ trợ công việc, công nghệ, thương mại và nhân sự với AI, nguồn tham khảo và quy trình xử lý rõ ràng.",

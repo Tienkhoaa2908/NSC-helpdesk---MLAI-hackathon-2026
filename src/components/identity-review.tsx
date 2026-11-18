@@ -11,7 +11,8 @@ type AccountRequest = {
   id: string;
   fullName: string;
   email: string;
-  status: "PENDING" | "PROCESSING" | "ISSUED" | "REJECTED" | "DELIVERY_FAILED" | "REJECTION_DELIVERY_FAILED";
+  status: "PENDING" | "PROCESSING" | "ISSUED" | "REJECTED" | "DELIVERY_FAILED" | "REJECTION_DELIVERY_FAILED" | "ADMIN_NOTICE_FAILED";
+  retryAction: "ADMIN_NOTICE" | "APPROVE" | "REJECT" | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -19,11 +20,12 @@ type AccountRequest = {
 function statusLabel(status: AccountRequest["status"], locale: "vi" | "en") {
   const labels = {
     PENDING: ["Chờ Admin xử lý", "Pending Admin review"],
-    PROCESSING: ["Đang gửi email kết quả", "Sending decision email"],
+    PROCESSING: ["Đang xử lý email", "Processing email"],
     ISSUED: ["Đã gửi tài khoản", "Account issued"],
     REJECTED: ["Đã từ chối", "Request rejected"],
-    DELIVERY_FAILED: ["Gửi thông tin đăng nhập thất bại", "Credential delivery failed"],
-    REJECTION_DELIVERY_FAILED: ["Gửi email từ chối thất bại", "Rejection email delivery failed"],
+    DELIVERY_FAILED: ["Chưa xác nhận email thông tin đăng nhập", "Credential email status unconfirmed"],
+    REJECTION_DELIVERY_FAILED: ["Chưa xác nhận email từ chối", "Rejection email status unconfirmed"],
+    ADMIN_NOTICE_FAILED: ["Chưa xác nhận email thông báo Admin", "Admin notice status unconfirmed"],
   } as const;
   return localized(labels[status][0], labels[status][1], locale);
 }
@@ -54,9 +56,14 @@ export function IdentityReview() {
   }, [locale]);
 
   async function decide(row: AccountRequest, decision: "APPROVE" | "REJECT") {
+    const retrying = row.retryAction === decision;
     const prompt = decision === "APPROVE"
-      ? localized("Cấp tài khoản và gửi thông tin đăng nhập tới " + row.email + "?", "Issue an account and email sign-in details to " + row.email + "?", locale)
-      : localized("Từ chối yêu cầu của " + row.fullName + " và gửi email thông báo?", "Reject " + row.fullName + "'s request and email the decision?", locale);
+      ? retrying
+        ? localized("Gửi lại cùng thông tin đăng nhập tới " + row.email + "?", "Resend the same sign-in details to " + row.email + "?", locale)
+        : localized("Cấp tài khoản và gửi thông tin đăng nhập tới " + row.email + "?", "Issue an account and email sign-in details to " + row.email + "?", locale)
+      : retrying
+        ? localized("Gửi lại email từ chối cho " + row.email + "?", "Resend the rejection notice to " + row.email + "?", locale)
+        : localized("Từ chối yêu cầu của " + row.fullName + " và gửi email thông báo?", "Reject " + row.fullName + "'s request and email the decision?", locale);
     if (!window.confirm(prompt)) return;
     setWorkingId(row.id);
     setError("");
@@ -65,10 +72,25 @@ export function IdentityReview() {
       await identityApi<{ status: "APPROVED" | "REJECTED" }>("review/decision", { id: row.id, decision });
       await load(status);
       setNotice(decision === "APPROVE"
-        ? localized("Đã cấp tài khoản và gửi thông tin đăng nhập.", "Account issued and sign-in details sent.", locale)
-        : localized("Đã từ chối yêu cầu và gửi email thông báo.", "Request rejected and notice sent.", locale));
+        ? localized("Đã cấp tài khoản, máy chủ email đã nhận thông tin đăng nhập.", "The account is active and the email server accepted the sign-in details.", locale)
+        : localized("Đã từ chối yêu cầu, máy chủ email đã nhận thông báo.", "The request was rejected and the email server accepted the notice.", locale));
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : localized("Không thể xử lý yêu cầu.", "Could not process the request.", locale));
+    } finally {
+      setWorkingId("");
+    }
+  }
+
+  async function retryAdminNotice(row: AccountRequest) {
+    setWorkingId(row.id);
+    setError("");
+    setNotice("");
+    try {
+      await identityApi<{ status: "SENT" }>("review/notification", { id: row.id });
+      await load(status);
+      setNotice(localized("Máy chủ email đã nhận thông báo Admin. Hộp thư chưa được kiểm tra.", "The email server accepted the Admin notice. Inbox receipt was not checked.", locale));
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : localized("Không thể gửi lại thông báo.", "Could not resend the notice.", locale));
     } finally {
       setWorkingId("");
     }
@@ -114,13 +136,34 @@ export function IdentityReview() {
                 </div>
                 <p><strong>{localized("Email / ID dự kiến", "Email / requested ID", locale)}:</strong> <a href={"mailto:" + row.email}>{row.email}</a></p>
                 <p><strong>{localized("Ngày gửi", "Submitted", locale)}:</strong> <time dateTime={row.createdAt}>{new Date(row.createdAt).toLocaleString(locale === "vi" ? "vi-VN" : "en-US")}</time></p>
-                {(row.status === "PENDING" || row.status === "DELIVERY_FAILED" || row.status === "REJECTION_DELIVERY_FAILED") && (
+                {row.status !== "PROCESSING" && row.retryAction === "ADMIN_NOTICE" && (
+                  <div className="identity-actions">
+                    <Button disabled={Boolean(workingId) || busy} onClick={() => void retryAdminNotice(row)}>
+                      {workingId === row.id ? localized("Đang xử lý…", "Processing…", locale) : localized("Gửi lại email thông báo Admin", "Retry Admin notice", locale)}
+                    </Button>
+                  </div>
+                )}
+                {row.status !== "PROCESSING" && (row.status === "PENDING" || row.status === "ADMIN_NOTICE_FAILED") && (
                   <div className="identity-actions">
                     <Button disabled={Boolean(workingId) || busy} onClick={() => void decide(row, "APPROVE")}>
                       {workingId === row.id ? localized("Đang xử lý…", "Processing…", locale) : localized("Xác nhận cấp tài khoản", "Approve and issue", locale)}
                     </Button>
                     <Button variant="secondary" disabled={Boolean(workingId) || busy} onClick={() => void decide(row, "REJECT")}>
                       {localized("Từ chối yêu cầu", "Reject request", locale)}
+                    </Button>
+                  </div>
+                )}
+                {row.status !== "PROCESSING" && row.retryAction === "APPROVE" && (
+                  <div className="identity-actions">
+                    <Button disabled={Boolean(workingId) || busy} onClick={() => void decide(row, "APPROVE")}>
+                      {workingId === row.id ? localized("Đang xử lý…", "Processing…", locale) : localized("Gửi lại cùng mật khẩu", "Retry same credential", locale)}
+                    </Button>
+                  </div>
+                )}
+                {row.status !== "PROCESSING" && row.retryAction === "REJECT" && (
+                  <div className="identity-actions">
+                    <Button variant="secondary" disabled={Boolean(workingId) || busy} onClick={() => void decide(row, "REJECT")}>
+                      {workingId === row.id ? localized("Đang xử lý…", "Processing…", locale) : localized("Gửi lại email từ chối", "Retry rejection notice", locale)}
                     </Button>
                   </div>
                 )}

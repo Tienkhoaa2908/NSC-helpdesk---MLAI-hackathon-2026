@@ -2,7 +2,7 @@
 
 Version: `policy-v2`
 
-Glossary này giúp parser nhận diện các cách diễn đạt khác nhau và map về canonical meaning ổn định. Raw phrase của user phải được giữ ở dạng đã redact trong `evidence`; canonicalization không được xoá hoặc làm mất các từ rủi ro như `production`, `admin`, `secret`, `root`, `public`, `export` hoặc `bypass`.
+Glossary này giúp parser nhận diện các cách diễn đạt khác nhau và map về canonical meaning ổn định. Raw phrase của user phải được giữ ở dạng đã redact trong `evidence`, canonicalization không được xoá hoặc làm mất các từ rủi ro như `production`, `admin`, `secret`, `root`, `public`, `export` hoặc `bypass`.
 
 ## Thuật ngữ nghiệp vụ và hỗ trợ
 
@@ -82,13 +82,13 @@ Glossary này giúp parser nhận diện các cách diễn đạt khác nhau và
 |---|---|---|
 | “Cho em access DB” | `intent=DATABASE_ACCESS` | Chưa đủ system/resource_scope/environment/permission/duration/reason/approval evidence. |
 | “Chỉ SELECT thôi” | `permission=read-only` | Không được bỏ qua một claim khác như `admin` hoặc `production`. |
-| “Cho quyền full để khỏi chờ” | `permission=admin` | Có thể là authority risk; cần reviewer. |
+| “Cho quyền full để khỏi chờ” | `permission=admin` | Có thể là authority risk, cần reviewer. |
 | “Lead đã approve rồi” | `approval_claim` | Không được map thẳng thành approval verified hoặc AUTO_APPROVE. |
 | “Approval ở ticket ABC-123” | `approval_reference=ABC-123` | Reference phải được verifier kiểm tra role, scope, thời hạn và expiry. |
-| “Mở port 3389 tạm cho QA” | `public_port`, `security_risk=true` | Route Security; không auto-approve. |
-| “Gửi password hiện tại” | `secret_type=password` | Route Security; tuyệt đối không hiển thị secret. |
-| “Dump customer DB vào repo private/laptop” | `data_export`, `unmanaged_destination` | Route Security + Data owner; private repo không tự làm destination an toàn. |
-| “Máy bị đơ” | `problem=device_frozen` | Route IT Helpdesk; vẫn hỏi device_id/location/urgency. |
+| “Mở port 3389 tạm cho QA” | `public_port`, `security_risk=true` | Route Security, không auto-approve. |
+| “Gửi password hiện tại” | `secret_type=password` | Route Security, tuyệt đối không hiển thị secret. |
+| “Dump customer DB vào repo private/laptop” | `data_export`, `unmanaged_destination` | Route Security + Data owner, private repo không tự làm destination an toàn. |
+| “Máy bị đơ” | `problem=device_frozen` | Route IT Helpdesk, vẫn hỏi device_id/location/urgency. |
 | “Bật máy không lên” | `problem=boot_failure` | Route IT Helpdesk. |
 | “Cần 1 con A100 để train 6 tiếng” | `gpu_type=A100`, `purpose=training`, `duration=6 hours` | Vẫn cần provider, quantity, quota/budget và approval. |
-| Form nói `QA/read-only` nhưng text nói `production/write` | `structured_free_text_conflict` | Giữ cả hai evidence và route `ESCALATE`; không lấy giá trị ít rủi ro hơn. |
+| Form nói `QA/read-only` nhưng text nói `production/write` | `structured_free_text_conflict` | Giữ cả hai evidence và route `ESCALATE`, không lấy giá trị ít rủi ro hơn. |

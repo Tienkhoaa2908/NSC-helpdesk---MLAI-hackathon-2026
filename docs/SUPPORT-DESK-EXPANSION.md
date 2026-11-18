@@ -1,6 +1,6 @@
 # Support Desk: IT, Commercial và HR
 
-> Tài liệu ghi lại đề xuất, giới hạn và đánh giá theo các mốc lịch sử. Bản hiện tại dùng ID/mật khẩu; trong `public-demo`, requester đã đăng nhập có thể dùng API reviewer, audit và Verify với hồ sơ khớp ca kiểm thử do server tạo. Yêu cầu thông thường ẩn trong khu reviewer; người gửi vẫn dùng tracking link riêng. Danh sách cấp tài khoản và thao tác duyệt chỉ dành cho Admin. Đây vẫn là demo, không phải IAM của tổ chức. Xem [Identity setup](IDENTITY-SETUP.md) và [Privacy Inventory](PRIVACY-INVENTORY.md) để biết ranh giới hiện tại.
+> Tài liệu ghi lại đề xuất, giới hạn và đánh giá theo các mốc lịch sử. Bản hiện tại dùng ID/mật khẩu, trong `public-demo`, requester đã đăng nhập có thể dùng API reviewer, audit và Verify với hồ sơ khớp ca kiểm thử do server tạo. Yêu cầu thông thường ẩn trong khu reviewer, người gửi vẫn dùng tracking link riêng. Danh sách cấp tài khoản và thao tác duyệt chỉ dành cho Admin. Đây vẫn là demo, không phải IAM của tổ chức. Xem [Identity setup](IDENTITY-SETUP.md) và [Privacy Inventory](PRIVACY-INVENTORY.md) để biết ranh giới hiện tại.
 
 ## Hợp đồng
 

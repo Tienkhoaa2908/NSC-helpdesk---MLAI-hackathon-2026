@@ -23,7 +23,7 @@ afterEach(() => {
   sendMail.mockReset();
 });
 
-it("keeps identity email disabled until the templates are approved", async () => {
+it("keeps identity email disabled when the feature flag is off", async () => {
   vi.stubEnv("IDENTITY_EMAIL_ENABLED", "false");
 
   expect(() => assertIdentityEmailConfigured()).toThrow();

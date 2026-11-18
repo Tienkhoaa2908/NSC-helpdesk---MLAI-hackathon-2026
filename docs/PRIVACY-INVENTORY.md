@@ -50,18 +50,23 @@ model/fallback khi có, dữ liệu lịch sử thiếu trường này không đ
 - Đơn xin cấp tài khoản thu họ tên và Gmail do người dùng nhập, Gmail trở thành
   ID đăng nhập sau khi được cấp. Email chưa được xác minh độc lập trước khi Admin
   cấp tài khoản. Chỉ phiên Admin mới xem danh sách đơn, không render danh sách
-  email cho người dùng công khai.
+  email cho người dùng công khai. Biểu mẫu trả cùng xác nhận cho Gmail mới, đang
+  có đơn hoặc đã có tài khoản, không tạo đơn trùng và không tiết lộ trạng thái.
 - Tài khoản Admin lấy ID/mật khẩu từ biến môi trường server. Không lưu mật khẩu
   Admin trong Mongo hay gửi qua email. Tài khoản requester demo `guest01 / 12345`
   là thông tin đăng nhập dùng chung, không xác minh người sử dụng, không cho tài
   khoản này tiếp cận dữ liệu support thật.
-- Hệ thống sinh mật khẩu ngẫu nhiên năm chữ số cho tài khoản demo và chỉ lưu hash
-  trong MongoDB. Mật khẩu gửi qua email có thể đọc được bởi người kiểm soát hộp
-  thư và hạ tầng mail, không dùng mật khẩu này ngoài demo hoặc dùng lại mật khẩu
-  cá nhân. Độ dài này không đạt chuẩn mật khẩu production.
+- Hệ thống sinh chuỗi mật khẩu ngẫu nhiên đúng năm chữ số cho tài khoản demo,
+  gồm cả số 0 ở đầu. MongoDB luôn lưu hash bcrypt. Trong khi credential chưa gửi
+  được và account vẫn inactive, MongoDB cũng lưu một bản AES-256-GCM mã hóa để
+  retry đúng cùng mật khẩu. Bản mã hóa bị xóa trong transaction kích hoạt account.
+  Mật khẩu gửi qua email có thể đọc được bởi người kiểm soát hộp thư và hạ tầng
+  mail, không dùng mật khẩu này ngoài demo hoặc dùng lại mật khẩu cá nhân. Độ dài
+  này không đạt chuẩn mật khẩu production.
 - Email thông báo Admin chứa liên kết chỉ mở trang danh sách. Chỉ hành động
   POST sau khi Admin xác thực mới có thể cấp hoặc từ chối tài khoản, mở liên kết
-  bằng `GET` không đổi trạng thái. Mẫu email cần được duyệt trước khi bật SMTP.
+  bằng `GET` không đổi trạng thái. Mẫu email đã được duyệt, email chỉ bật khi các
+  biến Production đã sẵn sàng.
 - Tracking token và recovery proof của Support chỉ được lưu dạng hash. Token
   giới hạn route theo dõi/tiếp diễn của người gửi, khu Support reviewer dùng
   phiên tài khoản và phạm vi Verify giới hạn trong `public-demo`, còn Identity review luôn dùng phiên Admin.

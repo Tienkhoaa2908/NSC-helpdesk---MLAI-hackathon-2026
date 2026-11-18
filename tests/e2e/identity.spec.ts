@@ -1,5 +1,11 @@
 import { expect, test } from "./fixtures";
 
+test("the browser title and favicon use the NSClub app identity", async ({ page }) => {
+  await page.goto("/");
+  await expect(page).toHaveTitle("NSClub Help Desk");
+  await expect(page.locator('link[rel="icon"]').first()).toHaveAttribute("href", /vng-support-mascot-navi-wave\.png/);
+});
+
 test("home exposes sign-in, registration and a persistent English switch", async ({ page }) => {
   await page.route("**/api/identity/session", (route) => route.fulfill({ status: 401, json: {
     success: false,
@@ -140,7 +146,7 @@ test("the legacy guest URL preserves an authenticated requester session", async 
 test("registration is available in Vietnamese and English and sends only a name and Gmail", async ({ page }) => {
   await page.route("**/api/identity/applications", async (route) => {
     expect(route.request().postDataJSON()).toEqual({ fullName: "Synthetic Test Requester", email: "requester.e2e.000001@gmail.com" });
-    await route.fulfill({ status: 201, json: { success: true, data: { id: "e2e-application", status: "PENDING", notificationStatus: "SENT" } } });
+    await route.fulfill({ status: 202, json: { success: true, data: { status: "RECEIVED" } } });
   });
   await page.goto("/identity/new");
   await expect(page.getByLabel("Họ và tên")).toBeVisible();
@@ -152,7 +158,7 @@ test("registration is available in Vietnamese and English and sends only a name 
   await page.getByLabel("Full name").fill("Synthetic Test Requester");
   await page.getByLabel("Gmail").fill("requester.e2e.000001@gmail.com");
   await page.getByRole("button", { name: "Send account request" }).click();
-  await expect(page.getByRole("heading", { name: "Your account request has been sent" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Your request was received" })).toBeVisible();
   await expect(page.getByText("You can try the system now")).toBeVisible();
   await expect(page.getByText("guest01", { exact: true })).toBeVisible();
   await expect(page.getByText("12345", { exact: true })).toBeVisible();
@@ -162,17 +168,17 @@ test("registration is available in Vietnamese and English and sends only a name 
   await expect(page.getByLabel("Full name")).toBeVisible();
 });
 
-test("registration states when Mongo saved a request but its Admin email failed", async ({ page }) => {
-  await page.route("**/api/identity/applications", (route) => route.fulfill({ json: {
+test("registration confirmation does not disclose request or email status", async ({ page }) => {
+  await page.route("**/api/identity/applications", (route) => route.fulfill({ status: 202, json: {
     success: true,
-    data: { id: "e2e-unsent-application", status: "PENDING", notificationStatus: "FAILED" },
+    data: { status: "RECEIVED" },
   } }));
   await page.goto("/identity/new");
   await page.getByLabel("Họ và tên").fill("Synthetic Mail Failure");
   await page.getByLabel("Gmail").fill("mail.failure.e2e@gmail.com");
   await page.getByRole("button", { name: "Gửi yêu cầu cấp tài khoản" }).click();
-  await expect(page.getByRole("heading", { name: "Yêu cầu đã lưu, chưa gửi được email" })).toBeVisible();
-  await expect(page.getByText(/đã được lưu.*email thông báo chưa gửi được/i)).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Yêu cầu đã được tiếp nhận" })).toBeVisible();
+  await expect(page.getByText(/không tạo bản ghi trùng/i)).toBeVisible();
   await expect(page.getByText("guest01", { exact: true })).toBeVisible();
   await expect(page.getByText("12345", { exact: true })).toBeVisible();
 });
@@ -193,9 +199,47 @@ test("Admin can explicitly approve or reject identity requests", async ({ page }
   await expect(page.getByRole("link", { name: "requester.e2e.000001@gmail.com" })).toHaveAttribute("href", "mailto:requester.e2e.000001@gmail.com");
   await expect(page.getByRole("button", { name: "Xác nhận cấp tài khoản" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Từ chối yêu cầu" })).toBeVisible();
+  expect(decisionBody).toBeUndefined();
   page.once("dialog", (dialog) => void dialog.accept());
   await page.getByRole("button", { name: "Xác nhận cấp tài khoản" }).click();
   await expect.poll(() => decisionBody).toEqual({ id: "e2e-application", decision: "APPROVE" });
+});
+
+test("Admin can retry the existing Admin notice without creating another request", async ({ page }) => {
+  await page.route("**/api/identity/review?*", (route) => route.fulfill({ json: {
+    success: true,
+    data: { items: [{ id: "e2e-notice-retry", fullName: "Synthetic Notice Retry", email: "notice.retry.e2e@gmail.com", status: "ADMIN_NOTICE_FAILED", retryAction: "ADMIN_NOTICE", createdAt: "2026-11-18T00:00:00.000Z", updatedAt: "2026-11-18T00:00:00.000Z" }], hasMore: false },
+  } }));
+  let noticeBody: unknown;
+  await page.route("**/api/identity/review/notification", async (route) => {
+    noticeBody = route.request().postDataJSON();
+    await route.fulfill({ json: { success: true, data: { status: "SENT" } } });
+  });
+  await page.goto("/identity/review");
+  await expect(page.getByRole("button", { name: "Gửi lại email thông báo Admin" })).toBeVisible();
+  page.once("dialog", (dialog) => void dialog.accept());
+  await page.getByRole("button", { name: "Gửi lại email thông báo Admin" }).click();
+  await expect.poll(() => noticeBody).toEqual({ id: "e2e-notice-retry" });
+  await expect(page.getByText(/Hộp thư chưa được kiểm tra/)).toBeVisible();
+});
+
+test("a failed approval exposes only the same-decision credential retry", async ({ page }) => {
+  await page.route("**/api/identity/review?*", (route) => route.fulfill({ json: {
+    success: true,
+    data: { items: [{ id: "e2e-approval-retry", fullName: "Synthetic Credential Retry", email: "credential.retry.e2e@gmail.com", status: "DELIVERY_FAILED", retryAction: "APPROVE", createdAt: "2026-11-18T00:00:00.000Z", updatedAt: "2026-11-18T00:00:00.000Z" }], hasMore: false },
+  } }));
+  let decisionBody: unknown;
+  await page.route("**/api/identity/review/decision", async (route) => {
+    decisionBody = route.request().postDataJSON();
+    await route.fulfill({ json: { success: true, data: { status: "APPROVED", email: "credential.retry.e2e@gmail.com" } } });
+  });
+  await page.goto("/identity/review");
+  await expect(page.getByRole("button", { name: "Gửi lại cùng mật khẩu" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Xác nhận cấp tài khoản" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Từ chối yêu cầu" })).toHaveCount(0);
+  page.once("dialog", (dialog) => void dialog.accept());
+  await page.getByRole("button", { name: "Gửi lại cùng mật khẩu" }).click();
+  await expect.poll(() => decisionBody).toEqual({ id: "e2e-approval-retry", decision: "APPROVE" });
 });
 
 test("authenticated requester can explore support review but not identity requests", async ({ requesterPage, requesterRequest }) => {
@@ -205,13 +249,32 @@ test("authenticated requester can explore support review but not identity reques
   await expect(requesterPage.getByRole("heading", { name: "Phần này chỉ dành cho Admin" })).toBeVisible();
   const supportQueue = await requesterRequest.get("/api/support/requests");
   const identityRequests = await requesterRequest.get("/api/identity/review?status=all");
+  const noticeRetry = await requesterRequest.post("/api/identity/review/notification", {
+    headers: { origin: "http://127.0.0.1:3227" },
+    data: { id: "00000000-0000-4000-8000-000000000001" },
+  });
+  const decisionAttempt = await requesterRequest.post("/api/identity/review/decision", {
+    headers: { origin: "http://127.0.0.1:3227" },
+    data: { id: "00000000-0000-4000-8000-000000000001", decision: "APPROVE" },
+  });
   expect(supportQueue.status()).toBe(200);
   expect(identityRequests.status()).toBe(403);
+  expect(noticeRetry.status()).toBe(403);
+  expect(decisionAttempt.status()).toBe(403);
 });
 
 test("unauthenticated API requests cannot read identity or reviewer data or preview a support request", async ({ anonymousRequest }) => {
   const session = await anonymousRequest.get("/api/identity/session");
   const applications = await anonymousRequest.get("/api/identity/review?status=all");
+  const legacyReviewLink = await anonymousRequest.get("/api/identity/approve", { maxRedirects: 0 });
+  const noticeRetry = await anonymousRequest.post("/api/identity/review/notification", {
+    headers: { origin: "http://127.0.0.1:3227" },
+    data: { id: "00000000-0000-4000-8000-000000000001" },
+  });
+  const decisionAttempt = await anonymousRequest.post("/api/identity/review/decision", {
+    headers: { origin: "http://127.0.0.1:3227" },
+    data: { id: "00000000-0000-4000-8000-000000000001", decision: "APPROVE" },
+  });
   const queue = await anonymousRequest.get("/api/support/requests");
   const preview = await anonymousRequest.post("/api/support/preview", { data: {
     mode: "freeform", serviceGroup: "OTHER", rawText: "VPN không kết nối", fields: {},
@@ -219,6 +282,10 @@ test("unauthenticated API requests cannot read identity or reviewer data or prev
   } });
   expect(session.status()).toBe(401);
   expect(applications.status()).toBe(401);
+  expect(legacyReviewLink.status()).toBe(303);
+  expect(legacyReviewLink.headers().location).toBe("/identity/review");
+  expect(noticeRetry.status()).toBe(401);
+  expect(decisionAttempt.status()).toBe(401);
   expect(queue.status()).toBe(401);
   expect(preview.status()).toBe(401);
 });

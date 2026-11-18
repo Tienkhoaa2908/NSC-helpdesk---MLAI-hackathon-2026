@@ -1,6 +1,6 @@
 # Synthetic datasets
 
-- `verify/verify_cases.json`: fixture gốc lịch sử gồm 5 case, 2 AUTO và 3 ESCALATE; giữ nguyên cho regression/provenance, không phải pack judge-facing hiện tại.
+- `verify/verify_cases.json`: fixture gốc lịch sử gồm 5 case, 2 AUTO và 3 ESCALATE, giữ nguyên cho regression/provenance, không phải pack judge-facing hiện tại.
 - `verify/support-v3.json`: pack `de-a-v3` hiện dùng cho Đề A, 5 case gồm 3 AUTO và 2 ESCALATE.
 - `verify/judge-15.json`: pack judge hiện dùng, gồm 15 tình huống và được chạy qua cùng decision API.
 - `ground-truth/extended_ticket_cases.json`: 60 case mở rộng dùng để phát triển, regression test và đánh giá độ ổn định trên các ngách kỹ thuật.
@@ -8,7 +8,7 @@
 - `adversarial/hidden_adversarial_cases.json`: 5 hidden adversarial cases, tách riêng khỏi bộ demo/Verify, gồm prompt injection, nhầm staging/production, bypass vì khẩn cấp, mâu thuẫn giữa form và free text, và request trộn routine với nguy hiểm.
 - `demo/`: dữ liệu seed phục vụ giao diện demo, không dùng làm Ground Truth.
 
-Toàn bộ ticket hiện tại là synthetic. Tên hệ thống và ngữ cảnh chỉ được dùng để mô phỏng bài toán OrganizationAI; không được diễn giải là ticket hoặc chính sách nội bộ thật của VNG.
+Toàn bộ ticket hiện tại là synthetic. Tên hệ thống và ngữ cảnh chỉ được dùng để mô phỏng bài toán OrganizationAI, không được diễn giải là ticket hoặc chính sách nội bộ thật của VNG.
 
 Hidden adversarial cases không được hard-code vào UI Verify hiện tại. Khi chạy regression, phải load fixture này qua cùng decision workflow với các case bình thường.
 

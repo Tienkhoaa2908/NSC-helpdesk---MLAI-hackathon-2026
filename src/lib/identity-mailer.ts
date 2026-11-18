@@ -6,7 +6,7 @@ const emailSchema = z.string().trim().email().max(254);
 
 function mailSettings() {
   if (process.env.IDENTITY_EMAIL_ENABLED !== "true")
-    throw new SupportError("IDENTITY_EMAIL_NOT_APPROVED", "Email cấp tài khoản đang tắt cho đến khi nội dung mẫu và cấu hình được duyệt.", 503);
+    throw new SupportError("IDENTITY_EMAIL_NOT_APPROVED", "Email cấp tài khoản đang tắt trong cấu hình máy chủ.", 503);
   const host = process.env.SMTP_HOST?.trim();
   const port = Number(process.env.SMTP_PORT ?? "");
   const user = process.env.SMTP_USER?.trim();

@@ -5,7 +5,7 @@ import { identityStore } from "@/lib/identity-store";
 import { supportApi, supportBody } from "@/lib/support-http";
 import { SupportError } from "@/lib/support-repository";
 import { authenticatePasswordAccount } from "@/services/password-auth";
-import { decideAccountRequest, listAccountRequests, submitAccountRequest } from "@/services/account-requests";
+import { decideAccountRequest, listAccountRequests, retryAccountRequestNotice, submitAccountRequest } from "@/services/account-requests";
 import { mongoDemoAuthority, requestDemoGrant, decideDemoGrant, updateDemoUsage, checkDemoAuthority } from "@/services/demo-authority";
 
 export const dynamic = "force-dynamic";
@@ -74,7 +74,7 @@ export async function POST(request: Request, context: Context) {
       await identityRateLimit(`account-request:client:${clientKey}`, 5, 60 * 60_000);
       const input = z.object({ fullName: z.string().trim().min(2).max(120), email: z.string().trim().email().max(254) }).strict().parse(await supportBody(request));
       await identityRateLimit(`account-request:email:${input.email.toLowerCase()}`, 2, 60 * 60_000);
-      return successResponse(await submitAccountRequest(input), { status: 201 });
+      return successResponse(await submitAccountRequest(input), { status: 202 });
     }
     if (route === "review/decision") {
       const { principal } = await requireIdentitySession(request, true);
@@ -83,6 +83,11 @@ export async function POST(request: Request, context: Context) {
         decision: z.enum(["APPROVE", "REJECT"]),
       }).strict().parse(await supportBody(request));
       return successResponse(await decideAccountRequest(input.id, input.decision, principal.loginId));
+    }
+    if (route === "review/notification") {
+      const { principal } = await requireIdentitySession(request, true);
+      const input = z.object({ id: z.string().uuid() }).strict().parse(await supportBody(request));
+      return successResponse(await retryAccountRequestNotice(input.id, principal.loginId));
     }
     if (route.startsWith("authority/")) {
       const { employee } = await requireIdentitySession(request);

@@ -1,6 +1,6 @@
 # Kiểm chứng reviewer, phòng ban, cache và sự cố chung
 
-> Báo cáo lịch sử ngày 17/10/2026. Các nhận xét về reviewer công khai và đăng nhập ID-only mô tả trạng thái tại thời điểm đó. Bản hiện tại dùng ID/mật khẩu; trong `public-demo`, requester đã đăng nhập chỉ đọc và thao tác hồ sơ khớp với ca Verify do server tạo, còn yêu cầu thông thường ẩn trong reviewer API. Người gửi vẫn dùng tracking link của mình; Identity review chỉ dành cho Admin. Xem [hướng dẫn Admin](ADMIN-GUIDE.md) và [cấu hình tài khoản](IDENTITY-SETUP.md).
+> Báo cáo lịch sử ngày 17/10/2026. Các nhận xét về reviewer công khai và đăng nhập ID-only mô tả trạng thái tại thời điểm đó. Bản hiện tại dùng ID/mật khẩu, trong `public-demo`, requester đã đăng nhập chỉ đọc và thao tác hồ sơ khớp với ca Verify do server tạo, còn yêu cầu thông thường ẩn trong reviewer API. Người gửi vẫn dùng tracking link của mình, Identity review chỉ dành cho Admin. Xem [hướng dẫn Admin](ADMIN-GUIDE.md) và [cấu hình tài khoản](IDENTITY-SETUP.md).
 
 Ngày 17/10/2026. AI-assisted implementation, dữ liệu synthetic.
 Base bắt đầu: `13edf8034df44decabf41b86da7fe1c89e1a9c33`.

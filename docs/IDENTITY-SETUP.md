@@ -4,14 +4,16 @@
 
 ## Luồng cấp tài khoản
 
-1. Người dùng gửi họ tên và Gmail ở mục **Nhân viên mới?**. Server kiểm tra dữ liệu rồi lưu đơn chờ trong MongoDB. Nếu email thông báo chưa được cấu hình hoặc gửi thất bại, đơn vẫn được lưu với trạng thái gửi lỗi và hiển thị cho Admin trong danh sách.
-2. Khi email được bật và cấu hình gửi thư hoàn tất, server gửi thông báo cố định đến hộp thư Admin. Thư ghi tên, email/ID dự kiến, mã đơn và nút mở trang **Cấp ID nhân viên**.
-3. Nút trong email chỉ mở trang Admin, thao tác GET không thay đổi trạng thái. Admin đăng nhập, kiểm tra đơn rồi chọn **Xác nhận cấp tài khoản** hoặc **Từ chối yêu cầu**.
-4. Khi xác nhận, server tạo mật khẩu demo ngẫu nhiên năm chữ số, lưu bản băm bằng bcrypt và gửi ID/mật khẩu đến Gmail đã đăng ký. Tài khoản chỉ chuyển sang ACTIVE sau khi email thông tin đăng nhập được gửi thành công.
-5. Khi từ chối, hệ thống ghi quyết định vào audit và gửi email thông báo cố định. Lỗi gửi email được giữ lại để Admin có thể thử gửi lại từ danh sách.
+1. Người dùng gửi họ tên và Gmail ở mục **Nhân viên mới?**. Server kiểm tra dữ liệu rồi lưu đơn chờ trong MongoDB. Đơn được giữ lại nếu email thông báo bị lỗi hoặc không xác nhận được.
+2. Khi email được bật và cấu hình gửi thư hoàn tất, server gửi thông báo cố định đến hộp thư Admin. Thư ghi tên, email/ID dự kiến, mã đơn và nút mở trang **Cấp ID nhân viên**. Admin có thể gửi lại thông báo từ cùng dòng đơn.
+3. Nút trong email chỉ mở trang Admin, thao tác GET không thay đổi trạng thái. Admin đăng nhập, kiểm tra đơn rồi chọn **Xác nhận cấp tài khoản** hoặc **Từ chối yêu cầu**. Quyết định đầu tiên được khóa, lần thử lại chỉ gửi lại cùng quyết định.
+4. Khi xác nhận, server tạo mật khẩu demo ngẫu nhiên dưới dạng chuỗi đúng năm chữ số, có thể có số 0 ở đầu. Server lưu hash bcrypt cùng một bản mã hóa AES-256-GCM để gửi lại cùng mật khẩu nếu kết quả SMTP hoặc Mongo chưa xác nhận được. Tài khoản vẫn chưa hoạt động trong thời gian này. Khi SMTP chấp nhận thông điệp và Mongo cập nhật trạng thái thành công trong cùng transaction, tài khoản chuyển sang ACTIVE và bản mã hóa bị xóa.
+5. Khi từ chối, hệ thống ghi quyết định vào audit và gửi email thông báo cố định. Lỗi hoặc trạng thái gửi chưa rõ được giữ lại để Admin có thể thử lại cùng quyết định.
 6. Mọi yêu cầu cấp tài khoản và thao tác duyệt/từ chối chỉ hiển thị cho Admin. Trong `public-demo`, `guest01 / 12345` và các requester đã đăng nhập có thể mở khu Support review, audit và Verify, nhưng chỉ truy cập hồ sơ khớp với bộ Verify do server tạo. Yêu cầu thông thường ẩn trong khu reviewer, người gửi vẫn theo dõi hồ sơ của mình bằng liên kết riêng. Trang cấp tài khoản hiện thông báo chỉ dành cho Admin.
 
 Họ tên, Gmail và kết quả xử lý nằm trong MongoDB. Cơ sở dữ liệu không lưu mật khẩu dạng rõ. Email của người đăng ký chưa được xác minh độc lập trước khi Admin quyết định, không dùng luồng này để cấp quyền truy cập hệ thống thật.
+
+Biểu mẫu công khai trả cùng xác nhận cho Gmail mới, đang có đơn hoặc đã có tài khoản. Gửi lặp lại không tạo yêu cầu hoặc email Admin trùng, và không cho biết một địa chỉ đã đăng ký hay chưa. Danh sách cùng trạng thái chi tiết chỉ hiển thị cho Admin.
 
 ## Phiên đăng nhập
 
@@ -19,7 +21,7 @@ Sau khi đăng nhập, trình duyệt nhận cookie phiên HttpOnly, SameSite=La
 
 ID Admin và mật khẩu được cấu hình phía server. ID dùng giá trị IDENTITY_ADMIN_ID, nếu để trống, ứng dụng dùng IDENTITY_ADMIN_EMAIL. Không tạo Admin trong collection nhân viên, không đưa mật khẩu vào source code, chat, URL hoặc log. Mật khẩu Admin đã được chia sẻ trong chat trước đây không được dùng lại, hãy thay bằng một mật khẩu mới trước khi bật đăng nhập Admin.
 
-## Nội dung email đang chờ duyệt
+## Nội dung email đã duyệt
 
 Email được soạn song ngữ. Nội dung cố định, chỉ tên, email, mã yêu cầu, liên kết và thông tin đăng nhập thay đổi theo người dùng.
 
@@ -93,7 +95,9 @@ Request ID: {request ID}
 For clarification, contact the administrator at {Admin email}.
 ```
 
-Các mẫu này chưa được bật gửi cho tới khi được duyệt. Biến IDENTITY_EMAIL_ENABLED mặc định là false, chỉ chuyển thành true sau khi duyệt nội dung và hoàn tất cấu hình SMTP Production.
+Ba mẫu song ngữ ở trên đã được duyệt. Biến `IDENTITY_EMAIL_ENABLED` mặc định là `false`, chỉ bật trong Vercel Production sau khi SMTP, Admin và khóa mã hóa đã được cấu hình.
+
+Trạng thái `SENT` nghĩa là máy chủ SMTP đã chấp nhận thông điệp, không chứng minh thư đã vào Inbox. Lỗi timeout cũng có thể xảy ra sau khi máy chủ đã nhận thư. Vì vậy màn hình Admin gọi các trạng thái này là chưa xác nhận, và lần thử lại credential sẽ dùng đúng cùng mật khẩu. Có thể nhận hai bản email nếu phản hồi SMTP hoặc transaction Mongo bị mất sau khi thư đã được nhận.
 
 ## Cấu hình môi trường
 
@@ -103,8 +107,9 @@ Khai báo secrets trong môi trường local không commit hoặc tại Vercel �
 | --- | --- |
 | IDENTITY_ADMIN_ID | ID đăng nhập Admin, dùng Gmail Admin đã xác định. |
 | IDENTITY_ADMIN_PASSWORD | Mật khẩu Admin mới, duy nhất, tối thiểu 12 ký tự. |
+| IDENTITY_CREDENTIAL_ENCRYPTION_KEY | Khóa base64 của 32 byte ngẫu nhiên, dùng mã hóa credential chờ gửi lại. Không đổi hoặc làm mất khi còn đơn đã duyệt nhưng chưa kích hoạt. |
 | IDENTITY_ADMIN_EMAIL | Gmail nhận yêu cầu và địa chỉ liên hệ trong email kết quả. |
-| IDENTITY_EMAIL_ENABLED | Để false đến khi nội dung email được duyệt, bật true mới cho phép gửi. |
+| IDENTITY_EMAIL_ENABLED | Mặc định false. Bật true sau khi mẫu đã duyệt và toàn bộ biến gửi thư, Admin, Mongo cùng khóa mã hóa đã sẵn sàng. |
 | SMTP_HOST | Gmail SMTP: smtp.gmail.com. |
 | SMTP_PORT | 465 cho TLS hoặc 587 cho STARTTLS. |
 | SMTP_USER | Gmail dùng để gửi thư. |
@@ -114,6 +119,14 @@ Khai báo secrets trong môi trường local không commit hoặc tại Vercel �
 | MONGODB_URI, MONGODB_DB | MongoDB của Support và database mặc định nsclub_support_desk. |
 | IDENTITY_MONGODB_URI, IDENTITY_MONGODB_DB | Tùy chọn dùng database Identity riêng, URI trống sẽ dùng cấu hình MongoDB chung. |
 
+Tạo khóa cục bộ rồi dán thẳng vào Vercel Production, không gửi qua chat:
+
+```powershell
+node -e "console.log(require('node:crypto').randomBytes(32).toString('base64'))"
+```
+
+Giữ nguyên khóa khi còn request ở `PENDING_DELIVERY`. Đổi khóa khi còn credential chờ khiến lần retry phải thay mật khẩu trước khi gửi lại. Sau khi account được kích hoạt, bản credential mã hóa đã bị xóa.
+
 Không đặt biến bí mật trong NEXT_PUBLIC_*, Git, README hoặc log. Chỉ cấu hình biến Production sau khi xác nhận project Vercel cá nhân đang được chọn.
 
 ## Dùng Gmail SMTP
@@ -121,18 +134,21 @@ Không đặt biến bí mật trong NEXT_PUBLIC_*, Git, README hoặc log. Ch�
 Plugin Gmail trong Codex chỉ cho phép thao tác Gmail của tài khoản đang kết nối, nó không cấp credential SMTP cho hàm chạy trên Vercel. Tài khoản gửi hiện dùng trong ứng dụng phải được cấu hình riêng.
 
 1. Bật 2-Step Verification cho Gmail dùng gửi thư.
-2. Nếu tài khoản cho phép, tạo App Password trong phần bảo mật Google. Google mô tả App Password là phương thức kém an toàn hơn OAuth và yêu cầu 2-Step Verification, tạo credential chỉ dành cho ứng dụng này và có thể thu hồi sau demo.
+2. Nếu tài khoản cho phép, tạo App Password trong phần bảo mật Google. Google mô tả App Password là phương thức kém an toàn hơn Google sign-in và yêu cầu 2-Step Verification. Một số loại tài khoản không có tùy chọn này.
 3. Đặt SMTP_HOST=smtp.gmail.com, SMTP_PORT=587, SMTP_USER và SMTP_FROM theo địa chỉ gửi.
 4. Dán App Password trực tiếp vào biến Production SMTP_PASSWORD trong Vercel, không gửi nó qua chat.
 5. Đặt IDENTITY_ADMIN_ID và IDENTITY_ADMIN_EMAIL bằng hộp thư Admin đã chọn. Đặt IDENTITY_ADMIN_PASSWORD bằng mật khẩu Admin mới, không dùng lại thông tin đã lộ trong chat.
-6. Giữ IDENTITY_EMAIL_ENABLED=false cho đến khi mẫu email được duyệt. Sau khi được duyệt, bật biến này và tạo deployment Production mới.
-7. Thử với một Gmail do bạn kiểm soát, xác nhận cả thư Admin, thư cấp tài khoản và thư từ chối trước khi chia sẻ demo.
+6. Tạo một khóa ngẫu nhiên 32 byte được mã hóa base64, rồi lưu trực tiếp vào biến Production `IDENTITY_CREDENTIAL_ENCRYPTION_KEY`. Giữ lại khóa an toàn và không thay đổi khi còn credential chờ gửi.
+7. Khi các biến SMTP, Admin, Mongo và khóa mã hóa đã có mặt, đặt `IDENTITY_EMAIL_ENABLED=true` rồi tạo deployment Production mới.
+8. Thử bằng mailbox do bạn kiểm soát, sau đó xác minh trực tiếp thư Admin, thư credential, thư từ chối và trạng thái đăng nhập trước khi chia sẻ demo.
 
-Google cho biết App Password chỉ khả dụng khi bật 2-Step Verification và khuyến nghị ưu tiên Sign in with Google khi dịch vụ hỗ trợ. Xem [hướng dẫn App Password](https://support.google.com/accounts/answer/185833?hl=vi), [Gmail API gửi thư](https://developers.google.com/workspace/gmail/api/guides/sending) và [cấu hình environment variables của Vercel](https://vercel.com/docs/environment-variables). Triển khai Vercel hiện dùng SMTP port 465 hoặc 587, Gmail quota và chính sách tài khoản vẫn áp dụng.
+Google yêu cầu 2-Step Verification cho App Password và khuyến nghị dùng Google sign-in khi ứng dụng hỗ trợ. Gmail SMTP cũng hỗ trợ OAuth 2.0, nếu App Password không dùng được thì có thể triển khai OAuth token cho SMTP mà không cần đổi sang Gmail API. Gmail API OAuth là phương án khác nhưng cần API enablement, consent, token refresh/storage và thêm xử lý quota. Vercel hỗ trợ SMTP trên Node.js qua cổng 465 hoặc 587, gửi phải được `await`, và ứng dụng tự quản lý retry. Gmail quota và chính sách tài khoản vẫn áp dụng. Xem [hướng dẫn App Password](https://support.google.com/accounts/answer/185833?hl=vi), [Gmail SMTP và OAuth](https://developers.google.com/workspace/gmail/imap/imap-smtp), [Gmail API gửi thư](https://developers.google.com/workspace/gmail/api/guides/sending), [tài liệu SMTP của Vercel](https://vercel.com/kb/guide/serverless-functions-and-smtp) và [ghi chú nghiên cứu onboarding](IDENTITY-ONBOARDING-RESEARCH.md).
 
 ## Giới hạn vận hành
 
 - Mật khẩu năm chữ số và tài khoản guest01 / 12345 chỉ dành cho demo dữ liệu synthetic.
+- Credential chỉ được lưu mã hóa trong lúc tài khoản còn `PENDING_DELIVERY`, sau khi kích hoạt bản mã hóa bị xóa. Nếu mất hoặc đổi khóa khi còn credential chờ, hệ thống phải thay credential trước lần gửi tiếp theo, tài khoản cũ vẫn chưa hoạt động.
+- Gửi email không đảm bảo Inbox placement. `SENT` chỉ phản ánh SMTP acceptance, không phải xác minh người nhận đã đọc hoặc email được giao cuối cùng.
 - Email yêu cầu do người dùng nhập chưa chứng minh danh tính hoặc quan hệ lao động.
 - Hộp thư Admin và database chứa họ tên/email, chỉ Admin được phép đọc danh sách đơn.
 - Người có tài khoản `guest01` công khai chỉ xem và thao tác được hồ sơ khớp với ca Verify do server tạo khi Production đang ở chế độ `public-demo`. Yêu cầu thông thường ẩn trong khu reviewer, người gửi vẫn theo dõi hồ sơ riêng bằng tracking link. Identity request chỉ hiển thị cho Admin.

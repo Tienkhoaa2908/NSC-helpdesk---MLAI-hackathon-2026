@@ -1,8 +1,9 @@
-import { randomInt, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import bcrypt from "bcryptjs";
 import { MongoServerError, type Filter } from "mongodb";
 import { accountRequestSchema, type AccountRequest, type PasswordAccount } from "@/domain/password-identity";
 import { identityStore, identityTransaction } from "@/lib/identity-store";
+import { assertIdentityCredentialEncryptionConfigured, decryptTemporaryPassword, encryptTemporaryPassword, generateTemporaryPassword } from "@/lib/identity-credentials";
 import {
   assertIdentityEmailConfigured,
   sendAccountRequestNotice,
@@ -20,68 +21,118 @@ export async function submitAccountRequest(value: unknown) {
   const { db } = await identityStore();
   const accounts = db.collection<PasswordAccount>("identity_password_accounts");
   if (await accounts.findOne({ loginId: input.email, status: "ACTIVE" }, { projection: { _id: 1 } }))
-    throw new SupportError("ACCOUNT_ALREADY_ACTIVE", "Địa chỉ Gmail này đã có tài khoản. Hãy đăng nhập bằng ID và mật khẩu.", 409);
+    return { status: "RECEIVED" as const };
 
   const now = new Date();
-  let requestId: string;
+  let requestId: string | null;
+  const processingUntil = new Date(now.getTime() + APPROVAL_PROCESSING_MS);
   try {
     requestId = await identityTransaction(async (transactionDb, session) => {
       const requests = transactionDb.collection<AccountRequest>("identity_account_requests");
       const pending = await requests.findOne({ email: input.email, status: "PENDING" }, { session });
-      let id: string;
-      if (pending) {
-        if (pending.processingUntil && pending.processingUntil > now)
-          throw new SupportError("ACCOUNT_REQUEST_PROCESSING", "Yêu cầu này đang được xử lý. Thử lại sau.", 409);
-        id = pending.id;
-        const changed = await requests.updateOne({ id, status: "PENDING" }, { $set: {
-          fullName: input.fullName,
-          finalDecision: null,
-          approvalTokenHash: null,
-          approvalExpiresAt: new Date(now.getTime() + 60 * 60_000),
-          notificationStatus: "PENDING",
-          updatedAt: now.toISOString(),
-        }, $unset: { processingUntil: "" } }, { session });
-        if (!changed.modifiedCount) throw new SupportError("ACCOUNT_REQUEST_CHANGED", "Yêu cầu đã thay đổi. Thử gửi lại.", 409);
-      } else {
-        id = randomUUID();
-        await requests.insertOne({
-          id,
-          fullName: input.fullName,
-          email: input.email,
-          status: "PENDING",
-          finalDecision: null,
-          notificationStatus: "PENDING",
-          approvalTokenHash: null,
-          approvalExpiresAt: new Date(now.getTime() + 60 * 60_000),
-          createdAt: now.toISOString(),
-          updatedAt: now.toISOString(),
-        }, { session });
-      }
+      if (pending) return null;
+      const id = randomUUID();
+      await requests.insertOne({
+        id,
+        fullName: input.fullName,
+        email: input.email,
+        status: "PENDING",
+        finalDecision: null,
+        notificationStatus: "PENDING",
+        processingUntil,
+        approvalTokenHash: null,
+        approvalExpiresAt: new Date(now.getTime() + 60 * 60_000),
+        createdAt: now.toISOString(),
+        updatedAt: now.toISOString(),
+      }, { session });
       await transactionDb.collection("identity_audit").insertOne({
         id: randomUUID(), at: now.toISOString(), actor: input.email,
-        action: pending ? "ACCOUNT_REQUEST_RESUBMITTED" : "ACCOUNT_REQUEST_SUBMITTED",
+        action: "ACCOUNT_REQUEST_SUBMITTED",
         subject: id, reason: "A Gmail address requested a demo employee account; owner review is pending.",
       }, { session });
       return id;
     });
   } catch (error) {
     if (isDuplicateKeyError(error))
-      throw new SupportError("ACCOUNT_REQUEST_EXISTS", "Email này đã có yêu cầu đang chờ xử lý.", 409);
+      return { status: "RECEIVED" as const };
     throw error;
   }
+  if (!requestId) return { status: "RECEIVED" as const };
 
   try {
     await sendAccountRequestNotice({ id: requestId, fullName: input.fullName, email: input.email });
-    await db.collection<AccountRequest>("identity_account_requests").updateOne({ id: requestId, status: "PENDING" }, {
-      $set: { notificationStatus: "SENT", updatedAt: new Date().toISOString() },
-    });
   } catch {
-    await db.collection<AccountRequest>("identity_account_requests").updateOne({ id: requestId, status: "PENDING" }, {
-      $set: { notificationStatus: "FAILED", updatedAt: new Date().toISOString() },
-    }).catch(() => undefined);
-    return { id: requestId, status: "PENDING" as const, notificationStatus: "FAILED" as const };
+    await finishRequestNotice(requestId, input.email, "FAILED").catch(() => undefined);
+    return { status: "RECEIVED" as const };
   }
-  return { id: requestId, status: "PENDING" as const, notificationStatus: "SENT" as const };
+  try {
+    await finishRequestNotice(requestId, input.email, "SENT");
+  } catch {
+    return { status: "RECEIVED" as const };
+  }
+  return { status: "RECEIVED" as const };
+}
+
+async function finishRequestNotice(requestId: string, actor: string, notificationStatus: "SENT" | "FAILED") {
+  const now = new Date().toISOString();
+  await identityTransaction(async (transactionDb, session) => {
+    const updated = await transactionDb.collection<AccountRequest>("identity_account_requests").updateOne({ id: requestId, status: "PENDING", finalDecision: null }, {
+      $set: { notificationStatus, updatedAt: now }, $unset: { processingUntil: "" },
+    }, { session });
+    if (!updated.modifiedCount) throw new SupportError("ACCOUNT_REQUEST_CHANGED", "Yêu cầu đã thay đổi. Tải lại danh sách.", 409);
+    await transactionDb.collection("identity_audit").insertOne({
+      id: randomUUID(), at: now, actor,
+      action: notificationStatus === "SENT" ? "ACCOUNT_REQUEST_NOTICE_ACCEPTED" : "ACCOUNT_REQUEST_NOTICE_UNCONFIRMED",
+      subject: requestId,
+      reason: notificationStatus === "SENT"
+        ? "The SMTP server accepted the Admin notice; recipient mailbox delivery was not verified."
+        : "The Admin notice delivery could not be confirmed; an Admin can retry the same request.",
+    }, { session });
+  });
+}
+
+export async function retryAccountRequestNotice(requestId: string, actor: string) {
+  if (!/^[0-9a-f-]{36}$/i.test(requestId)) throw new SupportError("ACCOUNT_REQUEST_NOT_FOUND", "Không tìm thấy yêu cầu cấp tài khoản.", 404);
+  assertIdentityEmailConfigured();
+  const request = await claimAccountRequestNotice(requestId, actor);
+  try {
+    await sendAccountRequestNotice({ id: request.id, fullName: request.fullName, email: request.email });
+  } catch {
+    await finishRequestNotice(request.id, actor, "FAILED").catch(() => undefined);
+    throw new SupportError("ACCOUNT_REQUEST_EMAIL_FAILED", "Chưa xác nhận được email thông báo quản trị. Có thể thử gửi lại cùng yêu cầu.", 503);
+  }
+  try {
+    await finishRequestNotice(request.id, actor, "SENT");
+  } catch {
+    throw new SupportError("ACCOUNT_REQUEST_EMAIL_UNCONFIRMED", "Máy chủ email có thể đã nhận thông báo. Trạng thái sẽ được cập nhật sau khi lưu được, hãy thử lại cùng yêu cầu nếu cần.", 503);
+  }
+  return { status: "SENT" as const, email: request.email };
+}
+
+async function claimAccountRequestNotice(requestId: string, actor: string) {
+  const now = new Date();
+  const lease = new Date(now.getTime() + APPROVAL_PROCESSING_MS);
+  return identityTransaction(async (transactionDb, session) => {
+    const requests = transactionDb.collection<AccountRequest>("identity_account_requests");
+    const current = await requests.findOne({ id: requestId }, { session });
+    if (!current) throw new SupportError("ACCOUNT_REQUEST_NOT_FOUND", "Không tìm thấy yêu cầu cấp tài khoản.", 404);
+    if (current.processingUntil && current.processingUntil > now)
+      throw new SupportError("ACCOUNT_REQUEST_PROCESSING", "Yêu cầu này đang được xử lý. Hãy thử lại sau.", 409);
+    if (current.status !== "PENDING" || current.finalDecision || current.notificationStatus === "SENT")
+      throw new SupportError("ACCOUNT_REQUEST_ALREADY_DECIDED", "Chỉ có thể gửi lại thông báo cho yêu cầu chưa được quyết định.", 409);
+    const claimed = await requests.updateOne({ id: requestId, status: "PENDING",
+      $or: [{ processingUntil: { $exists: false } }, { processingUntil: { $lte: now } }] }, {
+      $set: { notificationStatus: "PENDING", processingUntil: lease, updatedAt: now.toISOString() },
+    }, { session });
+    if (!claimed.modifiedCount)
+      throw new SupportError("ACCOUNT_REQUEST_PROCESSING", "Yêu cầu này đang được xử lý. Hãy thử lại sau.", 409);
+    await transactionDb.collection("identity_audit").insertOne({
+      id: randomUUID(), at: now.toISOString(), actor,
+      action: "ACCOUNT_REQUEST_NOTICE_RETRY_STARTED", subject: requestId,
+      reason: "Admin requested another send of the existing account request notice.",
+    }, { session });
+    return current;
+  });
 }
 
 export async function listAccountRequests(status: "pending" | "all", page: number) {
@@ -122,7 +173,16 @@ export async function listAccountRequests(status: "pending" | "all", page: numbe
               : row.notificationStatus === "FAILED" || row.notificationStatus === "PENDING" || (row.processingUntil && row.processingUntil <= now)
                 ? "DELIVERY_FAILED" as const
                 : "PENDING" as const
-            : row.notificationStatus === "FAILED" ? "DELIVERY_FAILED" as const : "PENDING" as const,
+            : row.notificationStatus === "FAILED" || (row.notificationStatus === "PENDING" && row.processingUntil && row.processingUntil <= now)
+              ? "ADMIN_NOTICE_FAILED" as const
+              : "PENDING" as const,
+      retryAction: row.finalDecision === "APPROVED"
+        ? row.status === "APPROVED" && row.notificationStatus === "SENT" ? null : "APPROVE" as const
+        : row.finalDecision === "REJECTED"
+          ? row.status === "APPROVED" && row.notificationStatus === "SENT" ? null : "REJECT" as const
+          : row.notificationStatus === "FAILED" || (row.notificationStatus === "PENDING" && row.processingUntil && row.processingUntil <= now)
+            ? "ADMIN_NOTICE" as const
+            : null,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
     })),
@@ -140,12 +200,10 @@ async function claimPendingRequest(requestId: string, actor: string, finalDecisi
     if (current.processingUntil && current.processingUntil > now)
       throw new SupportError("ACCOUNT_REQUEST_PROCESSING", "Yêu cầu này đang được xử lý. Hãy thử lại sau.", 409);
 
-    const retryingDelivery = current.status === "APPROVED" && current.finalDecision === finalDecision &&
+    const firstDecision = current.status === "PENDING" && !current.finalDecision;
+    const retryingDelivery = current.finalDecision === finalDecision &&
       (current.notificationStatus === "FAILED" || current.notificationStatus === "PENDING");
-    const isPending = current.status === "PENDING";
-    if (!isPending && !retryingDelivery)
-      throw new SupportError("ACCOUNT_REQUEST_ALREADY_DECIDED", "Yêu cầu này đã được xử lý.", 409);
-    if (isPending && current.finalDecision && current.finalDecision !== finalDecision && current.notificationStatus !== "FAILED")
+    if (!firstDecision && !retryingDelivery)
       throw new SupportError("ACCOUNT_REQUEST_ALREADY_DECIDED", "Yêu cầu này đã được xử lý.", 409);
 
     const claimed = await requests.updateOne({ id: requestId, status: current.status,
@@ -162,9 +220,13 @@ async function claimPendingRequest(requestId: string, actor: string, finalDecisi
 
     await transactionDb.collection("identity_audit").insertOne({
       id: randomUUID(), at: now.toISOString(), actor,
-      action: finalDecision === "APPROVED" ? "ACCOUNT_APPROVAL_STARTED" : "ACCOUNT_REJECTION_STARTED",
+      action: retryingDelivery
+        ? finalDecision === "APPROVED" ? "ACCOUNT_CREDENTIAL_EMAIL_RETRY_STARTED" : "ACCOUNT_REJECTION_EMAIL_RETRY_STARTED"
+        : finalDecision === "APPROVED" ? "ACCOUNT_APPROVAL_STARTED" : "ACCOUNT_REJECTION_STARTED",
       subject: requestId,
-      reason: finalDecision === "APPROVED" ? "Admin approved the request; credentials will be emailed before activation." : "Admin rejected the account request; a notice will be emailed.",
+      reason: finalDecision === "APPROVED"
+        ? "Admin approved the request; credentials remain inactive until SMTP acceptance and database activation are confirmed."
+        : "Admin rejected the request; a notice will be emailed.",
     }, { session });
     return current;
   });
@@ -174,17 +236,20 @@ export async function decideAccountRequest(requestId: string, decision: "APPROVE
   if (!/^[0-9a-f-]{36}$/i.test(requestId)) throw new SupportError("ACCOUNT_REQUEST_NOT_FOUND", "Không tìm thấy yêu cầu cấp tài khoản.", 404);
   assertIdentityEmailConfigured();
   if (decision === "REJECT") return rejectAccountRequest(requestId, actor);
+  try {
+    assertIdentityCredentialEncryptionConfigured();
+  } catch {
+    throw new SupportError("IDENTITY_CREDENTIAL_ENCRYPTION_NOT_CONFIGURED", "Chưa cấu hình khóa mã hóa credential. Hãy liên hệ quản trị viên.", 503);
+  }
   return approveAccountRequest(requestId, actor);
 }
 
 async function rejectAccountRequest(requestId: string, actor: string) {
   const request = await claimPendingRequest(requestId, actor, "REJECTED");
   const { db } = await identityStore();
-  if (request.finalDecision === "APPROVED") {
-    await db.collection<PasswordAccount>("identity_password_accounts").updateOne({ applicationId: request.id, status: "PENDING_DELIVERY" }, {
-      $set: { status: "DISABLED", updatedAt: new Date().toISOString() },
-    });
-  }
+  await db.collection<PasswordAccount>("identity_password_accounts").updateOne({ applicationId: request.id, status: "PENDING_DELIVERY" }, {
+    $set: { status: "DISABLED", updatedAt: new Date().toISOString() },
+  });
 
   try {
     await sendAccountRequestRejected({ id: request.id, fullName: request.fullName, email: request.email });
@@ -195,29 +260,33 @@ async function rejectAccountRequest(requestId: string, actor: string) {
       }, { session: transactionSession });
       await transactionDb.collection("identity_audit").insertOne({
         id: randomUUID(), at: new Date().toISOString(), actor,
-        action: "ACCOUNT_REJECTION_EMAIL_FAILED", subject: request.id,
-        reason: "The rejection notice could not be delivered; an Admin can retry from the request list.",
+        action: "ACCOUNT_REJECTION_EMAIL_UNCONFIRMED", subject: request.id,
+        reason: "The rejection notice delivery could not be confirmed; an Admin can retry the same decision.",
       }, { session: transactionSession });
     });
-    throw new SupportError("ACCOUNT_OUTCOME_EMAIL_FAILED", "Chưa gửi được email từ chối. Yêu cầu đã được giữ lại để quản trị viên thử gửi lại.", 503);
+    throw new SupportError("ACCOUNT_OUTCOME_EMAIL_FAILED", "Chưa xác nhận được email từ chối. Yêu cầu đã khóa quyết định từ chối và có thể thử gửi lại.", 503);
   }
 
-  await identityTransaction(async (transactionDb, transactionSession) => {
-    const completed = await transactionDb.collection<AccountRequest>("identity_account_requests").updateOne({
-      id: request.id, status: request.status, finalDecision: "REJECTED",
-    }, { $set: {
-      status: "APPROVED",
-      notificationStatus: "SENT",
-      approvalTokenHash: null,
-      updatedAt: new Date().toISOString(),
-    }, $unset: { processingUntil: "" } }, { session: transactionSession });
-    if (!completed.modifiedCount) throw new SupportError("ACCOUNT_REQUEST_CHANGED", "Yêu cầu đã thay đổi. Tải lại danh sách.", 409);
-    await transactionDb.collection("identity_audit").insertOne({
-      id: randomUUID(), at: new Date().toISOString(), actor,
-      action: "ACCOUNT_REJECTED", subject: request.id,
-      reason: "Admin rejected the request and the applicant notice was delivered.",
-    }, { session: transactionSession });
-  });
+  try {
+    await identityTransaction(async (transactionDb, transactionSession) => {
+      const completed = await transactionDb.collection<AccountRequest>("identity_account_requests").updateOne({
+        id: request.id, status: request.status, finalDecision: "REJECTED",
+      }, { $set: {
+        status: "APPROVED",
+        notificationStatus: "SENT",
+        approvalTokenHash: null,
+        updatedAt: new Date().toISOString(),
+      }, $unset: { processingUntil: "" } }, { session: transactionSession });
+      if (!completed.modifiedCount) throw new SupportError("ACCOUNT_REQUEST_CHANGED", "Yêu cầu đã thay đổi. Tải lại danh sách.", 409);
+      await transactionDb.collection("identity_audit").insertOne({
+        id: randomUUID(), at: new Date().toISOString(), actor,
+        action: "ACCOUNT_REJECTED", subject: request.id,
+        reason: "The SMTP server accepted the rejection notice; recipient mailbox delivery was not verified.",
+      }, { session: transactionSession });
+    });
+  } catch {
+    throw new SupportError("ACCOUNT_OUTCOME_EMAIL_UNCONFIRMED", "Máy chủ email có thể đã nhận thông báo nhưng chưa lưu được trạng thái. Thử lại cùng quyết định để đồng bộ.", 503);
+  }
   return { status: "REJECTED" as const, email: request.email };
 }
 
@@ -233,32 +302,75 @@ async function approveAccountRequest(requestId: string, actor: string) {
     throw new SupportError("ACCOUNT_ALREADY_ACTIVE", "Email này đã được liên kết với một tài khoản khác.", 409);
   }
 
-  const temporaryPassword = String(randomInt(10_000, 100_000));
-  const passwordHash = await bcrypt.hash(temporaryPassword, 12);
+  let temporaryPassword: string | undefined;
+  let passwordHash: string | undefined;
+  let credentialEnvelope = existing?.credentialEnvelope;
+  let replacingCredential = false;
+  if (credentialEnvelope) {
+    try {
+      temporaryPassword = decryptTemporaryPassword(credentialEnvelope);
+      if (!/^\d{5}$/.test(temporaryPassword)) throw new Error("Stored temporary credential has an invalid format.");
+      passwordHash = existing?.passwordHash;
+    } catch {
+      credentialEnvelope = undefined;
+      replacingCredential = true;
+    }
+  } else if (existing) {
+    replacingCredential = true;
+  }
+  if (!temporaryPassword) {
+    temporaryPassword = generateTemporaryPassword();
+    credentialEnvelope = encryptTemporaryPassword(temporaryPassword);
+    passwordHash = await bcrypt.hash(temporaryPassword, 12);
+  }
+  if (!passwordHash || !credentialEnvelope)
+    throw new SupportError("ACCOUNT_CREDENTIAL_RECOVERY_REQUIRED", "Không thể chuẩn bị thông tin đăng nhập an toàn. Hãy thử lại sau khi kiểm tra cấu hình mã hóa.", 503);
+
   const now = new Date().toISOString();
   const account: PasswordAccount = existing ? {
-    ...existing, passwordHash, status: "PENDING_DELIVERY", updatedAt: now,
+    ...existing, passwordHash, credentialEnvelope, status: "PENDING_DELIVERY", updatedAt: now,
   } : {
     id: randomUUID(), loginId: request.email, email: request.email, fullName: request.fullName,
     passwordHash, role: "requester", kind: "employee", status: "PENDING_DELIVERY",
-    applicationId: request.id, createdAt: now, updatedAt: now,
+    applicationId: request.id, credentialEnvelope, createdAt: now, updatedAt: now,
   };
-  if (existing) {
-    await accounts.updateOne({ id: existing.id, status: "PENDING_DELIVERY" }, {
-      $set: { passwordHash, fullName: request.fullName, updatedAt: now },
-    });
-  } else {
-    try {
-      await accounts.insertOne(account);
-    } catch (error) {
-      if (error instanceof MongoServerError && error.code === 11000) {
-        await db.collection<AccountRequest>("identity_account_requests").updateOne({ id: request.id, status: request.status, finalDecision: "APPROVED" }, {
-          $set: { notificationStatus: "FAILED", updatedAt: new Date().toISOString() }, $unset: { processingUntil: "" },
-        });
-        throw new SupportError("ACCOUNT_ALREADY_ACTIVE", "Email này đã được liên kết với một tài khoản khác.", 409);
+  try {
+    await identityTransaction(async (transactionDb, session) => {
+      const transactionAccounts = transactionDb.collection<PasswordAccount>("identity_password_accounts");
+      if (existing && replacingCredential) {
+        const updated = await transactionAccounts.updateOne({ id: existing.id, applicationId: request.id, status: "PENDING_DELIVERY" }, {
+          $set: { passwordHash, credentialEnvelope, updatedAt: now },
+        }, { session });
+        if (!updated.modifiedCount) throw new SupportError("ACCOUNT_REQUEST_CHANGED", "Yêu cầu đã thay đổi. Tải lại danh sách.", 409);
+      } else if (!existing) {
+        await transactionAccounts.insertOne(account, { session });
       }
-      throw error;
+      if (!existing || replacingCredential) {
+        await transactionDb.collection("identity_audit").insertOne({
+          id: randomUUID(), at: now, actor,
+          action: existing ? "ACCOUNT_CREDENTIAL_REPLACED" : "ACCOUNT_CREDENTIAL_PREPARED",
+          subject: request.id,
+          reason: existing
+            ? "The inactive legacy credential could not be recovered; it was replaced before retrying delivery."
+            : "A password hash and encrypted retry copy were stored before attempting email delivery.",
+        }, { session });
+      }
+    });
+  } catch (error) {
+    if (error instanceof MongoServerError && error.code === 11000) {
+      await identityTransaction(async (transactionDb, session) => {
+        await transactionDb.collection<AccountRequest>("identity_account_requests").updateOne({ id: request.id, status: request.status, finalDecision: "APPROVED" }, {
+          $set: { notificationStatus: "FAILED", updatedAt: new Date().toISOString() }, $unset: { processingUntil: "" },
+        }, { session });
+        await transactionDb.collection("identity_audit").insertOne({
+          id: randomUUID(), at: new Date().toISOString(), actor,
+          action: "ACCOUNT_APPROVAL_CONFLICT", subject: request.id,
+          reason: "The unique login ID or application ID was already assigned to another account.",
+        }, { session });
+      });
+      throw new SupportError("ACCOUNT_ALREADY_ACTIVE", "Email này đã được liên kết với một tài khoản khác.", 409);
     }
+    throw error;
   }
 
   try {
@@ -273,34 +385,38 @@ async function approveAccountRequest(requestId: string, actor: string) {
       }, { session: transactionSession });
       await transactionDb.collection("identity_audit").insertOne({
         id: randomUUID(), at: new Date().toISOString(), actor,
-        action: "ACCOUNT_CREDENTIAL_EMAIL_FAILED", subject: request.id,
-        reason: "The account remains inactive; an Admin can retry credential delivery.",
+        action: "ACCOUNT_CREDENTIAL_EMAIL_UNCONFIRMED", subject: request.id,
+        reason: "The account remains inactive and keeps the same encrypted retry credential; an Admin can resend it.",
       }, { session: transactionSession });
     });
-    throw new SupportError("ACCOUNT_CREDENTIAL_EMAIL_FAILED", "Chưa gửi được email thông tin đăng nhập. Tài khoản chưa được kích hoạt; hãy thử lại từ danh sách yêu cầu.", 503);
+    throw new SupportError("ACCOUNT_CREDENTIAL_EMAIL_FAILED", "Chưa xác nhận được email thông tin đăng nhập. Tài khoản vẫn chưa hoạt động, lần thử lại sẽ dùng cùng mật khẩu.", 503);
   }
 
-  await identityTransaction(async (transactionDb, transactionSession) => {
-    const activated = await transactionDb.collection<PasswordAccount>("identity_password_accounts").updateOne({
-      id: account.id, status: "PENDING_DELIVERY", passwordHash,
-    }, { $set: { status: "ACTIVE", updatedAt: new Date().toISOString() } }, { session: transactionSession });
-    const completed = await transactionDb.collection<AccountRequest>("identity_account_requests").updateOne({
-      id: request.id, status: request.status, finalDecision: "APPROVED",
-    }, { $set: {
-      status: "APPROVED",
-      notificationStatus: "SENT",
-      approvedAt: new Date().toISOString(),
-      accountId: account.id,
-      approvalTokenHash: null,
-      updatedAt: new Date().toISOString(),
-    }, $unset: { processingUntil: "" } }, { session: transactionSession });
-    if (!activated.modifiedCount || !completed.modifiedCount)
-      throw new SupportError("ACCOUNT_REQUEST_CHANGED", "Yêu cầu đã thay đổi. Tải lại danh sách trước khi thử lại.", 409);
-    await transactionDb.collection("identity_audit").insertOne({
-      id: randomUUID(), at: new Date().toISOString(), actor,
-      action: "ACCOUNT_APPROVED", subject: request.id,
-      reason: "The employee account was activated after its credentials were delivered.",
-    }, { session: transactionSession });
-  });
+  try {
+    await identityTransaction(async (transactionDb, transactionSession) => {
+      const activated = await transactionDb.collection<PasswordAccount>("identity_password_accounts").updateOne({
+        id: account.id, status: "PENDING_DELIVERY", passwordHash,
+      }, { $set: { status: "ACTIVE", updatedAt: new Date().toISOString() }, $unset: { credentialEnvelope: "" } }, { session: transactionSession });
+      const completed = await transactionDb.collection<AccountRequest>("identity_account_requests").updateOne({
+        id: request.id, status: request.status, finalDecision: "APPROVED",
+      }, { $set: {
+        status: "APPROVED",
+        notificationStatus: "SENT",
+        approvedAt: new Date().toISOString(),
+        accountId: account.id,
+        approvalTokenHash: null,
+        updatedAt: new Date().toISOString(),
+      }, $unset: { processingUntil: "" } }, { session: transactionSession });
+      if (!activated.modifiedCount || !completed.modifiedCount)
+        throw new SupportError("ACCOUNT_REQUEST_CHANGED", "Yêu cầu đã thay đổi. Tải lại danh sách trước khi thử lại.", 409);
+      await transactionDb.collection("identity_audit").insertOne({
+        id: randomUUID(), at: new Date().toISOString(), actor,
+        action: "ACCOUNT_APPROVED", subject: request.id,
+        reason: "The SMTP server accepted the credentials and the account was activated in the same database transaction.",
+      }, { session: transactionSession });
+    });
+  } catch {
+    throw new SupportError("ACCOUNT_CREDENTIAL_EMAIL_UNCONFIRMED", "Email có thể đã được nhận nhưng chưa lưu được trạng thái. Tài khoản vẫn chưa hoạt động, hãy thử lại cùng mật khẩu.", 503);
+  }
   return { status: "APPROVED" as const, email: request.email };
 }

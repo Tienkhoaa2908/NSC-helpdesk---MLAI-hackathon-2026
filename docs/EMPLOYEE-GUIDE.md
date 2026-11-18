@@ -5,8 +5,8 @@ Support Desk tiếp nhận mô tả sự cố, tạo bản xem trước để b�
 ## Đăng nhập hoặc xin cấp tài khoản
 
 1. Tại trang chủ, chọn **Tôi cần hỗ trợ** rồi nhập ID và mật khẩu. Tài khoản thử nghiệm là `guest01 / 12345`, chỉ dùng dữ liệu tổng hợp.
-2. Nếu chưa có tài khoản, chọn **Nhân viên mới?**, nhập họ tên và Gmail. Đơn được lưu trong MongoDB và chỉ chủ hệ thống có thể xem.
-3. Khi email được bật và cấu hình gửi thư hoàn tất, thư thông báo mở danh sách riêng cho Admin, Admin đăng nhập rồi xác nhận hoặc từ chối. Gmail đã đăng ký trở thành ID đăng nhập, mật khẩu tạm gồm năm chữ số và được gửi qua email đó. Nếu email tắt hoặc gửi thất bại, đơn vẫn được lưu để Admin xử lý sau khi cấu hình email.
+2. Nếu chưa có tài khoản, chọn **Nhân viên mới?**, nhập họ tên và Gmail. Biểu mẫu trả cùng xác nhận cho địa chỉ mới, đã có đơn hoặc đã có tài khoản. Gửi lặp lại không tạo bản ghi trùng và không tiết lộ trạng thái Gmail.
+3. Khi email được bật và cấu hình gửi thư hoàn tất, thư thông báo mở danh sách riêng cho Admin. Admin đăng nhập rồi xác nhận hoặc từ chối. Gmail đã đăng ký trở thành ID đăng nhập, mật khẩu tạm là chuỗi đúng năm chữ số và được gửi qua email đó. Nếu trạng thái email chưa xác nhận được, đơn vẫn giữ nguyên để Admin kiểm tra trước khi gửi lại. Tài khoản chỉ hoạt động sau khi quy trình gửi và lưu trạng thái hoàn tất.
 
 Đơn cấp tài khoản chưa được duyệt sẽ không cho phép đăng nhập. Tài khoản mới không được cấp quyền Admin.
 

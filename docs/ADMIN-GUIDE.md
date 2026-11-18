@@ -23,7 +23,7 @@ Một số yêu cầu có thể được liên kết theo chủ đề và địa
 ## Kiểm thử và yêu cầu cấp tài khoản
 
 - [Kiểm thử / Verify](https://nsclub-support-desk.vercel.app/verify) là khu vực chạy các bộ tình huống của yêu cầu MLAI Hackathon 2026, track VNG và thử input mới. Bộ dữ liệu gồm test chung, bộ 15 tình huống theo brief và bộ VNG Verify gồm 5 ca (3 tự động, 2 chuyển tiếp). Các ca dùng cùng API policy và đọc lại lịch sử, kết quả là kiểm thử workflow synthetic, không phải benchmark độc lập của model.
-- [Cấp ID nhân viên](https://nsclub-support-desk.vercel.app/identity/review) chỉ hiển thị cho Admin và có các thao tác xác nhận cấp hoặc từ chối. Khi email được bật và cấu hình gửi thư hoàn tất, thư thông báo chỉ mở danh sách, Admin phải đăng nhập rồi chọn một quyết định. Khi cấp, hệ thống gửi Gmail đăng nhập và mật khẩu demo ngẫu nhiên năm chữ số tới người đăng ký. Nếu email tắt hoặc gửi lỗi, yêu cầu vẫn còn trong danh sách để xử lý sau.
+- [Cấp ID nhân viên](https://nsclub-support-desk.vercel.app/identity/review) chỉ hiển thị cho Admin và có các thao tác xác nhận cấp hoặc từ chối. Thư thông báo chỉ mở danh sách, Admin phải đăng nhập rồi chọn một quyết định. Quyết định đầu tiên được khóa, lỗi email chỉ cho phép retry cùng quyết định. Khi cấp, hệ thống gửi Gmail đăng nhập và mật khẩu demo ngẫu nhiên đúng năm chữ số tới người đăng ký. Credential được giữ mã hóa khi account chưa hoạt động, retry dùng cùng mật khẩu và account chỉ hoạt động sau SMTP acceptance cùng Mongo transaction. Trạng thái `SENT` không xác nhận email đã vào Inbox.
 
 ## Phạm vi demo
 

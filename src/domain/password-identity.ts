@@ -17,6 +17,13 @@ export const passwordLoginSchema = z.object({
 export type AccountRole = "requester";
 export type AccountStatus = "ACTIVE" | "PENDING_DELIVERY" | "DISABLED";
 
+export type CredentialEnvelope = {
+  version: 1;
+  iv: string;
+  ciphertext: string;
+  authTag: string;
+};
+
 export type PasswordAccount = {
   id: string;
   loginId: string;
@@ -27,6 +34,7 @@ export type PasswordAccount = {
   kind: "demo" | "employee";
   status: AccountStatus;
   applicationId: string;
+  credentialEnvelope?: CredentialEnvelope;
   createdAt: string;
   updatedAt: string;
 };

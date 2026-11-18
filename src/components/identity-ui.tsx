@@ -27,17 +27,22 @@ const apiErrorCopy: Record<string, { vi: string; en: string }> = {
   RATE_LIMITED: { vi: "Quá nhiều lần thử. Vui lòng chờ rồi thử lại.", en: "Too many attempts. Wait a moment and try again." },
   IDENTITY_STORAGE_UNAVAILABLE: { vi: "Cơ sở dữ liệu tài khoản chưa sẵn sàng. Vui lòng thử lại sau.", en: "The account database is unavailable. Try again later." },
   IDENTITY_EMAIL_NOT_CONFIGURED: { vi: "Email cấp tài khoản chưa được cấu hình. Liên hệ quản trị viên.", en: "Account email is not configured. Contact the administrator." },
-  IDENTITY_EMAIL_NOT_APPROVED: { vi: "Gửi email cấp tài khoản đang tắt cho đến khi mẫu nội dung được duyệt.", en: "Account email is disabled until its templates are approved." },
+  IDENTITY_EMAIL_NOT_APPROVED: { vi: "Email cấp tài khoản đang tắt. Liên hệ quản trị viên.", en: "Account email is disabled. Contact the administrator." },
   EMAIL_NOT_CONFIGURED: { vi: "Email cấp tài khoản chưa được cấu hình. Liên hệ quản trị viên.", en: "Account email is not configured. Contact the administrator." },
-  ACCOUNT_REQUEST_EMAIL_FAILED: { vi: "Đơn đã được lưu nhưng chưa gửi được email cho quản trị viên. Hãy thử lại sau.", en: "Your request was saved, but the administrator notification could not be sent. Try again later." },
-  EMAIL_DELIVERY_FAILED: { vi: "Chưa gửi được email. Đơn có thể đã được lưu, hãy thử gửi lại sau.", en: "The email could not be sent. Your request may have been saved, try again later." },
+  ACCOUNT_REQUEST_EMAIL_FAILED: { vi: "Đơn đã được lưu nhưng chưa xác nhận được email thông báo Admin. Quản trị viên có thể gửi lại.", en: "Your request was saved, but Admin email status is unconfirmed. The administrator can retry." },
+  ACCOUNT_REQUEST_EMAIL_UNCONFIRMED: { vi: "Đơn đã được lưu, nhưng chưa lưu được trạng thái email thông báo. Quản trị viên có thể gửi lại cùng yêu cầu.", en: "Your request was saved, but its email status could not be recorded. The administrator can retry the same request." },
+  EMAIL_DELIVERY_FAILED: { vi: "Chưa xác nhận được trạng thái email. Đơn có thể đã được lưu, hãy liên hệ Admin để kiểm tra trước khi gửi lại.", en: "Email status could not be confirmed. Your request may be saved, contact the Admin before trying again." },
   ACCOUNT_ALREADY_ACTIVE: { vi: "Gmail này đã có tài khoản. Hãy đăng nhập bằng ID và mật khẩu.", en: "This Gmail address already has an account. Sign in with its ID and password." },
   ACCOUNT_REQUEST_EXISTS: { vi: "Email này đã có yêu cầu đang chờ xử lý.", en: "A request for this email is already pending." },
   ACCOUNT_REQUEST_PROCESSING: { vi: "Yêu cầu này đang được xử lý. Hãy thử lại sau.", en: "This request is being processed. Try again shortly." },
   ACCOUNT_REQUEST_CHANGED: { vi: "Yêu cầu đã thay đổi. Hãy gửi lại sau.", en: "The request changed. Please submit it again." },
   ACCOUNT_REQUEST_ALREADY_DECIDED: { vi: "Yêu cầu này đã được xử lý.", en: "This request has already been decided." },
-  ACCOUNT_OUTCOME_EMAIL_FAILED: { vi: "Chưa gửi được email kết quả. Quản trị viên có thể thử lại từ danh sách.", en: "The result email could not be sent. The administrator can retry from the request list." },
-  ACCOUNT_CREDENTIAL_EMAIL_FAILED: { vi: "Chưa gửi được thông tin đăng nhập. Tài khoản chưa được kích hoạt, quản trị viên có thể thử lại.", en: "Sign-in details could not be sent. The account remains inactive, the administrator can retry." },
+  ACCOUNT_OUTCOME_EMAIL_FAILED: { vi: "Chưa xác nhận được email kết quả. Yêu cầu đã khóa quyết định và có thể gửi lại.", en: "The result email status is unconfirmed. The decision is locked and can be retried." },
+  ACCOUNT_OUTCOME_EMAIL_UNCONFIRMED: { vi: "Máy chủ email có thể đã nhận thông báo nhưng chưa lưu được trạng thái. Gửi lại cùng quyết định để đồng bộ.", en: "The email server may have accepted the notice, but the status was not saved. Retry the same decision to sync it." },
+  ACCOUNT_CREDENTIAL_EMAIL_FAILED: { vi: "Chưa xác nhận được email đăng nhập. Tài khoản chưa hoạt động, lần thử lại sẽ dùng cùng mật khẩu.", en: "Credential email status is unconfirmed. The account is inactive, retry will use the same password." },
+  ACCOUNT_CREDENTIAL_EMAIL_UNCONFIRMED: { vi: "Email có thể đã được nhận nhưng chưa lưu được trạng thái. Tài khoản chưa hoạt động, hãy thử lại cùng mật khẩu.", en: "The email may have been accepted but its status was not saved. The account is inactive, retry with the same password." },
+  ACCOUNT_CREDENTIAL_RECOVERY_REQUIRED: { vi: "Chưa thể chuẩn bị thông tin đăng nhập an toàn. Liên hệ quản trị viên.", en: "Secure sign-in details could not be prepared. Contact the administrator." },
+  IDENTITY_CREDENTIAL_ENCRYPTION_NOT_CONFIGURED: { vi: "Thiếu khóa mã hóa credential. Kiểm tra cấu hình Production rồi thử lại.", en: "The credential encryption key is missing. Check Production settings and try again." },
   VALIDATION_ERROR: { vi: "Kiểm tra lại họ tên và địa chỉ Gmail.", en: "Check the name and Gmail address and try again." },
 };
 
@@ -184,20 +189,18 @@ export function NewIdentityApplication() {
   const [email, setEmail] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  const [submittedEmail, setSubmittedEmail] = useState("");
-  const [notificationSent, setNotificationSent] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
     setBusy(true);
     try {
-      const result = await identityApi<{ id: string; status: string; notificationStatus: "SENT" | "FAILED" }>("applications", {
+      await identityApi<{ status: "RECEIVED" }>("applications", {
         fullName: fullName.trim().replace(/\s+/g, " "),
         email: email.trim().toLowerCase(),
       });
-      setNotificationSent(result.notificationStatus === "SENT");
-      setSubmittedEmail(email.trim().toLowerCase());
+      setSubmitted(true);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : localized("Chưa gửi được yêu cầu. Thử lại.", "Could not submit the request. Try again.", locale));
     } finally {
@@ -205,17 +208,13 @@ export function NewIdentityApplication() {
     }
   }
 
-  if (submittedEmail) {
+  if (submitted) {
     return (
       <main className="identity-page">
         <section className="identity-card" aria-labelledby="application-sent-title">
-          <span className="eyebrow">{notificationSent ? localized("ĐÃ GỬI YÊU CẦU", "REQUEST SENT", locale) : localized("ĐÃ LƯU YÊU CẦU", "REQUEST SAVED", locale)}</span>
-          <h1 id="application-sent-title">{notificationSent
-            ? localized("Yêu cầu cấp tài khoản đã được gửi", "Your account request has been sent", locale)
-            : localized("Yêu cầu đã lưu, chưa gửi được email", "Your request was saved, but the email was not sent", locale)}</h1>
-          <p>{notificationSent
-            ? localized(`Quản trị viên đã nhận yêu cầu cho ${submittedEmail}. Sau khi xác nhận, thông tin đăng nhập sẽ được gửi tới địa chỉ này.`, `The administrator has received the request for ${submittedEmail}. After approval, sign-in details will be sent to this address.`, locale)
-            : localized(`Yêu cầu cho ${submittedEmail} đã được lưu. Quản trị viên cần kiểm tra danh sách yêu cầu, email thông báo chưa gửi được.`, `The request for ${submittedEmail} was saved. The administrator can find it in the request list, but the notification email was not sent.`, locale)}</p>
+          <span className="eyebrow">{localized("ĐÃ TIẾP NHẬN", "REQUEST RECEIVED", locale)}</span>
+          <h1 id="application-sent-title">{localized("Yêu cầu đã được tiếp nhận", "Your request was received", locale)}</h1>
+          <p>{localized("Nếu địa chỉ này chưa có tài khoản hoặc yêu cầu đang chờ, hệ thống sẽ lưu một yêu cầu để Admin xem xét. Địa chỉ Gmail chưa được xác minh ở bước này. Nếu đã có tài khoản, hãy đăng nhập. Gửi lại yêu cầu không tạo bản ghi trùng.", "If this address has no active account or pending request, the system records one request for Admin review. The Gmail address is not verified at this step. If you already have an account, sign in. Repeated submissions do not create duplicate records.", locale)}</p>
           <div className="identity-note demo-credentials" role="note">
             <strong>{localized("Bạn có thể trải nghiệm ngay", "You can try the system now", locale)}</strong>
             <p>{localized("ID", "ID", locale)}: <code>guest01</code></p>

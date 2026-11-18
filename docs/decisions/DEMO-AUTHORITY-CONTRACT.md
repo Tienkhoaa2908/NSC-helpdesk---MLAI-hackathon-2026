@@ -5,7 +5,7 @@ cho dự án demo, không phải policy chính thức của VNG, không phải a
 nhãn benchmark. AI hỗ trợ triển khai và kiểm thử, không suy ra human review
 từ Git identity.
 
-> Ghi chú phiên bản: các câu nhắc đến đăng nhập ID-only phản ánh thiết kế tại ngày 14/10/2026. Luồng đăng nhập hiện tại dùng ID/mật khẩu; quyết định quyền demo trong tài liệu này vẫn chỉ mô tả entitlement giả lập, không cấp quyền cho hệ thống thật.
+> Ghi chú phiên bản: các câu nhắc đến đăng nhập ID-only phản ánh thiết kế tại ngày 14/10/2026. Luồng đăng nhập hiện tại dùng ID/mật khẩu, quyết định quyền demo trong tài liệu này vẫn chỉ mô tả entitlement giả lập, không cấp quyền cho hệ thống thật.
 
 | Câu | Quyết định |
 | --- | --- |

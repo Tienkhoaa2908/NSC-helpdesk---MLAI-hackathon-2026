@@ -269,7 +269,7 @@ khi chưa có adjudication độc lập.
 
 ## Xác nhận 14/10/2026 — thiếu dữ kiện trước quota chưa xác minh
 
-Chủ repo đã chọn trong cuộc hội thoại: **“Hỏi đủ thông tin trước; sau đó kiểm
+Chủ repo đã chọn trong cuộc hội thoại: **“Hỏi đủ thông tin trước, sau đó kiểm
 tra quota/chuyển người phụ trách”** khi yêu cầu cấp tài nguyên vừa thiếu dữ kiện
 vừa chưa có nguồn capacity/quota. Áp dụng chung, không riêng case 11 GPU.
 Không khôi phục ngưỡng GPU demo đã bỏ ở v5.14. Security và các authority gate

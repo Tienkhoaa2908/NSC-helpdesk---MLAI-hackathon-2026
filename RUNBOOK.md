@@ -212,21 +212,23 @@ hợp lệ, quyền model và quota API, thay tên model không sửa được k
 ### Biến môi trường Identity
 
 - `IDENTITY_ADMIN_ID` và `IDENTITY_ADMIN_PASSWORD`: thông tin đăng nhập Admin, chỉ lưu ở server secret store. Dùng một mật khẩu dài, duy nhất.
+- `IDENTITY_CREDENTIAL_ENCRYPTION_KEY`: khóa base64 gồm 32 byte ngẫu nhiên để mã hóa tạm credential chưa gửi được. Giữ khóa ổn định khi còn request chờ retry.
 - `IDENTITY_ADMIN_EMAIL`: hộp thư nhận thông báo đơn cấp tài khoản và địa chỉ liên hệ trong thư kết quả.
-- `IDENTITY_EMAIL_ENABLED`: mặc định `false`, chỉ bật sau khi duyệt mẫu email và cấu hình SMTP.
+- `IDENTITY_EMAIL_ENABLED`: mặc định `false`, bật sau khi mẫu email đã duyệt và cấu hình SMTP, Admin, Mongo cùng khóa mã hóa.
 - `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM`: cấu hình gửi email. Với Gmail, dùng `smtp.gmail.com`, port `465` hoặc `587`, và App Password sau khi bật 2-Step Verification. Không dùng mật khẩu Gmail chính.
 - `APP_BASE_URL`: origin HTTPS của website, dùng làm gốc cho liên kết email. Local có thể dùng `http://localhost:3000` trong môi trường phát triển.
 - `IDENTITY_MONGODB_URI`: Mongo Identity riêng tùy chọn, nếu rỗng, dùng `MONGODB_URI`. `IDENTITY_MONGODB_DB` mặc định `nsclub_support_desk`.
 - `MONGODB_URI` và `MONGODB_DB`: database Support, quyền ứng dụng phải giới hạn ở database cần dùng. Không dùng Atlas Admin.
 
-Nếu Gmail SMTP thiếu App Password, Vercel không kết nối được SMTP, hoặc provider từ chối gửi, email không được xem là đã gửi và tài khoản không được báo là đã cấp. Vercel SMTP không dùng port 25, ứng dụng hỗ trợ `465` TLS hoặc `587` STARTTLS. Lưu secrets trong Vercel rồi deploy mới để áp dụng. Xem chi tiết tại [IDENTITY-SETUP](docs/IDENTITY-SETUP.md).
+Nếu Gmail SMTP thiếu App Password, Vercel không kết nối được SMTP, hoặc provider từ chối gửi, trạng thái email là chưa xác nhận và tài khoản chưa hoạt động. Vercel SMTP không dùng port 25, ứng dụng hỗ trợ `465` TLS hoặc `587` STARTTLS. Lưu secrets trong Vercel rồi deploy mới để áp dụng. Xem chi tiết tại [IDENTITY-SETUP](docs/IDENTITY-SETUP.md) và [nghiên cứu onboarding](docs/IDENTITY-ONBOARDING-RESEARCH.md).
 
 ### Gửi đơn và cấp tài khoản
 
-1. Người dùng nhập họ tên và Gmail. Đơn được lưu trong MongoDB trước khi gửi thông báo, nếu email tắt hoặc gửi thất bại, đơn vẫn được giữ với trạng thái gửi lỗi để Admin xử lý sau. Email tự khai chưa được xác minh độc lập.
-2. Khi `IDENTITY_EMAIL_ENABLED=true` và SMTP đã cấu hình, server gửi thông báo song ngữ đến hộp thư Admin. Nút trong thư chỉ mở danh sách yêu cầu ở `/identity/review`, mở URL bằng `GET` không thay đổi dữ liệu.
-3. Admin đăng nhập bằng ID và mật khẩu đã cấu hình, rồi chọn xác nhận cấp tài khoản hoặc từ chối. Danh sách đơn và API quyết định chỉ dành cho Admin.
-4. Khi cấp, Gmail trở thành ID đăng nhập, server sinh mật khẩu demo ngẫu nhiên năm chữ số, chỉ lưu hash bcrypt và gửi thông tin qua email. Tài khoản chỉ hoạt động sau khi email gửi thành công. Khi từ chối, hệ thống gửi email kết quả, lỗi gửi có thể được thử lại từ danh sách.
+1. Người dùng nhập họ tên và Gmail. Đơn được lưu trong MongoDB trước khi gửi thông báo. Nếu email lỗi hoặc trạng thái chưa rõ, đơn giữ cùng ID để Admin kiểm tra và thử lại. Email tự khai chưa được xác minh độc lập.
+2. Khi `IDENTITY_EMAIL_ENABLED=true` và SMTP đã cấu hình, server gửi thông báo song ngữ đến hộp thư Admin. `SENT` nghĩa là SMTP đã chấp nhận thư, không xác nhận Inbox. Nút trong thư chỉ mở danh sách yêu cầu ở `/identity/review`, mở URL bằng `GET` không thay đổi dữ liệu.
+3. Admin đăng nhập bằng ID và mật khẩu đã cấu hình, rồi chọn xác nhận cấp tài khoản hoặc từ chối. Quyết định đầu tiên được khóa, retry chỉ gửi lại cùng quyết định. Danh sách, retry và API quyết định chỉ dành cho Admin.
+4. Khi cấp, Gmail trở thành ID đăng nhập, server sinh mật khẩu demo dạng chuỗi đúng năm chữ số, kể cả số 0 ở đầu. Server lưu hash bcrypt và bản mã hóa AES-256-GCM để gửi lại đúng cùng mật khẩu khi tài khoản chưa hoạt động. Sau khi SMTP chấp nhận thư, Mongo transaction kích hoạt tài khoản, hoàn tất đơn và xóa bản mã hóa. Nếu SMTP hoặc transaction chưa xác nhận được, account giữ trạng thái inactive và Admin có thể retry.
+5. Khi từ chối, hệ thống gửi email kết quả. Nếu trạng thái email chưa xác nhận, Admin chỉ gửi lại quyết định từ chối đã khóa.
 5. Trong `public-demo`, tài khoản `guest01 / 12345` và requester đã đăng nhập có thể mở khu Support reviewer, audit và Verify. API reviewer chỉ trả về và cho phép thao tác trên hồ sơ khớp với bộ Verify do server tạo, kiểm tra đồng thời mã lượt chạy, mã ca và mã yêu cầu. Yêu cầu hỗ trợ thông thường ẩn trong khu reviewer, người gửi vẫn có thể theo dõi hồ sơ của mình bằng liên kết riêng. Identity request và quyết định chỉ dành cho Admin.
 
 Ứng dụng không có SSO/Workspace, phân quyền tổ chức theo team hoặc quy trình khôi phục mật khẩu production. Danh sách mail và nội dung đơn là dữ liệu cá nhân, chỉ dùng mailbox test do bạn kiểm soát.
@@ -247,7 +249,7 @@ Không tái sử dụng Admin/SMTP secret, đưa secret vào Git, terminal log �
 
 API reviewer Support, tóm tắt, audit, sự kiện, metrics, lịch sử, danh sách và chi tiết hồ sơ yêu cầu tài khoản đã đăng nhập. Trong `public-demo`, Admin có toàn bộ phạm vi reviewer, requester chỉ truy cập được hồ sơ khớp một ca trong tối đa 20 lượt Verify gần nhất dùng bộ dữ liệu server quản lý. Phạm vi này áp dụng cho danh sách, tìm kiếm, audit, chi tiết theo ID, nhóm yêu cầu và thao tác cập nhật. Yêu cầu thông thường không xuất hiện trong khu reviewer, người gửi vẫn theo dõi hồ sơ của mình bằng tracking link. Danh sách cấp tài khoản và API quyết định Identity chỉ dành cho Admin. Tracking token/proof chỉ cho phép người gửi dùng route theo dõi/tiếp tục và khôi phục receipt, chúng không cấp quyền reviewer. Tài khoản requester demo được chia sẻ công khai.
 
-Sau khi đổi biến môi trường trên Vercel, tạo deployment mới. Luồng gửi đơn/cấp tài khoản qua email chưa hoạt động cho tới khi cấu hình Admin, SMTP và MongoDB. Chỉ xác nhận email vận hành sau khi kiểm tra end-to-end bằng mailbox thử nghiệm do bạn kiểm soát.
+Sau khi đổi biến môi trường trên Vercel, tạo deployment mới. Luồng gửi đơn/cấp tài khoản qua email chưa hoạt động cho tới khi cấu hình Admin, SMTP, khóa mã hóa và MongoDB. Chỉ xác nhận email vận hành sau khi kiểm tra end-to-end bằng mailbox thử nghiệm do bạn kiểm soát.
 
 ## Kiểm tra bản trình diễn
 

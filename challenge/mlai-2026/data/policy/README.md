@@ -11,7 +11,7 @@ These files define the business rules that the deterministic decision engine mus
 - Only a server-side approval verifier or a synthetic approval registry may set `approval_verification_status=VERIFIED`.
 - An approval must match the approver role, named resource, scope, permission/action, duration, and expiry.
 - A secret is redacted before it is sent to an LLM, stored, logged, or displayed. Audit records retain only redacted evidence and a redaction marker.
-- A ticket containing multiple requests is decomposed; the final ticket decision takes the highest-risk subrequest.
+- A ticket containing multiple requests is decomposed, the final ticket decision takes the highest-risk subrequest.
 - Conflicting structured fields and free text are never silently normalized. They escalate.
 - `AUTO_APPROVE` approves only a safe, simulated workflow outcome. It never means the system may directly provision privileged access or disclose data.
 - `OTHER` is a canonical fallback for unknown classification. It is not a required free-text UI option.
