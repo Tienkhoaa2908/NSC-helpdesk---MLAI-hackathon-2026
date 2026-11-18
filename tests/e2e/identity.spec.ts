@@ -8,8 +8,8 @@ test("home exposes sign-in, registration and a persistent English switch", async
   await page.goto("/");
   await expect(page.getByRole("link", { name: "Đăng nhập", exact: true })).toBeVisible();
   await expect(page.getByRole("link", { name: "Đăng ký", exact: true })).toBeVisible();
-  await expect(page.getByRole("link", { name: "Tôi cần hỗ trợ", exact: true })).toHaveAttribute("href", "/login");
-  await expect(page.getByRole("link", { name: "Dành cho Admin", exact: true })).toHaveAttribute("href", "/login?next=%2Freview");
+  await expect(page.getByRole("link", { name: "Tôi cần hỗ trợ", exact: true })).toHaveAttribute("href", "/send-help");
+  await expect(page.getByRole("link", { name: "Dành cho Admin", exact: true })).toHaveAttribute("href", "/review");
   await expect(page.getByRole("link", { name: /không cần tài khoản/i })).toHaveCount(0);
 
   await page.getByRole("button", { name: "Chuyển sang tiếng Anh" }).click();
@@ -56,7 +56,10 @@ test("employee sign-in sends the employee ID and password, then opens the protec
   await expect(page.getByText("ID: guest01")).toBeVisible();
   await expect(page.getByRole("link", { name: "Đăng nhập", exact: true })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Đăng xuất", exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "Đăng xuất", exact: true }).click();
+  await page.getByRole("link", { name: "Tôi cần hỗ trợ", exact: true }).click();
+  await expect(page).toHaveURL(/\/send-help$/);
+  await expect(page.getByRole("heading", { name: "Tôi cần hỗ trợ" })).toBeVisible();
+  await page.getByRole("navigation", { name: "Điều hướng chính" }).getByRole("button", { name: "Đăng xuất", exact: true }).click();
   await expect(page).toHaveURL(/\/$/);
   await expect(page.getByRole("link", { name: "Đăng nhập", exact: true })).toBeVisible();
 });
@@ -80,6 +83,10 @@ test("employee and Admin guides match the public demo access and issuance workfl
 });
 
 test("invalid credentials are shown without creating a session", async ({ page }) => {
+  await page.route("**/api/identity/session", (route) => route.fulfill({ status: 401, json: {
+    success: false,
+    error: { code: "AUTHENTICATION_REQUIRED", message: "Sign in." },
+  } }));
   await page.route("**/api/identity/login", (route) => route.fulfill({
     status: 401,
     json: { success: false, error: { code: "INVALID_CREDENTIALS", message: "Invalid credentials." } },
@@ -90,6 +97,16 @@ test("invalid credentials are shown without creating a session", async ({ page }
   await page.getByRole("button", { name: "Đăng nhập", exact: true }).click();
   await expect(page.getByRole("alert").filter({ hasText: "ID hoặc mật khẩu không đúng" })).toBeVisible();
   await expect(page).toHaveURL(/\/login$/);
+});
+
+test("a returning requester who opens sign-in continues to the support form", async ({ requesterPage: page }) => {
+  await page.route("**/api/identity/session", (route) => route.fulfill({ json: {
+    success: true,
+    data: { status: "ACTIVE", id: "EMP-E2E-001", name: "Local E2E requester", email: null },
+  } }));
+  await page.goto("/login");
+  await expect(page).toHaveURL(/\/send-help$/);
+  await expect(page.getByRole("heading", { name: "Tôi cần hỗ trợ" })).toBeVisible();
 });
 
 test("registration is available in Vietnamese and English and sends only a name and Gmail", async ({ page }) => {

@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import type { FormEvent } from "react";
 import { Alert, Button } from "./ui";
 import { localized, useLocale } from "@/i18n/locale";
@@ -57,10 +58,23 @@ export async function identityApi<T>(path: string, body?: unknown, headers?: Hea
 
 export function LoginPanel() {
   const { locale } = useLocale();
+  const router = useRouter();
   const [employeeId, setEmployeeId] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [checkingSession, setCheckingSession] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+    void identityApi<{ status: "ACTIVE" | "ADMIN" }>("session").then((session) => {
+      if (!active) return;
+      router.replace(session.status === "ADMIN" ? "/review" : "/send-help");
+    }).catch(() => {
+      if (active) setCheckingSession(false);
+    });
+    return () => { active = false; };
+  }, [router]);
 
   async function signIn(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -80,6 +94,12 @@ export function LoginPanel() {
     } finally {
       setBusy(false);
     }
+  }
+
+  if (checkingSession) {
+    return <main className="identity-page"><section className="identity-card" role="status">
+      {localized("Đang kiểm tra phiên đăng nhập…", "Checking your sign-in session…", locale)}
+    </section></main>;
   }
 
   return (

@@ -11,12 +11,12 @@ export default function Home() {
       <section className="welcome-copy">
         <h1>{localized("Bạn cần hỗ trợ", "How can we help", locale)}<br />{localized("gì hôm nay?", "you today?", locale)}</h1>
         <div className="entry-links">
-          <TransitionLink transition="line" aria-label={localized("Tôi cần hỗ trợ", "I need help", locale)} className="entry-card entry-primary" href="/login">
+          <TransitionLink transition="line" aria-label={localized("Tôi cần hỗ trợ", "I need help", locale)} className="entry-card entry-primary" href="/send-help">
             <span className="entry-icon"><Headphones size={28} /></span>
             <strong>{localized("Tôi cần hỗ trợ", "I need help", locale)}</strong>
             <ArrowRight size={24} aria-hidden="true" />
           </TransitionLink>
-          <TransitionLink transition="line" aria-label={localized("Dành cho Admin", "For admins", locale)} className="entry-card" href="/login?next=%2Freview">
+          <TransitionLink transition="line" aria-label={localized("Dành cho Admin", "For admins", locale)} className="entry-card" href="/review">
             <span className="entry-icon"><ClipboardList size={27} /></span>
             <strong>{localized("Dành cho Admin", "For admins", locale)}</strong>
             <ArrowRight size={24} aria-hidden="true" />
