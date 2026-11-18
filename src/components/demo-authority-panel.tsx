@@ -37,20 +37,20 @@ export function DemoAuthorityPanel() {
     if (busy) return false;
     setBusy(true); setError(""); setNotice("");
     try { await identityApi(`authority/${route}`, body); await load(); setNotice(t(success[0], success[1])); return true; }
-    catch (cause) { setError(localizedError(cause, locale, "Chưa hoàn tất; thử lại cùng nội dung.", "Could not complete the action. Please retry with the same details.")); return false; }
+    catch (cause) { setError(localizedError(cause, locale, "Chưa hoàn tất, thử lại cùng nội dung.", "Could not complete the action. Please retry with the same details.")); return false; }
     finally { setBusy(false); }
   }
   const pool = snapshot?.pool;
   return <StaffWorkspace active="identity"><main className="identity-review space-y-5">
     <div><span className="eyebrow">{t("QUYỀN VÀ HẠN MỨC DEMO", "DEMO ACCESS AND QUOTAS")}</span><h1>{demoProject}</h1>
-      <p>{t("Sổ thử nghiệm cho VNG Support. Giữ nguyên quyết định policy của ticket hỗ trợ; không thực thi IAM hoặc cloud.", "A demo ledger for VNG Support. It does not change support policy decisions or execute IAM or cloud actions.")}</p>
+      <p>{t("Sổ thử nghiệm cho VNG Support. Giữ nguyên quyết định policy của ticket hỗ trợ, không thực thi IAM hoặc cloud.", "A demo ledger for VNG Support. It does not change support policy decisions or execute IAM or cloud actions.")}</p>
       <Link href="/identity/review" className="identity-text-link">{t("Về trang cấp ID", "Back to employee IDs")}</Link>{" · "}<Link href="/workspace" className="identity-text-link">{t("Gửi yêu cầu hỗ trợ", "Submit a support request")}</Link>
     </div>
-    <Alert>{t("Phiên đăng nhập đã được xác minh; IT đã duyệt profile và phạm vi cho phiên này. Entitlement, approval và số liệu quota ở đây chỉ là mô phỏng, không phải bằng chứng IAM/ITSM hoặc billing production. Ngân sách chưa cấu hình luôn cần Capacity owner.", "The signed-in session is verified and IT has approved its profile and scope. Entitlements, approvals, and quota figures here are simulated; they are not IAM, ITSM, or production billing evidence. Unconfigured budgets still require a capacity owner.")}</Alert>
+    <Alert>{t("Phiên đăng nhập đã được xác minh, IT đã duyệt profile và phạm vi cho phiên này. Entitlement, approval và số liệu quota ở đây chỉ là mô phỏng, không phải bằng chứng IAM/ITSM hoặc billing production. Ngân sách chưa cấu hình luôn cần Capacity owner.", "The signed-in session is verified and IT has approved its profile and scope. Entitlements, approvals, and quota figures here are simulated, they are not IAM, ITSM, or production billing evidence. Unconfigured budgets still require a capacity owner.")}</Alert>
     {error && <Alert tone="error">{error} <Link href="/login">{t("Đăng nhập lại", "Sign in again")}</Link></Alert>}
     {notice && <p role="status" className="identity-card">{notice}</p>}
     {!snapshot && !error && <p role="status">{t("Đang tải dữ liệu…", "Loading data…")}</p>}
-    {snapshot && !pool && <Alert>{t("Sổ demo chưa được khởi tạo. Operator cần làm theo RUNBOOK; ứng dụng không tự tạo quyền hoặc mặc định usage bằng 0.", "The demo ledger has not been initialized. An operator must follow the RUNBOOK; the app does not create access or assume usage is zero.")}</Alert>}
+    {snapshot && !pool && <Alert>{t("Sổ demo chưa được khởi tạo. Operator cần làm theo RUNBOOK, ứng dụng không tự tạo quyền hoặc mặc định usage bằng 0.", "The demo ledger has not been initialized. An operator must follow the RUNBOOK, the app does not create access or assume usage is zero.")}</Alert>}
     {pool && <>
       <section className="identity-card"><h2>{t("Hạn mức và dữ liệu quan sát", "Capacity limits and observed usage")}</h2>
         <p>{t(`Tối đa ${pool.maxHours} giờ mỗi lần cấp. GPU được tính riêng theo T4. Hết thời hạn không đồng nghĩa tài nguyên đã được giải phóng.`, `Maximum ${pool.maxHours} hours per grant. GPU capacity is measured separately in T4 units. Expiration does not confirm that resources were released.`)}</p>
@@ -99,7 +99,7 @@ export function DemoAuthorityPanel() {
           {row.expiresAt && <p>{t("Hết hiệu lực:", "Expires:")} {new Intl.DateTimeFormat(locale === "vi" ? "vi-VN" : "en-US", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Ho_Chi_Minh" }).format(new Date(row.expiresAt))}</p>}
           {snapshot.canManage && ["PENDING", "APPROVED"].includes(row.status) && <form className="identity-form" onSubmit={async (event) => {
             event.preventDefault(); const data = new FormData(event.currentTarget);
-            await mutate("decision", { id: row.id, version: row.version, action: data.get("action"), reason: data.get("reason") }, ["Đã lưu quyết định và audit. Không thực thi tài nguyên; policy Support giữ nguyên.", "Decision and audit saved. No resources were provisioned; Support policy is unchanged."]);
+            await mutate("decision", { id: row.id, version: row.version, action: data.get("action"), reason: data.get("reason") }, ["Đã lưu quyết định và audit. Không thực thi tài nguyên, policy Support giữ nguyên.", "Decision and audit saved. No resources were provisioned, Support policy is unchanged."]);
           }}><label>{t("Quyết định", "Decision")}<select name="action">{row.status === "APPROVED" ? <option value="revoke">{t("Thu hồi quyền demo", "Revoke demo access")}</option> : <><option value="reject">{t("Từ chối", "Reject")}</option><option value="approve">{t("Duyệt quyền demo", "Approve demo access")}</option></>}</select></label>
             <label>{t("Lý do quyết định", "Decision reason")}<textarea name="reason" required minLength={8} maxLength={500} /></label><Button type="submit" disabled={busy}>{t("Lưu quyết định", "Save decision")}</Button><p>{t("Không thể xử lý đơn của chính mình.", "You cannot act on your own request.")}</p>
           </form>}

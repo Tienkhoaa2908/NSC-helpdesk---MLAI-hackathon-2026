@@ -74,7 +74,7 @@ export function SentimentPreview({
         </p>
       )}
       <p className="text-xs text-slate-600">
-        {t("Thông tin tham khảo cho nhân viên hỗ trợ; không quyết định quyền, ưu tiên hoặc trạng thái xử lý.", "For support staff reference only; it does not determine access, priority, or request status.")}
+        {t("Thông tin tham khảo cho nhân viên hỗ trợ, không quyết định quyền, ưu tiên hoặc trạng thái xử lý.", "For support staff reference only, it does not determine access, priority, or request status.")}
       </p>
     </Card>
   );

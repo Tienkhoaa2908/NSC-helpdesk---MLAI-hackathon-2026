@@ -6,7 +6,7 @@ Ghi chú nguồn gốc: tài liệu được soạn với hỗ trợ AI dựa tr
 
 ## Tóm tắt nghiên cứu
 
-SLA phát huy tác dụng khi nối được ba việc: người dùng kỳ vọng mức phục vụ nào, đội nào chịu trách nhiệm, và hệ thống đo việc thực hiện ra sao. Nó là một thỏa thuận về kết quả phục vụ, phạm vi, thời hạn, lịch tính giờ, trách nhiệm và cách xử lý khi không đạt; không chỉ là đồng hồ đếm ngược. ITIL nhấn mạnh mục tiêu dịch vụ gắn với nhu cầu kinh doanh và trải nghiệm. Google SRE phân biệt phép đo, mục tiêu nội bộ và cam kết dịch vụ. Các nền tảng ITSM thường cho cấu hình mục tiêu theo loại yêu cầu, lịch làm việc và điều kiện bắt đầu, tạm dừng, kết thúc.
+SLA phát huy tác dụng khi nối được ba việc: người dùng kỳ vọng mức phục vụ nào, đội nào chịu trách nhiệm, và hệ thống đo việc thực hiện ra sao. Nó là một thỏa thuận về kết quả phục vụ, phạm vi, thời hạn, lịch tính giờ, trách nhiệm và cách xử lý khi không đạt, không chỉ là đồng hồ đếm ngược. ITIL nhấn mạnh mục tiêu dịch vụ gắn với nhu cầu kinh doanh và trải nghiệm. Google SRE phân biệt phép đo, mục tiêu nội bộ và cam kết dịch vụ. Các nền tảng ITSM thường cho cấu hình mục tiêu theo loại yêu cầu, lịch làm việc và điều kiện bắt đầu, tạm dừng, kết thúc.
 
 | Khái niệm | Ý nghĩa khi thiết kế Helpdesk |
 |---|---|
@@ -17,9 +17,9 @@ SLA phát huy tác dụng khi nối được ba việc: người dùng kỳ vọ
 
 Với VNG Support, cần phân biệt độ trễ của AI với thời gian xử lý ticket. Dự án đã đo thời gian ở các bước AI và cache, nhưng tài liệu nói rõ các số đó chưa phải SLA. Luồng hiện có đã có quy tắc bàn giao cho nhân viên sau các lượt hướng dẫn chưa giải quyết được vấn đề, cùng lịch sử và audit. Vì vậy, một bước khởi đầu có ích là đo thời gian người phụ trách tiếp nhận và phản hồi sau bàn giao.
 
-Cần phân biệt phòng ban của người gửi với đội sở hữu dịch vụ và xử lý yêu cầu. Form hiện có chín nhóm phòng ban; với phiên khách, phòng ban chỉ là ngữ cảnh demo chưa xác minh. Khi mở rộng sang Nhân sự, Tài chính hoặc các đơn vị khác, phòng ban người gửi không tự cho biết ai xử lý hay thời hạn nào áp dụng.
+Cần phân biệt phòng ban của người gửi với đội sở hữu dịch vụ và xử lý yêu cầu. Form hiện có chín nhóm phòng ban, với phiên khách, phòng ban chỉ là ngữ cảnh demo chưa xác minh. Khi mở rộng sang Nhân sự, Tài chính hoặc các đơn vị khác, phòng ban người gửi không tự cho biết ai xử lý hay thời hạn nào áp dụng.
 
-Các mục tiêu thời gian hiện chưa được xác lập trong policy. Policy đang ở phiên bản `support-guidance-v5.20`; tài liệu dự án nêu rõ đây là demo/challenge policy, chưa phải chính sách chính thức của VNG. Báo cáo thử nghiệm cũng nói ba mẫu thời gian chưa đủ để suy ra SLA hay p95. Do đó, prompt bên dưới yêu cầu thiết kế hệ thống và chế độ đo thử trước; không tự đặt thời hạn thành cam kết.
+Các mục tiêu thời gian hiện chưa được xác lập trong policy. Policy đang ở phiên bản `support-guidance-v5.20`, tài liệu dự án nêu rõ đây là demo/challenge policy, chưa phải chính sách chính thức của VNG. Báo cáo thử nghiệm cũng nói ba mẫu thời gian chưa đủ để suy ra SLA hay p95. Do đó, prompt bên dưới yêu cầu thiết kế hệ thống và chế độ đo thử trước, không tự đặt thời hạn thành cam kết.
 
 ### Nguồn tham khảo
 

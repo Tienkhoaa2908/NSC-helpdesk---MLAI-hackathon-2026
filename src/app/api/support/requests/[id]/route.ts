@@ -4,6 +4,7 @@ import {
   supportApi,
   requestId,
   requireDemoReviewer,
+  withDemoReviewerDataScope,
 } from "@/lib/support-http";
 import { getSupportRequest, SupportError } from "@/lib/support-repository";
 export const dynamic = "force-dynamic";
@@ -12,12 +13,14 @@ export async function GET(
   context: { params: Promise<{ id: string }> },
 ) {
   return supportApi(async () => {
-    await requireDemoReviewer(request);
-    const row = await getSupportRequest(requestId((await context.params).id));
-    if (!row)
-      throw new SupportError("NOT_FOUND", "Không tìm thấy yêu cầu.", 404);
-    const sharedReplies = await sharedRepliesForRequest(row.id);
-    return { ...row, ...(sharedReplies.length ? { sharedReplies } : {}),
-      ...(row.incidentId ? { incident: await incidentView(row.incidentId) } : {}) };
+    const actor = await requireDemoReviewer(request);
+    return withDemoReviewerDataScope(actor, async () => {
+      const row = await getSupportRequest(requestId((await context.params).id));
+      if (!row)
+        throw new SupportError("NOT_FOUND", "Không tìm thấy yêu cầu.", 404);
+      const sharedReplies = await sharedRepliesForRequest(row.id);
+      return { ...row, ...(sharedReplies.length ? { sharedReplies } : {}),
+        ...(row.incidentId ? { incident: await incidentView(row.incidentId) } : {}) };
+    });
   });
 }

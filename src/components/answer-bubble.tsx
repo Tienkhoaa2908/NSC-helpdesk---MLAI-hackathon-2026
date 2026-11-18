@@ -50,12 +50,12 @@ export function AnswerBubble({
             {item.answer.fallbackReason &&
               item.answer.fallbackReason !== "INTERNAL_POLICY_UNVERIFIED" && (
                 <p className="assistant-note">
-                  {localized("AI đang tạm không sẵn sàng. Đây là hướng dẫn có sẵn; câu hỏi chưa được chuyển cho nhân viên.", "The AI is temporarily unavailable. This is existing guidance; your question has not been sent to a staff member.", locale)}
+                  {localized("AI đang tạm không sẵn sàng. Đây là hướng dẫn có sẵn, câu hỏi chưa được chuyển cho nhân viên.", "The AI is temporarily unavailable. This is existing guidance, your question has not been sent to a staff member.", locale)}
                 </p>
               )}
             {item.answer.webSearch === "unavailable" && (
               <p className="assistant-note">
-                {localized("Chưa tra cứu được web mới nhất; nguồn có sẵn được ghi ngày kiểm tra bên dưới.", "A live web search was unavailable. The available sources and their check dates are listed below.", locale)}
+                {localized("Chưa tra cứu được web mới nhất, nguồn có sẵn được ghi ngày kiểm tra bên dưới.", "A live web search was unavailable. The available sources and their check dates are listed below.", locale)}
               </p>
             )}
             {item.answer.sources.length > 0 && (

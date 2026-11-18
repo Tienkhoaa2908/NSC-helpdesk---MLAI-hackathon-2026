@@ -132,7 +132,7 @@ export function RequestDetail({ id }: { id: string }) {
         : request?.status === "COMPLETED"
           ? localized("Yêu cầu đã hoàn tất. Cảm ơn bạn đã cập nhật kết quả.", "This request is complete. Thank you for sharing the outcome.", locale)
           : request?.status === "APPROVED_BY_HUMAN"
-            ? localized("Nhân viên đã duyệt; đang chờ hoàn tất xử lý mô phỏng.", "A staff member approved this request; the simulated workflow is pending completion.", locale)
+            ? localized("Nhân viên đã duyệt, đang chờ hoàn tất xử lý mô phỏng.", "A staff member approved this request, the simulated workflow is pending completion.", locale)
             : "";
   return (
     <main
@@ -243,7 +243,7 @@ export function RequestDetail({ id }: { id: string }) {
             <Card className="followup-card">
               {request.feedback.at(-1)?.choice === "COMMENT" && (
                 <p role="status">
-                  {localized("Đã ghi nhận phản hồi. Yêu cầu vẫn mở; hãy xác nhận kết quả hoặc chọn chuyển cho nhân viên nếu cần.", "Your feedback was recorded. The request remains open; confirm the outcome or ask staff to review it.", locale)}
+                  {localized("Đã ghi nhận phản hồi. Yêu cầu vẫn mở, hãy xác nhận kết quả hoặc chọn chuyển cho nhân viên nếu cần.", "Your feedback was recorded. The request remains open, confirm the outcome or ask staff to review it.", locale)}
                 </p>
               )}
               <form
@@ -264,7 +264,7 @@ export function RequestDetail({ id }: { id: string }) {
                     <Textarea
                       aria-label={localized("Hỏi tiếp", "Ask a follow-up", locale)}
                       data-guide="sender-followup"
-                      placeholder={localized("Ví dụ: Tôi đã vào được rồi; hoặc bước tiếp theo là gì?", "For example: I can sign in now. What should I do next?", locale)}
+                      placeholder={localized("Ví dụ: Tôi đã vào được rồi, hoặc bước tiếp theo là gì?", "For example: I can sign in now. What should I do next?", locale)}
                       value={followup}
                       onChange={(event) => setFollowup(event.target.value)}
                       required

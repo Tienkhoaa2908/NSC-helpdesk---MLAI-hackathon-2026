@@ -177,11 +177,66 @@ it("leaves a failed credential delivery inactive and allows an Admin to retry", 
   await expect(decideAccountRequest(submitted.id, "APPROVE", "admin@gmail.com")).rejects.toMatchObject({ code: "ACCOUNT_CREDENTIAL_EMAIL_FAILED", status: 503 });
   expect(fake.rows.identity_password_accounts[0]).toMatchObject({ status: "PENDING_DELIVERY" });
   expect(fake.rows.identity_account_requests[0]).toMatchObject({ status: "PENDING", finalDecision: "APPROVED", notificationStatus: "FAILED" });
+  expect((await listAccountRequests("pending", 1)).items).toMatchObject([{ status: "DELIVERY_FAILED", email: "retry@gmail.com" }]);
+  expect((await listAccountRequests("all", 1)).items).toMatchObject([{ status: "DELIVERY_FAILED", email: "retry@gmail.com" }]);
 
   fake.failCredentials = false;
   await decideAccountRequest(submitted.id, "APPROVE", "admin@gmail.com");
   expect(fake.rows.identity_password_accounts[0].status).toBe("ACTIVE");
   expect(fake.rows.identity_account_requests[0]).toMatchObject({ status: "APPROVED", finalDecision: "APPROVED", approvalTokenHash: null });
+  expect((await listAccountRequests("all", 1)).items).toMatchObject([{ status: "ISSUED", email: "retry@gmail.com" }]);
+});
+
+it("shows active approval and rejection email sends as processing, then recovers expired leases", async () => {
+  const approvalId = "00000000-0000-4000-8000-000000000001";
+  const rejectionId = "00000000-0000-4000-8000-000000000002";
+  const approvedRetryId = "00000000-0000-4000-8000-000000000003";
+  const rejectedRetryId = "00000000-0000-4000-8000-000000000004";
+  const createdAt = new Date().toISOString();
+  const futureLease = new Date(Date.now() + 60_000);
+  const rows = fake.rows.identity_account_requests = [
+    {
+      id: approvalId, fullName: "Approval In Progress", email: "approval.inflight@gmail.com",
+      status: "PENDING", finalDecision: "APPROVED", notificationStatus: "PENDING",
+      processingUntil: futureLease, createdAt, updatedAt: createdAt,
+    },
+    {
+      id: rejectionId, fullName: "Rejection In Progress", email: "rejection.inflight@gmail.com",
+      status: "PENDING", finalDecision: "REJECTED", notificationStatus: "PENDING",
+      processingUntil: futureLease, createdAt, updatedAt: createdAt,
+    },
+    {
+      id: approvedRetryId, fullName: "Approved Retry In Progress", email: "approved.retry@gmail.com",
+      status: "APPROVED", finalDecision: "APPROVED", notificationStatus: "PENDING",
+      processingUntil: futureLease, createdAt, updatedAt: createdAt,
+    },
+    {
+      id: rejectedRetryId, fullName: "Rejected Retry In Progress", email: "rejected.retry@gmail.com",
+      status: "APPROVED", finalDecision: "REJECTED", notificationStatus: "PENDING",
+      processingUntil: futureLease, createdAt, updatedAt: createdAt,
+    },
+  ];
+  fake.rows.identity_password_accounts = [{
+    id: "existing-approved-retry-account", loginId: "approved.retry@gmail.com", email: "approved.retry@gmail.com",
+    fullName: "Approved Retry In Progress", passwordHash: "previous-hash", role: "requester", kind: "employee",
+    status: "PENDING_DELIVERY", applicationId: approvedRetryId, createdAt, updatedAt: createdAt,
+  }];
+
+  expect((await listAccountRequests("pending", 1)).items.map((item) => item.status))
+    .toEqual(["PROCESSING", "PROCESSING", "PROCESSING", "PROCESSING"]);
+  expect((await listAccountRequests("all", 1)).items.map((item) => item.status))
+    .toEqual(["PROCESSING", "PROCESSING", "PROCESSING", "PROCESSING"]);
+
+  for (const row of rows) row.processingUntil = new Date(Date.now() - 1);
+  expect((await listAccountRequests("pending", 1)).items.map((item) => item.status))
+    .toEqual(["DELIVERY_FAILED", "REJECTION_DELIVERY_FAILED", "DELIVERY_FAILED", "REJECTION_DELIVERY_FAILED"]);
+
+  await decideAccountRequest(approvalId, "APPROVE", "admin@gmail.com");
+  await decideAccountRequest(rejectionId, "REJECT", "admin@gmail.com");
+  await decideAccountRequest(approvedRetryId, "APPROVE", "admin@gmail.com");
+  await decideAccountRequest(rejectedRetryId, "REJECT", "admin@gmail.com");
+  expect((await listAccountRequests("all", 1)).items.map((item) => item.status))
+    .toEqual(["ISSUED", "REJECTED", "ISSUED", "REJECTED"]);
 });
 
 it("records a rejection, sends a fixed outcome email and allows retry if delivery fails", async () => {

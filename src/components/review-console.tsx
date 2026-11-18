@@ -230,7 +230,7 @@ export function ReviewConsole({ requestId, initialVerifyRunId }: { requestId?: s
       return true;
     } catch (error) {
       setError(
-        localizedError(error, locale, "Không thể cập nhật; chọn lại yêu cầu để tải phiên bản mới.", "Could not update the request. Select it again to load the latest version."),
+        localizedError(error, locale, "Không thể cập nhật, chọn lại yêu cầu để tải phiên bản mới.", "Could not update the request. Select it again to load the latest version."),
       );
       return false;
     } finally {

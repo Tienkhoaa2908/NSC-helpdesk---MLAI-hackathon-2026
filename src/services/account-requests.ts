@@ -86,22 +86,43 @@ export async function submitAccountRequest(value: unknown) {
 
 export async function listAccountRequests(status: "pending" | "all", page: number) {
   const { db } = await identityStore();
+  const now = new Date();
   const query: Filter<AccountRequest> = status === "pending"
-    ? { $or: [{ status: "PENDING" }, { status: "APPROVED", finalDecision: "REJECTED", notificationStatus: "FAILED" }] }
+    ? { $or: [
+        { status: "PENDING" },
+        { status: "APPROVED", finalDecision: "APPROVED", $or: [
+          { notificationStatus: "FAILED" },
+          { notificationStatus: "PENDING", processingUntil: { $exists: true } },
+        ] },
+        { status: "APPROVED", finalDecision: "REJECTED", $or: [
+          { notificationStatus: "FAILED" },
+          { notificationStatus: "PENDING", processingUntil: { $exists: true } },
+        ] },
+      ] }
     : {};
   const rows = await db.collection<AccountRequest>("identity_account_requests").find(query, {
-    projection: { _id: 0, id: 1, fullName: 1, email: 1, status: 1, finalDecision: 1, notificationStatus: 1, createdAt: 1, updatedAt: 1, approvedAt: 1 },
+    projection: { _id: 0, id: 1, fullName: 1, email: 1, status: 1, finalDecision: 1, notificationStatus: 1, processingUntil: 1, createdAt: 1, updatedAt: 1, approvedAt: 1 },
   }).sort({ createdAt: -1, id: 1 }).skip((page - 1) * 50).limit(51).toArray();
   return {
     items: rows.slice(0, 50).map((row) => ({
       id: row.id,
       fullName: row.fullName,
       email: row.email,
-      status: row.finalDecision === "REJECTED"
-        ? row.notificationStatus === "FAILED" ? "REJECTION_DELIVERY_FAILED" as const : "REJECTED" as const
-        : row.status === "APPROVED" || row.finalDecision === "APPROVED"
-          ? "ISSUED" as const
-          : row.notificationStatus === "FAILED" ? "DELIVERY_FAILED" as const : "PENDING" as const,
+      status: row.processingUntil && row.processingUntil > now
+        ? "PROCESSING" as const
+        : row.finalDecision === "REJECTED"
+          ? row.status === "APPROVED" && row.notificationStatus === "SENT"
+            ? "REJECTED" as const
+            : row.notificationStatus === "FAILED" || (row.processingUntil && row.processingUntil <= now)
+              ? "REJECTION_DELIVERY_FAILED" as const
+              : "PENDING" as const
+          : row.finalDecision === "APPROVED"
+            ? row.status === "APPROVED" && row.notificationStatus === "SENT"
+              ? "ISSUED" as const
+              : row.notificationStatus === "FAILED" || row.notificationStatus === "PENDING" || (row.processingUntil && row.processingUntil <= now)
+                ? "DELIVERY_FAILED" as const
+                : "PENDING" as const
+            : row.notificationStatus === "FAILED" ? "DELIVERY_FAILED" as const : "PENDING" as const,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
     })),
@@ -119,10 +140,10 @@ async function claimPendingRequest(requestId: string, actor: string, finalDecisi
     if (current.processingUntil && current.processingUntil > now)
       throw new SupportError("ACCOUNT_REQUEST_PROCESSING", "Yêu cầu này đang được xử lý. Hãy thử lại sau.", 409);
 
-    const retryingRejectedDelivery = finalDecision === "REJECTED" && current.status === "APPROVED" &&
-      current.finalDecision === "REJECTED" && current.notificationStatus === "FAILED";
+    const retryingDelivery = current.status === "APPROVED" && current.finalDecision === finalDecision &&
+      (current.notificationStatus === "FAILED" || current.notificationStatus === "PENDING");
     const isPending = current.status === "PENDING";
-    if (!isPending && !retryingRejectedDelivery)
+    if (!isPending && !retryingDelivery)
       throw new SupportError("ACCOUNT_REQUEST_ALREADY_DECIDED", "Yêu cầu này đã được xử lý.", 409);
     if (isPending && current.finalDecision && current.finalDecision !== finalDecision && current.notificationStatus !== "FAILED")
       throw new SupportError("ACCOUNT_REQUEST_ALREADY_DECIDED", "Yêu cầu này đã được xử lý.", 409);
@@ -206,7 +227,7 @@ async function approveAccountRequest(requestId: string, actor: string) {
   const accounts = db.collection<PasswordAccount>("identity_password_accounts");
   const existing = await accounts.findOne({ loginId: request.email });
   if (existing && (existing.applicationId !== request.id || existing.status !== "PENDING_DELIVERY")) {
-    await db.collection<AccountRequest>("identity_account_requests").updateOne({ id: request.id, status: "PENDING", finalDecision: "APPROVED" }, {
+    await db.collection<AccountRequest>("identity_account_requests").updateOne({ id: request.id, status: request.status, finalDecision: "APPROVED" }, {
       $set: { notificationStatus: "FAILED", updatedAt: new Date().toISOString() }, $unset: { processingUntil: "" },
     });
     throw new SupportError("ACCOUNT_ALREADY_ACTIVE", "Email này đã được liên kết với một tài khoản khác.", 409);
@@ -231,7 +252,7 @@ async function approveAccountRequest(requestId: string, actor: string) {
       await accounts.insertOne(account);
     } catch (error) {
       if (error instanceof MongoServerError && error.code === 11000) {
-        await db.collection<AccountRequest>("identity_account_requests").updateOne({ id: request.id, status: "PENDING", finalDecision: "APPROVED" }, {
+        await db.collection<AccountRequest>("identity_account_requests").updateOne({ id: request.id, status: request.status, finalDecision: "APPROVED" }, {
           $set: { notificationStatus: "FAILED", updatedAt: new Date().toISOString() }, $unset: { processingUntil: "" },
         });
         throw new SupportError("ACCOUNT_ALREADY_ACTIVE", "Email này đã được liên kết với một tài khoản khác.", 409);
@@ -247,7 +268,7 @@ async function approveAccountRequest(requestId: string, actor: string) {
       await transactionDb.collection<PasswordAccount>("identity_password_accounts").updateOne({ id: account.id, status: "PENDING_DELIVERY" }, {
         $set: { updatedAt: new Date().toISOString() },
       }, { session: transactionSession });
-      await transactionDb.collection<AccountRequest>("identity_account_requests").updateOne({ id: request.id, status: "PENDING", finalDecision: "APPROVED" }, {
+      await transactionDb.collection<AccountRequest>("identity_account_requests").updateOne({ id: request.id, status: request.status, finalDecision: "APPROVED" }, {
         $set: { notificationStatus: "FAILED", updatedAt: new Date().toISOString() }, $unset: { processingUntil: "" },
       }, { session: transactionSession });
       await transactionDb.collection("identity_audit").insertOne({
@@ -264,7 +285,7 @@ async function approveAccountRequest(requestId: string, actor: string) {
       id: account.id, status: "PENDING_DELIVERY", passwordHash,
     }, { $set: { status: "ACTIVE", updatedAt: new Date().toISOString() } }, { session: transactionSession });
     const completed = await transactionDb.collection<AccountRequest>("identity_account_requests").updateOne({
-      id: request.id, status: "PENDING", finalDecision: "APPROVED",
+      id: request.id, status: request.status, finalDecision: "APPROVED",
     }, { $set: {
       status: "APPROVED",
       notificationStatus: "SENT",

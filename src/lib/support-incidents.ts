@@ -4,6 +4,7 @@ import type { SupportRequest } from "@/domain/contracts";
 import { incidentTopic, incidentMessages, INCIDENT_TTL_MS, type IncidentTopic } from "@/domain/shared-support";
 import { POLICY_VERSION } from "@/domain/policy-source";
 import { supportDatabase, SupportError, listSupportRequests } from "./support-repository";
+import { isVerifyOnlySupportScope } from "./support-data-scope";
 
 export type IncidentUpdate = { id: string; at: string; actor: string; state: keyof typeof incidentMessages; message: string };
 type Incident = { _id: string; activeKey?: string; topic: IncidentTopic; site: string; policyVersion: string; createdAt: Date; expiresAt: Date; version: number; closed: boolean; updates: IncidentUpdate[] };
@@ -66,10 +67,12 @@ export async function joinIncident(request: Pick<SupportRequest, "input" | "cano
 const view = (r: Incident): IncidentView => ({ id: r._id, topic: r.topic, site: r.site, version: r.version,
   expiresAt: r.expiresAt.toISOString(), expired: +r.expiresAt <= Date.now(), closed: r.closed, updates: r.updates });
 export async function incidentView(id: string): Promise<IncidentView | undefined> {
+  if (isVerifyOnlySupportScope()) return undefined;
   const c = await collection(), row = c ? await c.findOne({ _id: id }) : memory.get(id);
   return row ? view(row) : undefined;
 }
 export async function incidentQueue() {
+  if (isVerifyOnlySupportScope()) return [];
   const c = await collection();
   const rows = c ? await c.find({ closed: false, expiresAt: { $gt: new Date() } }).sort({ createdAt: -1 }).limit(50).toArray() :
     [...memory.values()].filter(r => !r.closed && +r.expiresAt > Date.now()).sort((a,b) => +b.createdAt - +a.createdAt).slice(0,50);
@@ -90,6 +93,7 @@ export async function incidentQueue() {
 }
 const publishSchema = z.object({ version: z.number().int().nonnegative(), state: z.enum(["INVESTIGATING", "MONITORING", "RESOLVED"]), updateId: z.string().uuid() }).strict();
 export async function publishIncident(id: string, input: unknown, actor: string): Promise<IncidentView> {
+  if (isVerifyOnlySupportScope()) throw new SupportError("NOT_FOUND", "Không tìm thấy nhóm sự cố.", 404);
   const body = publishSchema.parse(input), c = await collection();
   const row = c ? await c.findOne({ _id: id }) : memory.get(id);
   if (!row) throw new SupportError("NOT_FOUND", "Không tìm thấy nhóm sự cố.", 404);

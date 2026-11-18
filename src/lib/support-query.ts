@@ -15,6 +15,7 @@ import { employeeIdPattern, normalizeEmployeeId } from "@/domain/employee-identi
 import type { GroupCandidate } from "@/domain/request-groups";
 import { supportDivisions, requestDivision, divisionForGroup, type SupportDivision } from "@/domain/support-divisions";
 import { serviceGroups } from "@/domain/contracts";
+import { constrainSupportRequestFilter, supportRequestScopeFilter } from "./support-data-scope";
 
 const querySchema = z.object({
   division: z.enum(supportDivisions).optional(),
@@ -101,7 +102,7 @@ function filterFor(query: SupportQuery): Filter<Row> {
     if (employeeIdPattern.test(employeeId))
       filter.$or.push({ "data.input.fields.employeeId": employeeId });
   }
-  return filter;
+  return constrainSupportRequestFilter(filter);
 }
 async function memoryRows(query: SupportQuery) {
   // Only used for explicitly temporary local tests/development.
@@ -311,9 +312,11 @@ export async function auditPage(
 export async function supportMetrics() {
   const db = supportDatabase();
   if (db) {
+    const scopeFilter = supportRequestScopeFilter<Row>();
     const result = await db
       .collection<Row>("v3_support_requests")
       .aggregate<ReturnType<typeof countMetrics>>([
+        ...(Object.keys(scopeFilter).length ? [{ $match: scopeFilter }] : []),
         {
           $group: {
             _id: null,

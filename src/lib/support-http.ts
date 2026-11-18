@@ -7,6 +7,8 @@ import { safeInput } from "@/domain/text";
 import { validateVerificationInput } from "@/services/verification";
 import { identityPrincipalForRequest } from "./identity-auth";
 import { isGuestDepartment } from "@/domain/guest-session";
+import { withSupportRequestScope } from "./support-data-scope";
+import { listDemoVerifyGrants } from "./verify-repository";
 
 type RateWindow = { startedAt: number; count: number };
 type SupportHttpRuntime = { supportRateLimits?: Map<string, RateWindow> };
@@ -97,16 +99,35 @@ export async function requireDemoReviewer(request: Request) {
     return `demo-reviewer:${principal.id}`;
   throw new SupportError("IT_AUTHORITY_REQUIRED", "Tài khoản này chưa có quyền xem khu vực xử lý hỗ trợ.", 403);
 }
+
+/** Run a reviewer operation with the data boundary associated with its actor. */
+export async function withDemoReviewerDataScope<T>(
+  actor: string,
+  work: () => Promise<T>,
+): Promise<T> {
+  if (actor.startsWith("identity-admin:"))
+    return withSupportRequestScope({ mode: "all" }, work);
+  if (!actor.startsWith("demo-reviewer:"))
+    throw new SupportError("IT_AUTHORITY_REQUIRED", "Tài khoản này chưa có quyền xem khu vực xử lý hỗ trợ.", 403);
+  return withSupportRequestScope(
+    { mode: "verify-only", grants: await listDemoVerifyGrants() },
+    work,
+  );
+}
+
 export async function requireEmployeeIdentity(value: unknown, request?: Request) {
   const input = supportInputSchema.parse(value);
   if (!request) throw new SupportError("AUTHENTICATION_REQUIRED", "Đăng nhập bằng ID nhân viên và mật khẩu để gửi yêu cầu hỗ trợ.", 401);
   const principal = await identityPrincipalForRequest(request);
   // Only an exact fixture in a server-created Verify run can use the synthetic path.
-  // The employee UI cannot submit a reviewer fixture. Validate it against the
-  // server-created run only after the caller has proved admin authority.
   if (input.verifyRunId) {
-    if (principal.status !== "ADMIN" || !principal.canReviewIds)
+    const adminMayRunVerify = principal.status === "ADMIN" && principal.canReviewIds;
+    const publicDemoMayRunVerify = principal.status === "ACTIVE" &&
+      process.env.SUPPORT_ACCESS_MODE === "public-demo";
+    if (!adminMayRunVerify && !publicDemoMayRunVerify)
       throw new SupportError("IT_AUTHORITY_REQUIRED", "Chỉ quản trị viên mới có thể chạy bộ kiểm thử Verify.", 403);
+    // Requesters may run only exact server-owned Verify cases in public-demo.
+    // Arbitrary requests cannot use this path or acquire reviewer data access.
     await validateVerificationInput(safeInput(input).input);
     return input;
   }

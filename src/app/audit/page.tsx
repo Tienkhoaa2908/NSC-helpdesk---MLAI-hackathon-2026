@@ -97,7 +97,7 @@ export default function AuditPage() {
           </div>
         </header>
         <p>
-          {t("Tìm bằng mã nhân viên, nội dung hoặc mã yêu cầu. Các trang tiếp theo vẫn có thể tra cứu hồ sơ cũ; case Verify có bộ lọc riêng.", "Search by employee ID, request text, or request ID. Later pages remain searchable; Verify cases have a separate filter.")}
+          {t("Tìm bằng mã nhân viên, nội dung hoặc mã yêu cầu. Các trang tiếp theo vẫn có thể tra cứu hồ sơ cũ, case Verify có bộ lọc riêng.", "Search by employee ID, request text, or request ID. Later pages remain searchable, Verify cases have a separate filter.")}
         </p>
         {metrics && (
           <Card>
@@ -109,7 +109,7 @@ export default function AuditPage() {
               ].map(([label, count]) => <div key={label}><dt>{label}</dt><dd>{number.format(Number(count))}</dd></div>)}
             </dl>
             <p className="text-sm">
-              {t("Tổng số dữ liệu demo đã lưu, gồm Verify; không phải số liệu đo trên người dùng thật.", "Total saved demo data, including Verify; these are not measurements from real users.")}
+              {t("Tổng số dữ liệu demo đã lưu, gồm Verify, không phải số liệu đo trên người dùng thật.", "Total saved demo data, including Verify, these are not measurements from real users.")}
             </p>
           </Card>
         )}

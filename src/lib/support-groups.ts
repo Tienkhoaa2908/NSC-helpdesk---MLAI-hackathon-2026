@@ -7,6 +7,7 @@ import { REVIEW_MESSAGE_MAX_LENGTH } from "@/domain/reviewer-messages";
 import { listSupportRequests, supportDatabase, SupportError } from "./support-repository";
 import { matchesSupportQuery, summarizeSupport, supportDivisionFilter, type SupportQuery } from "./support-query";
 import { requestDivision, type SupportDivision } from "@/domain/support-divisions";
+import { constrainSupportRequestFilter, supportRequestIdIsInScope } from "./support-data-scope";
 
 type Group = { id: string; topic: string; members: GroupCandidate[] };
 type ReplyRecord = {
@@ -23,6 +24,9 @@ const runtime = globalThis as typeof globalThis & { supportGroupReplies?: Map<st
 const memory = (): Map<string, ReplyRecord> => runtime.supportGroupReplies ??= new Map<string, ReplyRecord>();
 const digest = (value: unknown) => createHash("sha256").update(JSON.stringify(value)).digest("hex");
 const groupIdSchema = z.string().regex(/^[a-f0-9]{64}$/);
+function replyIsInScope(row: ReplyRecord) {
+  return row.recipients.every((recipient) => supportRequestIdIsInScope(recipient.id));
+}
 
 /** Read compact candidates, not assistance/audit payloads. Group before paging,
  * including legacy requests without requiring a production data migration. */
@@ -30,7 +34,7 @@ async function candidates(division?: SupportDivision): Promise<GroupCandidate[]>
   const db = supportDatabase();
   if (!db) return (await listSupportRequests(true)).filter(row => !division || requestDivision(row) === division);
   const rows = await db.collection<{ _id: string; data: GroupCandidate }>("v3_support_requests")
-    .find(division ? supportDivisionFilter(division) : {}, { projection: {
+    .find(constrainSupportRequestFilter(division ? supportDivisionFilter(division) : {}), { projection: {
       "data.id": 1, "data.version": 1, "data.status": 1, "data.input": 1,
       "data.originalQuestion": 1, "data.createdAt": 1, "data.updatedAt": 1,
       "data.incidentId": 1, "data.canonical": 1, "data.decision": 1,
@@ -95,14 +99,14 @@ async function groupReplies(groupId: string) {
   const collection = await replyCollection();
   const rows = collection ? await collection.find({ groupId }).sort({ timestamp: 1, _id: 1 }).toArray()
     : [...memory().values()].filter(row => row.groupId === groupId).sort((a, b) => a.timestamp.localeCompare(b.timestamp) || a._id.localeCompare(b._id));
-  return rows.map(row => ({ id: row._id, timestamp: row.timestamp, text: row.text, recipientCount: row.recipients.length }));
+  return rows.filter(replyIsInScope).map(row => ({ id: row._id, timestamp: row.timestamp, text: row.text, recipientCount: row.recipients.length }));
 }
 export async function sharedRepliesForRequest(id: string): Promise<SharedReply[]> {
   const collection = await replyCollection();
   const rows = collection ? await collection.find({ "recipients.id": id }).sort({ timestamp: 1, _id: 1 }).toArray()
     : [...memory().values()].filter(row => row.recipients.some(recipient => recipient.id === id));
   // Never expose another sender's ID, membership or request content here.
-  return rows.map(row => ({ id: row._id, timestamp: row.timestamp, text: row.text }))
+  return rows.filter(replyIsInScope).map(row => ({ id: row._id, timestamp: row.timestamp, text: row.text }))
     .sort((a, b) => a.timestamp.localeCompare(b.timestamp) || a.id.localeCompare(b.id));
 }
 export async function getRequestGroup(id: string): Promise<RequestGroupDetail> {
@@ -131,7 +135,10 @@ export async function sendGroupReply(id: string, value: unknown, actor: string) 
     return { id: row._id, recipientCount: row.recipients.length };
   };
   const prior = collection ? await collection.findOne({ _id: input.sendId }) : memory().get(input.sendId);
-  if (prior) return receipt(prior);
+  if (prior) {
+    if (!replyIsInScope(prior)) throw new SupportError("GROUP_NOT_FOUND", "Không tìm thấy nhóm đang mở.", 404);
+    return receipt(prior);
+  }
   const group = groupsFor(await candidates()).get(id);
   if (!group || membership(group) !== input.membership)
     throw new SupportError("GROUP_CHANGED", "Nhóm đã thay đổi. Tải lại danh sách trước khi gửi.", 409);

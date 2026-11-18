@@ -4,6 +4,10 @@ import type {
   SupportPreview,
   SupportSummary,
 } from "@/domain/contracts";
+import {
+  supportRequestIsInScope,
+  supportRequestScopeFilter,
+} from "./support-data-scope";
 
 export class SupportError extends Error {
   constructor(
@@ -87,32 +91,35 @@ export async function getSupportRequest(
 ): Promise<SupportRequest | null> {
   const db = supportDatabase();
   const row = db
-    ? await supportRequests(db).findOne({ _id: id }, { projection: { data: 1 } })
+    ? await supportRequests(db).findOne({ _id: id, ...supportRequestScopeFilter<Document>() }, { projection: { data: 1 } })
     : null;
-  const stored = db ? row?.data : memory().get(id)?.request;
+  const inMemory = db ? undefined : memory().get(id)?.request;
+  const stored = db ? row?.data : inMemory && supportRequestIsInScope(inMemory) ? inMemory : undefined;
   return stored ? structuredClone(stored) : null;
 }
 export async function getSupportRequestTrackingHash(id: string): Promise<string | null> {
   const db = supportDatabase();
   if (db) {
     const row = await supportRequests(db).findOne(
-      { _id: id },
+      { _id: id, ...supportRequestScopeFilter<Document>() },
       { projection: { _id: 0, trackingTokenHash: 1 } },
     );
     return typeof row?.trackingTokenHash === "string" ? row.trackingTokenHash : null;
   }
-  return memory().get(id)?.trackingTokenHash ?? null;
+  const stored = memory().get(id);
+  return stored && supportRequestIsInScope(stored.request) ? stored.trackingTokenHash ?? null : null;
 }
 export async function getSupportRequestTrackingProofHash(id: string): Promise<string | null> {
   const db = supportDatabase();
   if (db) {
     const row = await supportRequests(db).findOne(
-      { _id: id },
+      { _id: id, ...supportRequestScopeFilter<Document>() },
       { projection: { _id: 0, trackingProofHash: 1 } },
     );
     return typeof row?.trackingProofHash === "string" ? row.trackingProofHash : null;
   }
-  return memory().get(id)?.trackingProofHash ?? null;
+  const stored = memory().get(id);
+  return stored && supportRequestIsInScope(stored.request) ? stored.trackingProofHash ?? null : null;
 }
 export async function listSupportRequests(
   allForLocal = false,
@@ -122,14 +129,14 @@ export async function listSupportRequests(
     await ensureSupportRequestIndexes(db);
     return (
       await supportRequests(db)
-        .find()
+        .find(supportRequestScopeFilter<Document>())
         .sort({ "data.updatedAt": -1 })
         .limit(200)
         .toArray()
     ).map((row) => row.data);
   }
   return structuredClone(
-    [...memory().values()].map((row) => row.request)
+    [...memory().values()].map((row) => row.request).filter(supportRequestIsInScope)
       .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
       .slice(0, allForLocal ? undefined : 200),
   );
@@ -179,7 +186,7 @@ export async function updateSupportRequest(
   if (db) {
     const result = await db
       .collection<Document>("v3_support_requests")
-      .replaceOne({ _id: id, "data.version": version }, { data: draft, ...(trackingTokenHash ? { trackingTokenHash } : {}), ...(trackingProofHash ? { trackingProofHash } : {}) });
+      .replaceOne({ _id: id, "data.version": version, ...supportRequestScopeFilter<Document>() }, { data: draft, ...(trackingTokenHash ? { trackingTokenHash } : {}), ...(trackingProofHash ? { trackingProofHash } : {}) });
     if (!result.matchedCount)
       throw new SupportError(
         "VERSION_CONFLICT",
@@ -261,7 +268,7 @@ export async function listSupportSummaries(): Promise<SupportSummary[]> {
     ? (
         await supportRequests(db)
           .find(
-            {},
+            supportRequestScopeFilter<Document>(),
             {
               projection: {
                 "data.id": 1,

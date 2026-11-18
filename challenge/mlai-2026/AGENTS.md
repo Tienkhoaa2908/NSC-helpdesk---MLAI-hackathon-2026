@@ -14,13 +14,13 @@ Các agent làm việc trong repository này phải đọc `PROJECT-MEMORY.md` t
 - Giữ hàm ngắn, tên nghiệp vụ rõ và control flow dễ theo dõi.
 - Tách riêng: input validation, LLM extraction, policy evaluation, safety validation, action execution, audit và UI.
 - LLM chỉ đề xuất structured facts, evidence, explanation và escalation question. Quyết định cuối cùng phải qua deterministic validation.
-- Policy phải là dữ liệu/config có `rule_id`; không hard-code kết quả theo câu chữ của Verify case.
+- Policy phải là dữ liệu/config có `rule_id`, không hard-code kết quả theo câu chữ của Verify case.
 - Khi nhiều rule cùng khớp, ưu tiên mặc định: `SECURITY_RISK` → `BEYOND_AUTHORITY` → `MISSING_INFO` → `AUTO`.
 - Nếu output LLM sai schema, thiếu bằng chứng, mâu thuẫn hoặc quá mơ hồ, hệ thống phải fail safely bằng escalation.
 - Không xác nhận approved/completed cho ticket thuộc bất kỳ nhánh escalation nào.
-- Explanation phải dựa trên matched rules và evidence; không lưu hoặc yêu cầu chain-of-thought.
+- Explanation phải dựa trên matched rules và evidence, không lưu hoặc yêu cầu chain-of-thought.
 - Audit log phải ghi timestamp, input hoặc bản đã redact, action, bucket, matched rules, evidence, explanation, escalation question và human override nếu có.
-- Dùng synthetic hoặc anonymized data theo `PROJECT-MEMORY.md`; không đưa dữ liệu nhạy cảm vào repository.
+- Dùng synthetic hoặc anonymized data theo `PROJECT-MEMORY.md`, không đưa dữ liệu nhạy cảm vào repository.
 
 ## Yêu cầu đối với mỗi thay đổi code
 

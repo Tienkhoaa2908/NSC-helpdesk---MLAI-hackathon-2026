@@ -1,4 +1,6 @@
 import type { VerifyRun } from "@/domain/verification";
+import type { DemoVerifyGrant } from "./support-data-scope";
+import { judgePackIds, supportVerifyCases } from "./support-verify";
 import { supportDatabase, SupportError } from "./support-repository";
 const runtime = globalThis as typeof globalThis & {
   supportVerifyRuns?: Map<string, VerifyRun>;
@@ -44,6 +46,37 @@ export async function listVerifyRuns() {
     passed: run.results.filter((r) => r.pass).length,
   }));
 }
+
+/**
+ * Public demo reviewers may inspect only support rows created from the
+ * server-owned Verify cases. Match the run's pack and case IDs before
+ * granting access to a persisted request ID.
+ */
+export async function listDemoVerifyGrants(): Promise<DemoVerifyGrant[]> {
+  const db = supportDatabase();
+  const runs = db
+    ? await db
+        .collection<VerifyRun>("v3_verify_runs")
+        .find({ pack: { $in: [...judgePackIds] } }, { projection: { _id: 0 } })
+        .sort({ createdAt: -1 })
+        .limit(20)
+        .toArray()
+    : [...memory().values()]
+        .filter((run) => judgePackIds.includes(run.pack))
+        .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+        .slice(0, 20);
+  const knownCasesByPack = new Map<string, Set<string>>();
+  for (const item of supportVerifyCases) {
+    const knownCases = knownCasesByPack.get(item.pack) ?? new Set<string>();
+    knownCases.add(item.id);
+    knownCasesByPack.set(item.pack, knownCases);
+  }
+  return runs.map((run) => ({
+    runId: run.id,
+    cases: run.cases.filter((item) => knownCasesByPack.get(run.pack)?.has(item.caseId)),
+  }));
+}
+
 export async function updateVerifyRun(
   id: string,
   update: (run: VerifyRun) => void,

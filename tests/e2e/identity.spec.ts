@@ -23,7 +23,7 @@ test("home exposes sign-in, registration and a persistent English switch", async
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
 
-test("employee sign-in sends the employee ID and password, then opens the protected requester form", async ({ page }) => {
+test("employee sign-in sends the employee ID and password, then opens the protected requester form", async ({ requesterPage: page }) => {
   let signedIn = false;
   await page.route("**/api/identity/session", (route) => signedIn
     ? route.fulfill({ json: { success: true, data: { status: "ACTIVE", id: "guest01", name: "Tài khoản trải nghiệm", email: null } } })
@@ -63,20 +63,20 @@ test("employee sign-in sends the employee ID and password, then opens the protec
 
 test("employee and Admin guides match the public demo access and issuance workflow in both locales", async ({ page }) => {
   await page.goto("/help/employee");
-  await expect(page.getByText(/Trong public-demo, requester đã đăng nhập có thể trải nghiệm hàng đợi Support/)).toBeVisible();
+  await expect(page.getByText(/Trong public-demo, requester đã đăng nhập chỉ xem và thao tác hồ sơ gắn với các ca Verify do server tạo/)).toBeVisible();
   await page.getByRole("button", { name: "Chuyển sang tiếng Anh" }).click();
-  await expect(page.getByText(/In public-demo mode, signed-in requester accounts can explore the Support queue/)).toBeVisible();
-  await expect(page.getByText(/Account requests and approval actions are Admin-only/)).toBeVisible();
+  await expect(page.getByText(/In public-demo mode, signed-in requester accounts can view and act only on records linked to server-created Verify fixtures/)).toBeVisible();
+  await expect(page.getByText(/Account applications and decisions are Admin-only/)).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 
   await page.getByRole("button", { name: "Switch to Vietnamese" }).click();
-  await expect(page.getByText(/Trong public-demo, requester đã đăng nhập có thể trải nghiệm hàng đợi Support/)).toBeVisible();
+  await expect(page.getByText(/Trong public-demo, requester đã đăng nhập chỉ xem và thao tác hồ sơ gắn với các ca Verify do server tạo/)).toBeVisible();
   await page.goto("/help/admin");
-  await expect(page.getByText(/Email thông báo chỉ mở danh sách; Admin đăng nhập rồi chọn quyết định/)).toBeVisible();
+  await expect(page.getByText(/thư thông báo có liên kết tới danh sách riêng\. Admin đăng nhập rồi chọn quyết định/)).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 
   await page.getByRole("button", { name: "Chuyển sang tiếng Anh" }).click();
-  await expect(page.getByText(/The notification email only opens the list/)).toBeVisible();
+  await expect(page.getByText(/When email is enabled and all required mail settings are configured, the system sends an Admin a notification with a link to the private request list/)).toBeVisible();
 });
 
 test("invalid credentials are shown without creating a session", async ({ page }) => {

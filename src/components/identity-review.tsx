@@ -11,7 +11,7 @@ type AccountRequest = {
   id: string;
   fullName: string;
   email: string;
-  status: "PENDING" | "ISSUED" | "REJECTED" | "DELIVERY_FAILED" | "REJECTION_DELIVERY_FAILED";
+  status: "PENDING" | "PROCESSING" | "ISSUED" | "REJECTED" | "DELIVERY_FAILED" | "REJECTION_DELIVERY_FAILED";
   createdAt: string;
   updatedAt: string;
 };
@@ -19,6 +19,7 @@ type AccountRequest = {
 function statusLabel(status: AccountRequest["status"], locale: "vi" | "en") {
   const labels = {
     PENDING: ["Chờ Admin xử lý", "Pending Admin review"],
+    PROCESSING: ["Đang gửi email kết quả", "Sending decision email"],
     ISSUED: ["Đã gửi tài khoản", "Account issued"],
     REJECTED: ["Đã từ chối", "Request rejected"],
     DELIVERY_FAILED: ["Gửi thông tin đăng nhập thất bại", "Credential delivery failed"],
@@ -82,7 +83,7 @@ export function IdentityReview() {
           <div>
             <span className="eyebrow">{localized("QUẢN TRỊ TÀI KHOẢN", "ACCOUNT ADMIN", locale)}</span>
             <h1>{localized("Yêu cầu cấp tài khoản", "Account requests", locale)}</h1>
-            <p>{localized("Danh sách chỉ dành cho Admin. Mở email thông báo sẽ đưa bạn tới đây; thao tác xác nhận hoặc từ chối cần đăng nhập Admin và bấm nút tương ứng.", "This list is private to the Admin. The notification email opens this page; approving or rejecting requires an Admin sign-in and an explicit action.", locale)}</p>
+            <p>{localized("Danh sách chỉ dành cho Admin. Email thông báo mở danh sách riêng. Để xác nhận hoặc từ chối, hãy đăng nhập Admin rồi bấm nút tương ứng.", "This list is private to the Admin. The notification email opens it. An Admin must sign in and choose an explicit action to approve or reject a request.", locale)}</p>
           </div>
           <Button variant="secondary" disabled={busy} onClick={() => void load(status)}>
             {busy ? localized("Đang tải…", "Loading…", locale) : localized("Tải lại danh sách", "Refresh", locale)}

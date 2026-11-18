@@ -285,7 +285,7 @@ export function ReviewDetail({
             <div data-guide="reviewer-actions">
               <div className="it-primary-actions">
                 {actionButton("SEND_MESSAGE", "primary")}
-                <p className="it-field-hint">{t("Tin nhắn hiện trên trang theo dõi của người gửi; gửi tin nhắn không thay đổi trạng thái yêu cầu.", "The requester can see this message on the tracking page. Sending a message does not change the request status.")}</p>
+                <p className="it-field-hint">{t("Tin nhắn hiện trên trang theo dõi của người gửi, gửi tin nhắn không thay đổi trạng thái yêu cầu.", "The requester can see this message on the tracking page. Sending a message does not change the request status.")}</p>
                 {actionButton("APPROVE")}
                 {actionButton("REQUEST_INFORMATION")}
               </div>

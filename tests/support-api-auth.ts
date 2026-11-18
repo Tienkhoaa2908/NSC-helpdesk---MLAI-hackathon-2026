@@ -18,7 +18,7 @@ export function mockSupportReviewAuthorization() {
       throw new SupportError("AUTHENTICATION_REQUIRED", "Authentication required.", 401);
     if (mode === "requester")
       throw new SupportError("IT_AUTHORITY_REQUIRED", "Administrator access required.", 403);
-    return "unit-test-admin";
+    return "identity-admin:unit-test-admin";
   });
 
 }

@@ -372,7 +372,7 @@ export function SupportWorkspace() {
             </label>
             {incidentTopic(input.rawText) && <label>{localized("Khu vực sự cố (để nhận cập nhật chung)", "Incident location (for shared updates)", locale)}
               <input aria-label={localized("Khu vực sự cố", "Incident location", locale)} value={input.fields.incidentSite || ""} maxLength={40} pattern="[A-Za-z0-9][A-Za-z0-9_-]+" placeholder={localized("Mã khu vực, ví dụ DEMO-HQ", "Location code, e.g. DEMO-HQ", locale)} onChange={event => edit({ fields: { ...input.fields, incidentSite: event.target.value } })} />
-              <span className="field-hint">{localized("Dùng cùng mã khu vực với đồng nghiệp. Bỏ trống nếu chưa biết; yêu cầu vẫn được tiếp nhận riêng. Không nhập tên người hoặc địa chỉ.", "Use the same location code as colleagues. Leave blank if unknown; your request is still handled separately. Do not enter a person's name or address.", locale)}</span>
+              <span className="field-hint">{localized("Dùng cùng mã khu vực với đồng nghiệp. Bỏ trống nếu chưa biết, yêu cầu vẫn được tiếp nhận riêng. Không nhập tên người hoặc địa chỉ.", "Use the same location code as colleagues. Leave blank if unknown, your request is still handled separately. Do not enter a person's name or address.", locale)}</span>
             </label>}
           </fieldset>
           {error && <Alert tone="error">{error}</Alert>}

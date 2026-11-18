@@ -29,7 +29,7 @@ export function AssistanceHistory({
                 : item.source === "mock"
                   ? localized("Hướng dẫn mẫu", "Sample guidance", locale)
                   : item.source === "openai" || item.source === "gemini"
-                    ? localized("Trợ lý giải thích theo tình huống; bước thao tác đã kiểm duyệt", "Contextual assistant response; action steps reviewed", locale)
+                    ? localized("Trợ lý giải thích theo tình huống, bước thao tác đã kiểm duyệt", "Contextual assistant response, action steps reviewed", locale)
                     : localized("Hướng dẫn an toàn", "Safe guidance", locale)}{" "}
               · {new Intl.DateTimeFormat(locale === "vi" ? "vi-VN" : "en-US", { dateStyle: "medium", timeStyle: "short" }).format(new Date(item.timestamp))}
             </p>

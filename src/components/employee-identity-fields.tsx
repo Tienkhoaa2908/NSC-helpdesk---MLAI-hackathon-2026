@@ -52,7 +52,7 @@ export function EmployeeIdentityFields({
             onChange({ ...fields, employeeId: event.target.value })
           }
         />
-        <span className="field-hint">{lockedId ? localized("ID từ phiên hiện tại; đăng xuất để đổi ID.", "ID from the current session; sign out to change it.", locale) : localized("Dùng ID demo hoặc Gmail đã đăng ký. ID demo chưa xác minh danh tính.", "Use a demo ID or a registered Gmail address. Demo IDs do not verify identity.", locale)}</span>
+        <span className="field-hint">{lockedId ? localized("ID từ phiên hiện tại, đăng xuất để đổi ID.", "ID from the current session, sign out to change it.", locale) : localized("Dùng ID demo hoặc Gmail đã đăng ký. ID demo chưa xác minh danh tính.", "Use a demo ID or a registered Gmail address. Demo IDs do not verify identity.", locale)}</span>
       </label>
     </div>
   );

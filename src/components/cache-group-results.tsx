@@ -21,7 +21,7 @@ export function CacheGroupResults({ run }: { run: VerifyRun }) {
       <header>
         <h2 className="text-xl font-bold">{t("Thống kê theo nhóm yêu cầu", "Request group summary")}</h2>
         <p>{t(`${similar.length} nhóm cùng nội dung · ${similar.reduce((sum, group) => sum + group.items.length, 0)} yêu cầu trong các nhóm.`, `${similar.length} similar groups · ${similar.reduce((sum, group) => sum + group.items.length, 0)} requests in those groups.`)}</p>
-        <p className="text-sm text-slate-600">{t("Số yêu cầu lấy từ bộ kiểm thử của lần chạy này; số nhận diện đúng và HIT/MISS lấy từ kết quả đã lưu.", "Request counts come from this test run; recognition and HIT/MISS counts come from saved results.")}</p>
+        <p className="text-sm text-slate-600">{t("Số yêu cầu lấy từ bộ kiểm thử của lần chạy này, số nhận diện đúng và HIT/MISS lấy từ kết quả đã lưu.", "Request counts come from this test run, recognition and HIT/MISS counts come from saved results.")}</p>
       </header>
       {groups.map(group => (
         <Card key={group.key} role="region" aria-label={`${t("Nhóm:", "Group:")} ${localized(group.label, groupNamesEnglish[group.label] ?? group.label, locale)}`} className="space-y-3 min-w-0">
@@ -31,7 +31,7 @@ export function CacheGroupResults({ run }: { run: VerifyRun }) {
           </p>
           {group.kind === "similar" ? <p className="text-sm">{t("Gồm câu gốc và các cách diễn đạt tương tự trong bộ kiểm thử.", "Contains the seed request and equivalent wording variants from the test pack.")}</p>
             : <p className="text-sm">{group.kind === "controls" ? t("Các câu khác nội dung hoặc cần xử lý riêng, không tính là một nhóm yêu cầu giống nhau.", "These requests differ in meaning or need separate handling, so they are not grouped as duplicates.")
-              : t("Giữ lại kết quả cũ để đối chiếu; chưa xác định được nhóm từ bộ kiểm thử hiện tại.", "Saved results are retained for comparison; no group was identified in this test pack.")}</p>}
+              : t("Giữ lại kết quả cũ để đối chiếu, chưa xác định được nhóm từ bộ kiểm thử hiện tại.", "Saved results are retained for comparison, no group was identified in this test pack.")}</p>}
           <dl className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
             <div><dt>{t("Đã kiểm tra", "Completed")}</dt><dd className="text-lg font-semibold">{group.completed}/{group.items.length}</dd></div>
             <div><dt>{t("Chưa chạy", "Not run")}</dt><dd className="text-lg font-semibold">{group.items.length - group.completed}</dd></div>

@@ -1,18 +1,10 @@
-import { test as base, type APIRequestContext, type Page } from "@playwright/test";
+import { test as base, type APIRequestContext, type Page, type TestInfo } from "@playwright/test";
 import { createHash, randomBytes } from "node:crypto";
 export { expect, type Page } from "@playwright/test";
 
 export type RequestTrackingReceipt = { id: string; trackingToken: string };
 export const requesterLink = (request: RequestTrackingReceipt) => `/requests/${request.id}#token=${request.trackingToken}`;
 export const requesterTokenHeader = (request: RequestTrackingReceipt) => ({ "x-tracking-token": request.trackingToken });
-const testIdentityHeaders = {
-  "x-support-e2e-identity": process.env.SUPPORT_E2E_IDENTITY_SECRET ?? "",
-  "x-support-e2e-role": "admin",
-};
-const testRequesterHeaders = {
-  "x-support-e2e-identity": process.env.SUPPORT_E2E_IDENTITY_SECRET ?? "",
-  "x-support-e2e-role": "requester",
-};
 const anonymousHeaders = {
   "x-support-e2e-identity": "",
   "x-support-e2e-role": "",
@@ -28,12 +20,28 @@ function testAddress(projectName: string, testId: string, role: string) {
   return `198.18.${hash[0]}.${hash[1]}`;
 }
 
+function testIdentityHeaders(info: TestInfo, role: "admin" | "requester") {
+  const webServerEnvironment = Array.isArray(info.config.webServer)
+    ? info.config.webServer[0]?.env
+    : info.config.webServer?.env;
+  const configured = info.project.use.extraHTTPHeaders as Record<string, string> | undefined;
+  return {
+    "x-support-e2e-identity": webServerEnvironment?.SUPPORT_E2E_IDENTITY_SECRET ?? configured?.["x-support-e2e-identity"] ?? process.env.SUPPORT_E2E_IDENTITY_SECRET ?? "",
+    "x-support-e2e-role": role,
+  };
+}
+
 // Each test models an independent client. Keep production rate limiting enabled
 // without making unrelated scenarios exhaust a shared loopback-IP allowance.
 export const freshTest = base.extend<ApiRoleFixtures>({
   extraHTTPHeaders: async ({}, provideHeaders, info) => {
     const address = testAddress(info.project.name, info.testId, "admin-page");
-    await provideHeaders({ "x-forwarded-for": address, "x-vercel-forwarded-for": address, ...testIdentityHeaders });
+    await provideHeaders({
+      ...(info.project.use.extraHTTPHeaders as Record<string, string> | undefined),
+      "x-forwarded-for": address,
+      "x-vercel-forwarded-for": address,
+      ...testIdentityHeaders(info, "admin"),
+    });
   },
   // Direct API submissions in E2E setup need the same opaque receipt proof as
   // the browser flow. Each test gets synthetic, isolated proof material.
@@ -44,7 +52,7 @@ export const freshTest = base.extend<ApiRoleFixtures>({
         "x-forwarded-for": address,
         "x-vercel-forwarded-for": address,
         "x-tracking-proof": randomBytes(32).toString("hex"),
-        ...testIdentityHeaders,
+        ...testIdentityHeaders(info, "admin"),
       },
     });
     await provideRequest(context);
@@ -58,7 +66,7 @@ export const freshTest = base.extend<ApiRoleFixtures>({
         "x-forwarded-for": address,
         "x-vercel-forwarded-for": address,
         "x-tracking-proof": randomBytes(32).toString("hex"),
-        ...testRequesterHeaders,
+        ...testIdentityHeaders(info, "requester"),
       },
     });
     await provideRequest(context);
@@ -82,7 +90,7 @@ export const freshTest = base.extend<ApiRoleFixtures>({
     const context = await browser.newContext({ extraHTTPHeaders: {
       "x-forwarded-for": address,
       "x-vercel-forwarded-for": address,
-      ...testRequesterHeaders,
+      ...testIdentityHeaders(info, "requester"),
     } });
     const page = await context.newPage();
     await page.addInitScript(() => {

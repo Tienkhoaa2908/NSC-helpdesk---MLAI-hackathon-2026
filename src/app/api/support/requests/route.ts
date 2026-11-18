@@ -11,6 +11,7 @@ import {
   requireEmployeeIdentity,
   requireDemoReviewer,
   verifyModelOptions,
+  withDemoReviewerDataScope,
 } from "@/lib/support-http";
 import {
   listSupportRequests,
@@ -46,16 +47,18 @@ export async function POST(request: Request) {
 }
 export async function GET(request: Request) {
   return supportApi(async () => {
-    await requireDemoReviewer(request);
-    const view = new URL(request.url).searchParams.get("view");
-    if (view === "grouped") return groupedSupportPage(parseSupportQuery(request.url));
-    if (view === "employee-suggestions")
-      return employeeIdSuggestions(parseEmployeeSuggestionPrefix(request.url), parseSupportQuery(request.url).division);
-    if (view === "page")
-      return supportPage(parseSupportQuery(request.url));
-    return request &&
-      new URL(request.url).searchParams.get("view") === "summary"
-      ? listSupportSummaries()
-      : listSupportRequests();
+    const actor = await requireDemoReviewer(request);
+    return withDemoReviewerDataScope(actor, async () => {
+      const view = new URL(request.url).searchParams.get("view");
+      if (view === "grouped") return groupedSupportPage(parseSupportQuery(request.url));
+      if (view === "employee-suggestions")
+        return employeeIdSuggestions(parseEmployeeSuggestionPrefix(request.url), parseSupportQuery(request.url).division);
+      if (view === "page")
+        return supportPage(parseSupportQuery(request.url));
+      return request &&
+        new URL(request.url).searchParams.get("view") === "summary"
+        ? listSupportSummaries()
+        : listSupportRequests();
+    });
   });
 }

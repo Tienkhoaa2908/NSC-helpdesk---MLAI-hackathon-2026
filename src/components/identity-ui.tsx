@@ -22,14 +22,14 @@ const apiErrorCopy: Record<string, { vi: string; en: string }> = {
   IDENTITY_EMAIL_NOT_APPROVED: { vi: "Gửi email cấp tài khoản đang tắt cho đến khi mẫu nội dung được duyệt.", en: "Account email is disabled until its templates are approved." },
   EMAIL_NOT_CONFIGURED: { vi: "Email cấp tài khoản chưa được cấu hình. Liên hệ quản trị viên.", en: "Account email is not configured. Contact the administrator." },
   ACCOUNT_REQUEST_EMAIL_FAILED: { vi: "Đơn đã được lưu nhưng chưa gửi được email cho quản trị viên. Hãy thử lại sau.", en: "Your request was saved, but the administrator notification could not be sent. Try again later." },
-  EMAIL_DELIVERY_FAILED: { vi: "Chưa gửi được email. Đơn có thể đã được lưu; hãy thử gửi lại sau.", en: "The email could not be sent. Your request may have been saved; try again later." },
+  EMAIL_DELIVERY_FAILED: { vi: "Chưa gửi được email. Đơn có thể đã được lưu, hãy thử gửi lại sau.", en: "The email could not be sent. Your request may have been saved, try again later." },
   ACCOUNT_ALREADY_ACTIVE: { vi: "Gmail này đã có tài khoản. Hãy đăng nhập bằng ID và mật khẩu.", en: "This Gmail address already has an account. Sign in with its ID and password." },
   ACCOUNT_REQUEST_EXISTS: { vi: "Email này đã có yêu cầu đang chờ xử lý.", en: "A request for this email is already pending." },
   ACCOUNT_REQUEST_PROCESSING: { vi: "Yêu cầu này đang được xử lý. Hãy thử lại sau.", en: "This request is being processed. Try again shortly." },
   ACCOUNT_REQUEST_CHANGED: { vi: "Yêu cầu đã thay đổi. Hãy gửi lại sau.", en: "The request changed. Please submit it again." },
   ACCOUNT_REQUEST_ALREADY_DECIDED: { vi: "Yêu cầu này đã được xử lý.", en: "This request has already been decided." },
   ACCOUNT_OUTCOME_EMAIL_FAILED: { vi: "Chưa gửi được email kết quả. Quản trị viên có thể thử lại từ danh sách.", en: "The result email could not be sent. The administrator can retry from the request list." },
-  ACCOUNT_CREDENTIAL_EMAIL_FAILED: { vi: "Chưa gửi được thông tin đăng nhập. Tài khoản chưa được kích hoạt; quản trị viên có thể thử lại.", en: "Sign-in details could not be sent. The account remains inactive; the administrator can retry." },
+  ACCOUNT_CREDENTIAL_EMAIL_FAILED: { vi: "Chưa gửi được thông tin đăng nhập. Tài khoản chưa được kích hoạt, quản trị viên có thể thử lại.", en: "Sign-in details could not be sent. The account remains inactive, the administrator can retry." },
   VALIDATION_ERROR: { vi: "Kiểm tra lại họ tên và địa chỉ Gmail.", en: "Check the name and Gmail address and try again." },
 };
 
@@ -121,7 +121,7 @@ export function LoginPanel() {
         <Link className="identity-text-link" href="/identity/new">{localized("Nhân viên mới? Gửi yêu cầu cấp tài khoản", "New employee? Request an account", locale)}</Link>
         <details className="login-options">
           <summary>{localized("Hướng dẫn sử dụng", "User guide", locale)}</summary>
-          <p>{localized("Nhập ID và mật khẩu được cấp. Nếu chưa có tài khoản, gửi yêu cầu bằng họ tên và Gmail; quản trị viên sẽ gửi thông tin đăng nhập sau khi xác nhận.", "Enter your issued ID and password. If you do not have an account, submit your name and Gmail address; the administrator will email your sign-in details after approval.", locale)}</p>
+          <p>{localized("Nhập ID và mật khẩu được cấp. Nếu chưa có tài khoản, gửi yêu cầu bằng họ tên và Gmail, quản trị viên sẽ gửi thông tin đăng nhập sau khi xác nhận.", "Enter your issued ID and password. If you do not have an account, submit your name and Gmail address, the administrator will email your sign-in details after approval.", locale)}</p>
           <div className="identity-links">
             <Link href="/help/employee">{localized("Hướng dẫn nhân viên", "Employee guide", locale)}</Link>
             <Link href="/help">{localized("Trung tâm hướng dẫn", "Help center", locale)}</Link>
@@ -169,7 +169,7 @@ export function NewIdentityApplication() {
             : localized("Yêu cầu đã lưu, chưa gửi được email", "Your request was saved, but the email was not sent", locale)}</h1>
           <p>{notificationSent
             ? localized(`Quản trị viên đã nhận yêu cầu cho ${submittedEmail}. Sau khi xác nhận, thông tin đăng nhập sẽ được gửi tới địa chỉ này.`, `The administrator has received the request for ${submittedEmail}. After approval, sign-in details will be sent to this address.`, locale)
-            : localized(`Yêu cầu cho ${submittedEmail} đã được lưu. Quản trị viên cần kiểm tra danh sách yêu cầu; email thông báo chưa gửi được.`, `The request for ${submittedEmail} was saved. The administrator can find it in the request list, but the notification email was not sent.`, locale)}</p>
+            : localized(`Yêu cầu cho ${submittedEmail} đã được lưu. Quản trị viên cần kiểm tra danh sách yêu cầu, email thông báo chưa gửi được.`, `The request for ${submittedEmail} was saved. The administrator can find it in the request list, but the notification email was not sent.`, locale)}</p>
           <div className="identity-note demo-credentials" role="note">
             <strong>{localized("Bạn có thể trải nghiệm ngay", "You can try the system now", locale)}</strong>
             <p>{localized("ID", "ID", locale)}: <code>guest01</code></p>

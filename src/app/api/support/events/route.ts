@@ -1,5 +1,5 @@
 import { auditPage, parseSupportQuery } from "@/lib/support-query";
-import { supportApi, requestId, requireDemoReviewer } from "@/lib/support-http";
+import { supportApi, requestId, requireDemoReviewer, withDemoReviewerDataScope } from "@/lib/support-http";
 import {
   getSupportRequest,
   SupportError,
@@ -8,19 +8,21 @@ import {
 export const dynamic = "force-dynamic";
 export async function GET(request: Request) {
   return supportApi(async () => {
-    await requireDemoReviewer(request);
-    if (new URL(request.url).searchParams.get("view") === "page")
-      return auditPage(parseSupportQuery(request.url));
-    const id = new URL(request.url).searchParams.get("requestId");
-    if (id) {
-      const row = await getSupportRequest(requestId(id));
-      if (!row)
-        throw new SupportError("NOT_FOUND", "Không tìm thấy yêu cầu.", 404);
-      return row.events;
-    }
-    return (await listSupportRequests())
-      .flatMap((row) => row.events)
-      .sort((a, b) => b.timestamp.localeCompare(a.timestamp))
-      .slice(0, 300);
+    const actor = await requireDemoReviewer(request);
+    return withDemoReviewerDataScope(actor, async () => {
+      if (new URL(request.url).searchParams.get("view") === "page")
+        return auditPage(parseSupportQuery(request.url));
+      const id = new URL(request.url).searchParams.get("requestId");
+      if (id) {
+        const row = await getSupportRequest(requestId(id));
+        if (!row)
+          throw new SupportError("NOT_FOUND", "Không tìm thấy yêu cầu.", 404);
+        return row.events;
+      }
+      return (await listSupportRequests())
+        .flatMap((row) => row.events)
+        .sort((a, b) => b.timestamp.localeCompare(a.timestamp))
+        .slice(0, 300);
+    });
   });
 }

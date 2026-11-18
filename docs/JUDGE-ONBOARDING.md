@@ -9,7 +9,7 @@
 3. Chọn một bộ kiểm thử và bấm **Chạy toàn bộ ca**. Một số ca gọi model đang cấu hình, vì vậy có thể dùng hạn mức API.
 4. Đọc nhãn quyết định, kết quả đối chiếu, hồ sơ và audit. Kết quả được lưu vào MongoDB để kiểm tra luồng xử lý.
 
-Tài khoản trải nghiệm chỉ dùng dữ liệu tổng hợp. Các lượt chạy tạo dữ liệu Verify và có thể gọi model, không nhập thông tin cá nhân, mật khẩu hoặc dữ liệu nội bộ.
+Tài khoản trải nghiệm chỉ truy cập hồ sơ khớp với các ca Verify do server tạo, không đọc hoặc thay đổi yêu cầu hỗ trợ thông thường. Các lượt chạy có thể gọi model, không nhập thông tin cá nhân, mật khẩu hoặc dữ liệu nội bộ.
 
 ## Các bộ kiểm thử
 

@@ -26,7 +26,7 @@ export default function TrackPage() {
                 return;
               }
             } catch { /* Show the same validation message for malformed links. */ }
-            setError(localized("Cần dán liên kết theo dõi đầy đủ đã nhận sau khi gửi; mã yêu cầu riêng lẻ không cấp quyền truy cập.", "Paste the full tracking link you received after submitting. A request ID alone does not grant access.", locale));
+            setError(localized("Cần dán liên kết theo dõi đầy đủ đã nhận sau khi gửi, mã yêu cầu riêng lẻ không cấp quyền truy cập.", "Paste the full tracking link you received after submitting. A request ID alone does not grant access.", locale));
           }}
         >
           <label>

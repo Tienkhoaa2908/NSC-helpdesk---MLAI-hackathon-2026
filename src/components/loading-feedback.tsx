@@ -9,7 +9,7 @@ export function AiPending({ message, messageEn }: { message?: string; messageEn?
   return <section className="ai-pending" aria-label={localized("VNG Support AI đang xử lý", "VNG Support AI is processing", locale)}>
     <div className="ai-pending-heading"><span className="ai-pending-mark" aria-hidden="true">✦</span><strong>VNG Support AI</strong></div>
     <p role="status">{localized(vi, en, locale)}</p>
-    <div className="ai-progress" role="progressbar" aria-label={localized("Đang chờ phản hồi", "Waiting for a response", locale)} aria-valuetext={localized("Đang xử lý, chưa có thời gian hoàn tất dự kiến", "Processing; no completion time is available", locale)}><span /></div>
+    <div className="ai-progress" role="progressbar" aria-label={localized("Đang chờ phản hồi", "Waiting for a response", locale)} aria-valuetext={localized("Đang xử lý, chưa có thời gian hoàn tất dự kiến", "Processing, no completion time is available", locale)}><span /></div>
     <p className="ai-pending-note">{localized("Nội dung của bạn vẫn được giữ trong lúc chờ.", "Your content is retained while you wait.", locale)}</p>
   </section>;
 }

@@ -135,7 +135,7 @@ export default function VerifyPage() {
         if (row.pack === cachePackId) exposeQueue();
       }
     } catch (error) {
-      setError(localizedError(error, locale, "Không thể tiếp tục Verify. Kết quả đã chạy vẫn được lưu; dùng Tiếp tục.", "Could not continue the test run. Completed results are saved; select Resume to continue."));
+      setError(localizedError(error, locale, "Không thể tiếp tục Verify. Kết quả đã chạy vẫn được lưu, dùng Tiếp tục.", "Could not continue the test run. Completed results are saved, select Resume to continue."));
     } finally {
       // Keep pack selection locked until the final persisted readback completes.
       if (row) await loadRun(row.id);
@@ -157,7 +157,7 @@ export default function VerifyPage() {
           ),
         );
     } catch {
-      setError(t("Không lưu được trạng thái dừng. Lần chạy trên trang đã dừng; tải lại để kiểm tra.", "Could not save the stopped status. This page has stopped the run; reload to check its status."));
+      setError(t("Không lưu được trạng thái dừng. Lần chạy trên trang đã dừng, tải lại để kiểm tra.", "Could not save the stopped status. This page has stopped the run, reload to check its status."));
     }
   }
   async function runJudge() {
@@ -224,8 +224,8 @@ export default function VerifyPage() {
         </header>
         <Alert>
           {t(
-            "Khu vực kiểm thử dành cho ban giám khảo MLAI 2026, theo yêu cầu của track VNG. Các bộ dữ liệu tổng hợp gồm: 15 tình huống; Đề A gồm 5 ca (3 tự động xử lý, 2 chuyển tiếp); bộ chung gồm 4 ca; bộ cache gồm 42 ca; bộ mở rộng gồm 30 ca cho IT, Commercial và HR. Mỗi lượt chạy gọi API hỗ trợ và lưu kết quả cùng nhật ký audit. Đây là dữ liệu kiểm thử tổng hợp, không phải kết quả thử nghiệm người dùng thật.",
-            "Test area for MLAI 2026 judges, prepared for the VNG track. Synthetic test packs include: 15 scenarios; Problem A with 5 cases (3 automated, 2 escalated); a 4-case general pack; a 42-case cache pack; and a 30-case expansion pack for IT, Commercial, and HR. Each run uses the support API and saves results with an audit trail. These are synthetic tests, not real-user study results."
+            "Khu vực kiểm thử dành cho ban giám khảo MLAI 2026, theo yêu cầu của track VNG. Các bộ dữ liệu tổng hợp gồm: 15 tình huống, Đề A gồm 5 ca (3 tự động xử lý, 2 chuyển tiếp), bộ chung gồm 4 ca, bộ cache gồm 42 ca, bộ mở rộng gồm 30 ca cho IT, Commercial và HR. Mỗi lượt chạy gọi API hỗ trợ và lưu kết quả cùng nhật ký audit. Đây là dữ liệu kiểm thử tổng hợp, không phải kết quả thử nghiệm người dùng thật.",
+            "Test area for MLAI 2026 judges, prepared for the VNG track. Synthetic test packs include: 15 scenarios, Problem A with 5 cases (3 automated, 2 escalated), a 4-case general pack, a 42-case cache pack, and a 30-case expansion pack for IT, Commercial, and HR. Each run uses the support API and saves results with an audit trail. These are synthetic tests, not real-user study results."
           )}
         </Alert>
         <fieldset disabled={busy} className="flex flex-wrap items-end gap-3">
@@ -395,7 +395,7 @@ export default function VerifyPage() {
                 <p>{t("Nhóm:", "Group:")} {result.cache.group}</p>
                 <p>{t("Cache kỳ vọng:", "Expected cache:")} {result.cache.expected} · {t("thực tế:", "actual:")} {result.cache.actual}</p>
                 <p>{t("Chủ đề nhận diện:", "Recognized topic:")} {result.cache.topic ?? t("Không thuộc FAQ dùng chung", "Not a shared FAQ topic")} · {t("số câu mồi:", "seed count:")} {result.cache.seeds}</p>
-                {result.cache.lexicalSimilarity !== undefined && <p>{t("Độ tương đồng từ vựng:", "Lexical similarity:")} {Math.round(result.cache.lexicalSimilarity * 100)}%. {t("Cache ghép theo cùng đối tượng và triệu chứng; đây không phải độ tin cậy của AI.", "Cache matching uses the same object and symptom; this is not an AI confidence score.")}</p>}
+                {result.cache.lexicalSimilarity !== undefined && <p>{t("Độ tương đồng từ vựng:", "Lexical similarity:")} {Math.round(result.cache.lexicalSimilarity * 100)}%. {t("Cache ghép theo cùng đối tượng và triệu chứng, đây không phải độ tin cậy của AI.", "Cache matching uses the same object and symptom, this is not an AI confidence score.")}</p>}
                 <p>{result.cache.checks.join(" · ")}</p>
               </div>}
               <p>

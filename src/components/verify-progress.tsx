@@ -23,6 +23,6 @@ export function VerifyProgress({ completed, total, pending, loading, starting }:
       aria-valuetext={indeterminate ? label : t(`${count} trên ${total} ca đã có kết quả, ${percent}%`, `${count} of ${total} cases have results, ${percent}%`)}>
       <span style={indeterminate ? undefined : { transform: `scaleX(${total > 0 ? count / total : 0})` }} />
     </div>
-    <small>{indeterminate ? t("Chờ phản hồi từ server; kết quả cũ vẫn được giữ.", "Waiting for the server; completed results are retained.") : t("Tiến độ tính theo số ca đã có kết quả, gồm cả PASS và FAIL.", "Progress counts cases with a saved result, including PASS and FAIL.")}</small>
+    <small>{indeterminate ? t("Chờ phản hồi từ server, kết quả cũ vẫn được giữ.", "Waiting for the server, completed results are retained.") : t("Tiến độ tính theo số ca đã có kết quả, gồm cả PASS và FAIL.", "Progress counts cases with a saved result, including PASS and FAIL.")}</small>
   </section>;
 }

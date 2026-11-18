@@ -56,7 +56,7 @@ export function SupportResult({
         <p>
           {localized("Vai trò Jira trong demo:", "Demo Jira role:", locale)}{" "}
           {policyCopy(jiraRoleProfile(canonical.entities.accessType)?.description ?? "")}
-          {localized(" Không gồm quản trị, xóa ticket, xuất dữ liệu hoặc phê duyệt đặc quyền; vẫn cần entitlement đúng phạm vi.", " It does not include administration, ticket deletion, data export, or privileged approval; the correct scoped entitlement is still required.", locale)}
+          {localized(" Không gồm quản trị, xóa ticket, xuất dữ liệu hoặc phê duyệt đặc quyền, vẫn cần entitlement đúng phạm vi.", " It does not include administration, ticket deletion, data export, or privileged approval, the correct scoped entitlement is still required.", locale)}
         </p>
       )}
       {canonical.workEvidence && (

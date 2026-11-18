@@ -1,6 +1,9 @@
 import { afterEach, expect, it, vi } from "vitest";
 import { requireDemoReviewer, requireEmployeeIdentity } from "@/lib/support-http";
 import { identityPrincipalForRequest } from "@/lib/identity-auth";
+import { insertVerifyRun } from "@/lib/verify-repository";
+import { supportVerifyCases } from "@/lib/support-verify";
+import { supportInputSchema } from "@/domain/input";
 
 afterEach(() => vi.unstubAllEnvs());
 
@@ -81,4 +84,37 @@ it("allows authenticated requester accounts into the public demo reviewer area",
     "x-support-e2e-role": "requester",
   } });
   await expect(requireDemoReviewer(requester)).resolves.toBe("demo-reviewer:EMP-E2E-001");
+});
+
+it("lets a public demo requester run only an exact server-owned Verify case", async () => {
+  const secret = "f".repeat(64);
+  const verifyCase = supportVerifyCases.find((item) => item.pack === "de-a-v3")!;
+  const runId = crypto.randomUUID();
+  const requestId = crypto.randomUUID();
+  vi.stubEnv("NODE_ENV", "production");
+  vi.stubEnv("SUPPORT_E2E_PRODUCTION", "true");
+  vi.stubEnv("SUPPORT_E2E_IDENTITY_SECRET", secret);
+  vi.stubEnv("SUPPORT_ACCESS_MODE", "public-demo");
+  vi.stubEnv("MONGODB_URI", "");
+  vi.stubEnv("SUPPORT_STORAGE", "memory-demo");
+  await insertVerifyRun({
+    id: runId, version: 0, pack: verifyCase.pack,
+    createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+    status: "RUNNING", cases: [{ caseId: verifyCase.id, requestId }], results: [],
+  });
+  const request = new Request("http://localhost:3227/api/support/requests", { headers: {
+    "x-support-e2e-identity": secret,
+    "x-support-e2e-role": "requester",
+  } });
+  const validInput = supportInputSchema.parse({
+    rawText: verifyCase.rawText,
+    fields: { department: "engineering", employeeId: "verify-emp-42", ...verifyCase.fields },
+    confirmed: true,
+    idempotencyKey: requestId,
+    verifyRunId: runId,
+    verifyCaseId: verifyCase.id,
+  });
+  await expect(requireEmployeeIdentity(validInput, request)).resolves.toMatchObject({ verifyRunId: runId, verifyCaseId: verifyCase.id });
+  await expect(requireEmployeeIdentity({ ...validInput, rawText: "arbitrary private request" }, request))
+    .rejects.toMatchObject({ code: "VERIFY_INPUT_MISMATCH", status: 409 });
 });
