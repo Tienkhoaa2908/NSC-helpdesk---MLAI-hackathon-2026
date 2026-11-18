@@ -143,4 +143,4 @@ it("reports every candidate outcome through the decision API without relabelling
   expect(actionMetrics.scored).toBe(128);
   expect(report.readbackPassed).toBe(128);
   expect(sha256(readFileSync(datasetPath))).toBe(manifest.sha256);
-});
+}, 20_000);

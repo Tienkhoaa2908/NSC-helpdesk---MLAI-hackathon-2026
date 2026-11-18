@@ -31,6 +31,8 @@ export default defineConfig({
       IDENTITY_MONGODB_URI: "",
       IDENTITY_MONGODB_DB: "",
       OPENAI_API_KEY: "",
+      // Test-only key for the isolated memory-backed server; never use in a deployment.
+      SUPPORT_TRACKING_SECRET: "a".repeat(64),
     },
     timeout: 120_000,
   },

@@ -1,6 +1,17 @@
 # NoSleepClub Support Desk
 
-[![Local-equivalent QA](https://github.com/Tienkhoaa2908/NSC-helpdesk---MLAI-hackathon-2026/actions/workflows/qa.yml/badge.svg?branch=main)](https://github.com/Tienkhoaa2908/NSC-helpdesk---MLAI-hackathon-2026/actions/workflows/qa.yml)
+[![CI](https://github.com/Tienkhoaa2908/NSC-helpdesk---MLAI-hackathon-2026/actions/workflows/qa.yml/badge.svg?branch=main)](https://github.com/Tienkhoaa2908/NSC-helpdesk---MLAI-hackathon-2026/actions/workflows/qa.yml)
+[![Reproducibility](https://github.com/Tienkhoaa2908/NSC-helpdesk---MLAI-hackathon-2026/actions/workflows/reproducibility.yml/badge.svg?branch=main)](https://github.com/Tienkhoaa2908/NSC-helpdesk---MLAI-hackathon-2026/actions/workflows/reproducibility.yml)
+[![Node.js 22.13+ in 22.x or 24+](https://img.shields.io/badge/Node.js-22.13%2B%20%2822.x%29%20%7C%2024%2B-339933?logo=nodedotjs&logoColor=white)](https://nodejs.org/)
+[![Next.js 15.5.29](https://img.shields.io/badge/Next.js-15.5.29-000000?logo=nextdotjs&logoColor=white)](https://nextjs.org/)
+[![React 19.1.1](https://img.shields.io/badge/React-19.1.1-61DAFB?logo=react&logoColor=black)](https://react.dev/)
+[![TypeScript 5.9.2](https://img.shields.io/badge/TypeScript-5.9.2-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![MongoDB Node.js Driver 7.6.0](https://img.shields.io/badge/MongoDB%20Driver-7.6.0-47A248?logo=mongodb&logoColor=white)](https://www.mongodb.com/docs/drivers/node/current/)
+[![Gemini API](https://img.shields.io/badge/LLM-Gemini%20API-4285F4?logo=googlegemini&logoColor=white)](https://ai.google.dev/gemini-api/docs)
+[![Google OIDC](https://img.shields.io/badge/Identity-Google%20OIDC-4285F4?logo=google&logoColor=white)](https://developers.google.com/identity/openid-connect/openid-connect)
+[![Vercel deploy target](https://img.shields.io/badge/Deploy%20target-Vercel-000000?logo=vercel&logoColor=white)](https://vercel.com/docs/deployments/overview)
+[![Vitest 4.1.12](https://img.shields.io/badge/Unit%20tests-Vitest%204.1.12-6E9F18?logo=vitest&logoColor=white)](https://vitest.dev/)
+[![Playwright 1.63.0](https://img.shields.io/badge/E2E-Playwright%201.63.0-2EAD33?logo=playwright&logoColor=white)](https://playwright.dev/)
 
 > **Vietnamese below** · [Tiếng Việt](#phần-tiếng-việt)
 >
@@ -97,7 +108,7 @@ The Admin guide covers queue triage, reviewer actions, incident updates and Veri
 
 ## Run locally
 
-Requires Node.js 22.13 or later and npm.
+Requires Node.js 22.13 or later in the 22.x line, or 24 or later, and npm. Node 23 is excluded by dependency engine ranges.
 
 ```powershell
 npm ci
@@ -118,6 +129,7 @@ npm run build
 ```
 
 The full release and persistence checks are documented in the [runbook](RUNBOOK.md).
+CI runs unit tests, documentation checks, lint, type checking, production build and desktop/mobile end-to-end tests. A separate workflow runs clean `npm ci` on Linux and Windows. Mongo restart persistence is opt-in in hosted CI and is skipped unless an isolated test URI and acknowledgement are configured; a passing badge does not claim live Mongo restart verification.
 
 ## Documentation
 
@@ -232,7 +244,7 @@ Hướng dẫn Admin mô tả cách phân loại hàng đợi, phản hồi ngư
 
 ## Chạy local
 
-Yêu cầu Node.js 22.13 trở lên và npm.
+Yêu cầu Node.js từ 22.13 trong nhánh 22.x trở lên, hoặc từ 24 trở lên, cùng npm. Node 23 bị loại trừ theo khai báo engine của một số dependency.
 
 ```powershell
 npm ci
@@ -253,6 +265,7 @@ npm run build
 ```
 
 Các bước phát hành và kiểm tra persistence đầy đủ được ghi trong [RUNBOOK](RUNBOOK.md).
+CI chạy unit test, kiểm tra tài liệu, lint, kiểm tra kiểu, build production và end-to-end desktop/mobile. Workflow riêng chạy `npm ci` sạch trên Linux và Windows. Kiểm tra Mongo sau restart là tùy chọn trong CI và sẽ skip nếu thiếu URI kiểm thử riêng cùng xác nhận an toàn; badge đạt không đồng nghĩa đã xác minh restart trên Mongo thật.
 
 ## Tài liệu
 

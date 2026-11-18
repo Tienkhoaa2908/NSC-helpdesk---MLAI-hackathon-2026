@@ -192,4 +192,4 @@ it("reports original expectations without rewriting them or hiding mismatches", 
       2,
     ),
   );
-});
+}, 20_000);

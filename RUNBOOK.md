@@ -4,7 +4,7 @@ Hướng dẫn thao tác sản phẩm nằm trong [README](README.md). File này
 
 ## Chạy local
 
-Dùng Node.js 22.13+ và npm. Trong PowerShell, tại thư mục repository:
+Dùng Node.js từ 22.13 trong nhánh 22.x trở lên, hoặc từ 24 trở lên, cùng npm. Node 23 không tương thích với khai báo engine của một số dependency. Trong PowerShell, tại thư mục repository:
 
 Repository giữ duy nhất `package-lock.json`; CI và Vercel đều cài dependency bằng `npm ci` để dùng cùng lockfile.
 
@@ -141,7 +141,7 @@ xử lý; không tự sửa/xóa dữ liệu lịch sử.
 
 `node scripts/measure-support-latency.mjs` dùng server loopback3227 mock/memory và câu CAPABILITIES có thể hiện bực bội để đi qua đường tạo câu trả lời cùng prompt tone. Script bỏ5 warmup, đo15 preview tuần tự và một burst 5 request đồng thời; trả p50/p95/max HTTP+JSON. Có đúng 30 request nên chạy trên server vừa khởi động để không đụng rate limit demo. Ghi kèm OS, Node, commit và production start mode. Preview chỉ lưu tạm trong memory, không tạo support request. Provider mock chỉ dựng prompt rồi trả fallback; phép đo không bao gồm OpenAI, Mongo, production hoặc tải lớn, và không tự chứng minh lợi ích từ song song hóa.
 
-`.github/workflows/qa.yml` chạy unit/lint/types/build và E2E desktop/mobile riêng bằng production build, không có deploy step. Kết quả local và hosted CI phải ghi riêng; việc có config không chứng minh GitHub Actions đã chạy thành công.
+`.github/workflows/qa.yml` chạy unit/lint/types/build và E2E desktop/mobile riêng bằng production build, không có deploy step. `.github/workflows/reproducibility.yml` kiểm tra clean `npm ci` trên Ubuntu và Windows. CI chỉ chứng minh đúng các bước đã chạy; bài Mongo restart sẽ skip nếu không có URI kiểm thử riêng và acknowledgement, nên trạng thái xanh không chứng minh độ bền dữ liệu Mongo thật.
 
 ## Chẩn đoán API và sentiment
 
