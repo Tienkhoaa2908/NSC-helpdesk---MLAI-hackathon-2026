@@ -27,7 +27,9 @@ export function Header() {
           : null;
         setIdentity(current && (current.status === "ACTIVE" || current.status === "ADMIN") ? current : null);
       })
-      .catch(() => undefined);
+      .catch(() => {
+        if (!controller.signal.aborted) setIdentity(null);
+      });
     return () => controller.abort();
   }, [path]);
 

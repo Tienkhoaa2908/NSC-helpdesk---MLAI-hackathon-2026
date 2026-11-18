@@ -109,6 +109,34 @@ test("a returning requester who opens sign-in continues to the support form", as
   await expect(page.getByRole("heading", { name: "Tôi cần hỗ trợ" })).toBeVisible();
 });
 
+test("a transient session lookup failure is retried before showing the sign-in form", async ({ requesterPage: page }) => {
+  let sessionLookups = 0;
+  await page.route("**/api/identity/session", async (route) => {
+    sessionLookups += 1;
+    if (sessionLookups === 1) {
+      await route.fulfill({ status: 503, json: {
+        success: false,
+        error: { code: "IDENTITY_STORAGE_UNAVAILABLE", message: "Retry session lookup." },
+      } });
+      return;
+    }
+    await route.fulfill({ json: {
+      success: true,
+      data: { status: "ACTIVE", id: "EMP-E2E-001", name: "Local E2E requester", email: null },
+    } });
+  });
+  await page.goto("/login");
+  await expect(page).toHaveURL(/\/send-help$/);
+  await expect(page.getByRole("heading", { name: "Tôi cần hỗ trợ" })).toBeVisible();
+  expect(sessionLookups).toBeGreaterThanOrEqual(2);
+});
+
+test("the legacy guest URL preserves an authenticated requester session", async ({ requesterPage: page }) => {
+  await page.goto("/guest");
+  await expect(page).toHaveURL(/\/send-help$/);
+  await expect(page.getByRole("heading", { name: "Tôi cần hỗ trợ" })).toBeVisible();
+});
+
 test("registration is available in Vietnamese and English and sends only a name and Gmail", async ({ page }) => {
   await page.route("**/api/identity/applications", async (route) => {
     expect(route.request().postDataJSON()).toEqual({ fullName: "Synthetic Test Requester", email: "requester.e2e.000001@gmail.com" });

@@ -13,6 +13,13 @@ type IdentityResponse<T> = {
   error?: { code?: string; message?: string };
 };
 
+class IdentityApiError extends Error {
+  constructor(message: string, readonly status: number) {
+    super(message);
+    this.name = "IdentityApiError";
+  }
+}
+
 const apiErrorCopy: Record<string, { vi: string; en: string }> = {
   AUTHENTICATION_REQUIRED: { vi: "Phiên đăng nhập đã hết hạn. Hãy đăng nhập lại.", en: "Your session has expired. Sign in again." },
   INVALID_CREDENTIALS: { vi: "ID hoặc mật khẩu không đúng.", en: "The ID or password is incorrect." },
@@ -49,9 +56,9 @@ export async function identityApi<T>(path: string, body?: unknown, headers?: Hea
     const locale = document.documentElement.lang === "en" ? "en" : "vi";
     const code = result.error?.code ?? "";
     const known = apiErrorCopy[code];
-    throw new Error(known?.[locale] ?? (locale === "vi"
+    throw new IdentityApiError(known?.[locale] ?? (locale === "vi"
       ? result.error?.message ?? "Không thể hoàn tất yêu cầu. Vui lòng thử lại."
-      : "The request could not be completed. Try again."));
+      : "The request could not be completed. Try again."), response.status);
   }
   return result.data as T;
 }
@@ -67,13 +74,32 @@ export function LoginPanel() {
 
   useEffect(() => {
     let active = true;
-    void identityApi<{ status: "ACTIVE" | "ADMIN" }>("session").then((session) => {
-      if (!active) return;
-      router.replace(session.status === "ADMIN" ? "/review" : "/send-help");
-    }).catch(() => {
-      if (active) setCheckingSession(false);
-    });
-    return () => { active = false; };
+    let retryTimer: number | undefined;
+    const routeSignedIn = (session: { status: "ACTIVE" | "ADMIN" }) => {
+      if (active) router.replace(session.status === "ADMIN" ? "/review" : "/send-help");
+    };
+    const checkSession = async () => {
+      try {
+        routeSignedIn(await identityApi<{ status: "ACTIVE" | "ADMIN" }>("session"));
+      } catch (cause) {
+        if (!active) return;
+        const transient = !(cause instanceof IdentityApiError) || cause.status >= 500;
+        if (!transient) {
+          setCheckingSession(false);
+          return;
+        }
+        retryTimer = window.setTimeout(() => {
+          void identityApi<{ status: "ACTIVE" | "ADMIN" }>("session").then(routeSignedIn).catch(() => {
+            if (active) setCheckingSession(false);
+          });
+        }, 250);
+      }
+    };
+    void checkSession();
+    return () => {
+      active = false;
+      if (retryTimer !== undefined) window.clearTimeout(retryTimer);
+    };
   }, [router]);
 
   async function signIn(event: FormEvent<HTMLFormElement>) {
