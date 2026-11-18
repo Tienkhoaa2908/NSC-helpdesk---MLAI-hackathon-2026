@@ -20,7 +20,9 @@ import { POST, GET as list } from "@/app/api/support/requests/route";
 import { GET as detail } from "@/app/api/support/requests/[id]/route";
 import { GET as events } from "@/app/api/support/events/route";
 import { GET as metrics } from "@/app/api/support/metrics/route";
+import { mockSupportApiAuthorization } from "./support-api-auth";
 beforeEach(() => {
+  mockSupportApiAuthorization();
   vi.stubEnv("MONGODB_URI", "");
   vi.stubEnv("AI_PROVIDER", "mock");
   resetSupportTestStore();
@@ -30,7 +32,7 @@ const productionApi: typeof fetch = async (url, init) => {
   const r = new Request(`http://localhost${url}`, init);
   if (init?.method === "POST") return POST(r);
   if (String(url).startsWith("/api/support/events?")) return events(r);
-  if (String(url) === "/api/support/metrics") return metrics();
+  if (String(url) === "/api/support/metrics") return metrics(r);
   if (String(url).startsWith("/api/support/requests?")) return list(r);
   return detail(r, {
     params: Promise.resolve({ id: String(url).split("/").at(-1)! }),

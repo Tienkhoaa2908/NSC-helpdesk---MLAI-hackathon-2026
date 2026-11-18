@@ -1,15 +1,16 @@
 import { expect, requesterLink, test } from "./fixtures";
-import { employeeIdentity, fillEmployeeIdentity } from "./intake-helpers";
+import { employeeIdentity, fillEmployeeIdentity, withRequesterIdentity } from "./intake-helpers";
 
-test("welcome and intake omit the five distracting screenshot captions", async ({ page }) => {
+test("home and authenticated intake omit the five distracting screenshot captions", async ({ page }) => {
   await page.goto("/");
   for (const text of ["MỖI VẤN ĐỀ · MỘT BƯỚC TIẾP THEO", "Kể cho chúng tôi điều bạn đang gặp.", "Bắt đầu: chọn", "Luôn có một cách để bắt đầu."])
     await expect(page.getByText(text, { exact: false })).toHaveCount(0);
   await expect(page.getByRole("link", { name: "Tôi cần hỗ trợ", exact: true })).toBeVisible();
   await expect(page.getByRole("link", { name: "Dành cho Admin", exact: true })).toBeVisible();
   await page.getByRole("link", { name: "Tôi cần hỗ trợ", exact: true }).click();
-  await page.getByText("Hướng dẫn & tùy chọn", { exact: true }).click();
-  await page.getByRole("link", { name: "Trải nghiệm demo", exact: true }).click();
+  await expect(page).toHaveURL(/\/login$/);
+  await expect(page.getByLabel("ID nhân viên hoặc email")).toBeVisible();
+  await page.goto("/send-help");
   await expect(page.getByText("HỖ TRỢ KỸ THUẬT", { exact: true })).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "Tôi cần hỗ trợ", exact: true })).toBeVisible();
 });
@@ -20,13 +21,11 @@ test("reselecting a mode preserves input; blank input has an actionable error", 
   await fillEmployeeIdentity(page);
   await page.getByLabel("Nhóm hỗ trợ", { exact: true }).selectOption("DEVICE_BOOT");
   await expect(page.getByLabel("Phòng ban", { exact: true })).toHaveValue("engineering");
-  await expect(page.getByLabel("Mã nhân viên", { exact: true })).toHaveValue("EMP-E2E-001");
+  await expect(page.getByText(/Tài khoản nhân viên đang hoạt động · ID EMP-E2E-001/)).toBeVisible();
   await page.getByRole("button", { name: "Gửi", exact: true }).click();
   await expect(page.getByRole("main").getByRole("alert")).toContainText("Nhập mô tả yêu cầu hoặc chọn một nhu cầu cụ thể");
   await page.getByLabel("Nhu cầu cụ thể", { exact: true }).selectOption("DEVICE_RESTART_GUIDANCE");
   await expect(page.getByLabel("Phòng ban", { exact: true })).toHaveCount(1);
-  await expect(page.getByLabel("Mã nhân viên", { exact: true })).toHaveCount(1);
-  await expect(page.getByLabel("Mã nhân viên", { exact: true })).toHaveValue("EMP-E2E-001");
   await page.getByRole("button", { name: "Chọn theo danh mục", exact: true }).click();
   await expect(page.getByLabel("Nhu cầu cụ thể", { exact: true })).toHaveValue("DEVICE_RESTART_GUIDANCE");
   await page.getByRole("button", { name: "Gửi", exact: true }).click();
@@ -34,38 +33,28 @@ test("reselecting a mode preserves input; blank input has an actionable error", 
   await expect(page.getByLabel("Nhu cầu cụ thể", { exact: true })).toHaveValue("DEVICE_RESTART_GUIDANCE");
   await page.getByRole("button", { name: "Mô tả vấn đề", exact: true }).click();
   await expect(page.getByLabel("Phòng ban", { exact: true })).toHaveValue("engineering");
-  await expect(page.getByLabel("Mã nhân viên", { exact: true })).toHaveValue("emp-e2e-001");
   await page.getByLabel("Mô tả yêu cầu", { exact: true }).fill("   ");
   await page.getByRole("button", { name: "Gửi", exact: true }).click();
   await expect(page.getByRole("main").getByRole("alert")).toContainText("Nhập mô tả yêu cầu");
 });
 
 for (const mode of ["Mô tả vấn đề", "Chọn theo danh mục"]) {
-  test(`requires department and employee code from ${mode}`, async ({ page }) => {
+  test(`requires a request department and uses the signed-in employee ID from ${mode}`, async ({ page }) => {
     await page.goto("/send-help");
     await page.getByRole("button", { name: mode, exact: true }).click();
     await page.getByLabel("Mô tả yêu cầu", { exact: true }).fill("VPN không kết nối");
     const department = page.getByLabel("Phòng ban", { exact: true });
-    const employeeId = page.getByLabel("Mã nhân viên", { exact: true });
-    await expect(employeeId).toHaveAttribute("required", "");
+    await expect(page.getByText(/Tài khoản nhân viên đang hoạt động · ID EMP-E2E-001/)).toBeVisible();
     let posts = 0;
     page.on("request", (request) => {
       if (request.method() === "POST" && /\/api\/support\/(preview|requests)$/.test(request.url())) posts++;
     });
-    for (const [dept, id] of [["", ""], ["", "EMP-E2E-001"]]) {
-      await department.selectOption(dept);
-      await employeeId.fill(id);
-      await page.getByRole("button", { name: "Gửi", exact: true }).click();
-      await expect(page.getByRole("main").getByRole("alert")).toContainText("Chọn phòng ban trước khi gửi yêu cầu");
-      await expect(page.getByRole("region", { name: "Kiểm tra dữ kiện" })).toHaveCount(0);
-      expect(posts).toBe(0);
-    }
-    await department.selectOption("engineering");
-    await employeeId.fill("");
+    await department.selectOption("");
     await page.getByRole("button", { name: "Gửi", exact: true }).click();
-    await expect(page.getByRole("main").getByRole("alert")).toContainText("Nhập mã nhân viên");
+    await expect(page.getByRole("main").getByRole("alert")).toContainText("Chọn phòng ban trước khi gửi yêu cầu");
+    await expect(page.getByRole("region", { name: "Kiểm tra dữ kiện" })).toHaveCount(0);
     expect(posts).toBe(0);
-    await employeeId.fill("EMP-E2E-001");
+    await department.selectOption("engineering");
     const previewResponse = page.waitForResponse((response) => response.url().endsWith("/api/support/preview"));
     await page.getByRole("button", { name: "Gửi", exact: true }).click();
     expect((await previewResponse).status()).toBe(200);
@@ -79,8 +68,8 @@ for (const mode of ["Mô tả vấn đề", "Chọn theo danh mục"]) {
   });
 }
 
-test("tracking accepts uppercase UUIDs and pasted links with a trailing slash", async ({ page, request }) => {
-  const response = await request.post("/api/support/requests", { data: { ...employeeIdentity, rawText: "Tôi tắt máy tính lúc về được không?", confirmed: true, idempotencyKey: crypto.randomUUID() } });
+test("tracking accepts uppercase UUIDs and pasted links with a trailing slash", async ({ page, requesterRequest }) => {
+  const response = await requesterRequest.post("/api/support/requests", { data: withRequesterIdentity({ ...employeeIdentity, rawText: "Tôi tắt máy tính lúc về được không?", confirmed: true, idempotencyKey: crypto.randomUUID() }) });
   expect(response.ok()).toBe(true);
   const { data: row } = await response.json();
   for (const value of [row.id.toUpperCase(), `http://127.0.0.1:3227/requests/${row.id.toUpperCase()}/?from=share#token=${row.trackingToken}`]) {
@@ -100,8 +89,8 @@ test("tracking accepts uppercase UUIDs and pasted links with a trailing slash", 
   }
 });
 
-test("employee sees the reviewer clarification without expanding the audit log", async ({ page, request }) => {
-  const response = await request.post("/api/support/requests", { data: { ...employeeIdentity, rawText: "Tôi tắt máy tính lúc về được không?", confirmed: true, idempotencyKey: crypto.randomUUID() } });
+test("employee sees the reviewer clarification without expanding the audit log", async ({ page, request, requesterRequest }) => {
+  const response = await requesterRequest.post("/api/support/requests", { data: withRequesterIdentity({ ...employeeIdentity, rawText: "Tôi tắt máy tính lúc về được không?", confirmed: true, idempotencyKey: crypto.randomUUID() }) });
   const { data: row } = await response.json();
   const reason = "Bạn đã lưu công việc và chờ cập nhật hoàn tất chưa?";
   const review = await request.post(`/api/review/${row.id}`, { data: { version: row.version, action: "REQUEST_INFORMATION", reason } });

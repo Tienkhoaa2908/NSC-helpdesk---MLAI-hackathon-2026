@@ -6,8 +6,10 @@ import { GET as detail } from "@/app/api/support/requests/[id]/route";
 import { createVerifyRun } from "@/services/verification";
 import { POLICY_VERSION } from "@/domain/policy-source";
 import { supportRequestProof } from "./support-request-proof";
+import { mockSupportApiAuthorization } from "./support-api-auth";
 
 beforeEach(() => {
+  mockSupportApiAuthorization();
   vi.stubEnv("MONGODB_URI", "");
   vi.stubEnv("AI_PROVIDER", "mock");
   resetSupportTestStore();

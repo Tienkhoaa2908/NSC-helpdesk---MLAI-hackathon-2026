@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { POLICY_VERSION } from "@/domain/policy-source";
@@ -9,7 +9,9 @@ import { GET as events } from "@/app/api/support/events/route";
 import { GET as metrics } from "@/app/api/support/metrics/route";
 import { POST, GET as list } from "@/app/api/support/requests/route";
 import { resetSupportTestStore } from "@/lib/support-repository";
+import { mockSupportApiAuthorization } from "./support-api-auth";
 beforeEach(() => {
+  mockSupportApiAuthorization();
   vi.stubEnv("AI_PROVIDER", "mock");
   vi.stubEnv("MONGODB_URI", "");
   resetSupportTestStore();
@@ -19,7 +21,7 @@ const productionApi: typeof fetch = async (url, init) => {
   const request = new Request(`http://localhost${url}`, init);
   if (init?.method === "POST") return POST(request);
   if (String(url).startsWith("/api/support/events?")) return events(request);
-  if (String(url) === "/api/support/metrics") return metrics();
+  if (String(url) === "/api/support/metrics") return metrics(request);
   if (String(url).startsWith("/api/support/requests?")) return list(request);
   return detail(request, {
     params: Promise.resolve({ id: String(url).split("/").at(-1)! }),
@@ -160,7 +162,7 @@ it("reports original expectations without rewriting them or hiding mismatches", 
           runtimeDirty: Boolean(execFileSync("git", ["diff", "HEAD", "--", "src", "package.json", "package-lock.json"], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim()),
           runtimeDigest: createHash("sha256").update(
             execFileSync("git", ["ls-files", "-z", "src", "package.json", "package-lock.json"], { encoding: "utf8" })
-              .split("\0").filter(Boolean).sort().map(path => `${path}\0${createHash("sha256").update(readFileSync(path)).digest("hex")}`).join("\n"),
+              .split("\0").filter(path => path && existsSync(path)).sort().map(path => `${path}\0${createHash("sha256").update(readFileSync(path)).digest("hex")}`).join("\n"),
           ).digest("hex"),
           node: process.version, storage: "memory-demo", model: "mock-no-api-call", policy: POLICY_VERSION,
           dataset: {

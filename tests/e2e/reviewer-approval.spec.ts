@@ -1,11 +1,12 @@
 import { test, expect, requesterLink } from "./fixtures";
 import type { SupportRequest } from "../../src/domain/contracts";
+import { withRequesterIdentity } from "./intake-helpers";
 
 for (const rawText of ["Need database access", "Open public RDP port 3389", "Grant production admin"]) {
-  test("reviewer approves a waiting request with an empty message: " + rawText, async ({ page, request }) => {
-    const created = await request.post("/api/support/requests", { data: {
-      requesterMode: "guest", rawText, confirmed: true, idempotencyKey: crypto.randomUUID(),
-    } });
+  test("reviewer approves a waiting request with an empty message: " + rawText, async ({ page, request, requesterRequest }) => {
+    const created = await requesterRequest.post("/api/support/requests", { data: withRequesterIdentity({
+      rawText, confirmed: true, idempotencyKey: crypto.randomUUID(),
+    }) });
     expect(created.ok()).toBe(true);
     const original = (await created.json()).data as SupportRequest & { trackingToken: string };
     await page.goto("/review?requestId=" + original.id);
@@ -26,10 +27,10 @@ for (const rawText of ["Need database access", "Open public RDP port 3389", "Gra
   });
 }
 
-test("approval stays available while Luna drafts and ignores a late draft", async ({ page, request }) => {
-  const created = await request.post("/api/support/requests", { data: {
-    requesterMode: "guest", rawText: "Need database access", confirmed: true, idempotencyKey: crypto.randomUUID(),
-  } });
+test("approval stays available while Luna drafts and ignores a late draft", async ({ page, request, requesterRequest }) => {
+  const created = await requesterRequest.post("/api/support/requests", { data: withRequesterIdentity({
+    rawText: "Need database access", confirmed: true, idempotencyKey: crypto.randomUUID(),
+  }) });
   expect(created.ok()).toBe(true);
   const row: SupportRequest = (await created.json()).data;
   let releaseDraft!: () => void;

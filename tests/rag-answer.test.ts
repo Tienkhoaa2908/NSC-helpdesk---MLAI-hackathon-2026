@@ -273,6 +273,19 @@ it("never shares personalized, follow-up, or override questions in the public an
       "two",
     ),
   );
+  expect(
+    answerCacheKey(
+      { label: "IDENTITY", question: "bạn tên gì", ignoredOverride: false },
+      "model",
+      "en",
+    ),
+  ).not.toBe(
+    answerCacheKey(
+      { label: "IDENTITY", question: "bạn tên gì", ignoredOverride: false },
+      "model",
+      "vi",
+    ),
+  );
 });
 it("coalesces same-process cache misses and expires entries without changing call allowance", async () => {
   vi.stubEnv("AI_PROVIDER", "openai");

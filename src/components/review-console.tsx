@@ -19,8 +19,7 @@ import {
   type RequestStatus,
   type SupportRequest,
 } from "@/domain/contracts";
-import { displayId, statusLabels } from "@/domain/presentation";
-import { catalog } from "@/domain/catalog";
+import { displayId, statusLabel, serviceGroupName } from "@/domain/presentation";
 import { type ReviewAction } from "@/domain/transitions";
 import { browserApi } from "@/lib/browser-api";
 import { Alert, Badge, Button } from "@/components/ui";
@@ -28,8 +27,12 @@ import { ReviewDetail } from "@/components/review-detail";
 import { StaffWorkspace } from "@/components/staff-workspace";
 import type { SupportQueueItem } from "@/domain/request-groups";
 import { supportDivisions, divisionLabels, type SupportDivision } from "@/domain/support-divisions";
+import { useLocale, localized, localizedError } from "@/i18n/locale";
 
 export function ReviewConsole({ requestId, initialVerifyRunId }: { requestId?: string; initialVerifyRunId?: string }) {
+  const { locale } = useLocale();
+  const t = (vi: string, en: string) => localized(vi, en, locale);
+  const divisionName = (value: SupportDivision) => localized(divisionLabels[value], value === "IT" ? "IT" : value === "HR" ? "Human Resources" : "Commercial", locale);
   const sequence = useRef(0);
   const detailSequence = useRef(0);
   const employeeSuggestionSequence = useRef(0);
@@ -82,7 +85,7 @@ export function ReviewConsole({ requestId, initialVerifyRunId }: { requestId?: s
     if (!filtersReady || requestId) return;
     try { sessionStorage.setItem("vng-review-filters-v1", JSON.stringify({ division, filter, origin, queue, search, employeeId })); }
     catch { /* Do not block the queue when session storage is unavailable. */ }
-  }, [division, filter, origin, queue, search, employeeId, filtersReady, requestId]);
+  }, [division, filter, origin, queue, search, employeeId, filtersReady, requestId, locale]);
   function clearFilters() {
     setSearch(""); setEmployeeId(""); setFilter("all"); setOrigin("all"); setQueue("all");
     setVerifyRunId(undefined);
@@ -91,11 +94,11 @@ export function ReviewConsole({ requestId, initialVerifyRunId }: { requestId?: s
   }
   const visibleRequests = requests;
   const quickQueues = [
-    { label: "Đã xử lý tự động", filter: "auto", queue: "all", icon: UserCheck },
-    { label: "Chờ xử lý", filter: "pending", queue: "all", icon: Inbox },
-    { label: "Ngoài quy định", filter: "pending", queue: "OUT_OF_POLICY", icon: ShieldAlert },
-    { label: "Cần thẩm quyền", filter: "pending", queue: "AUTHORITY_REQUIRED", icon: UserCheck },
-    { label: "Gợi ý tri thức", filter: "knowledge", queue: "all", icon: BookOpen },
+    { label: ["Đã xử lý tự động", "Handled automatically"], filter: "auto", queue: "all", icon: UserCheck },
+    { label: ["Chờ xử lý", "Awaiting review"], filter: "pending", queue: "all", icon: Inbox },
+    { label: ["Ngoài quy định", "Outside policy"], filter: "pending", queue: "OUT_OF_POLICY", icon: ShieldAlert },
+    { label: ["Cần thẩm quyền", "Authority required"], filter: "pending", queue: "AUTHORITY_REQUIRED", icon: UserCheck },
+    { label: ["Gợi ý tri thức", "Knowledge suggestions"], filter: "knowledge", queue: "all", icon: BookOpen },
   ];
   const refresh = useCallback(
     async (cursor: string | null = null) => {
@@ -128,13 +131,13 @@ export function ReviewConsole({ requestId, initialVerifyRunId }: { requestId?: s
       } catch (error) {
         if (current === sequence.current)
           setError(
-            error instanceof Error ? error.message : "Không thể tải danh sách.",
+            localizedError(error, locale, "Không thể tải danh sách.", "Could not load the request list."),
           );
       } finally {
         if (current === sequence.current) setLoading(false);
       }
     },
-    [search, employeeId, filter, origin, queue, groupIncidents, verifyRunId, division],
+    [search, employeeId, filter, origin, queue, groupIncidents, verifyRunId, division, locale],
   );
   useEffect(() => {
     if (requestId || !filtersReady) return;
@@ -192,10 +195,10 @@ export function ReviewConsole({ requestId, initialVerifyRunId }: { requestId?: s
     } catch (error) {
       if (current === detailSequence.current)
         setError(
-          error instanceof Error ? error.message : "Không thể tải yêu cầu.",
+          localizedError(error, locale, "Không thể tải yêu cầu.", "Could not load the request."),
         );
     }
-  }, [requestId]);
+  }, [requestId, locale]);
   useEffect(() => {
     const tracker = detailSequence;
     setSelected(null);
@@ -227,9 +230,7 @@ export function ReviewConsole({ requestId, initialVerifyRunId }: { requestId?: s
       return true;
     } catch (error) {
       setError(
-        error instanceof Error
-          ? error.message
-          : "Không thể cập nhật; chọn lại yêu cầu để tải phiên bản mới.",
+        localizedError(error, locale, "Không thể cập nhật; chọn lại yêu cầu để tải phiên bản mới.", "Could not update the request. Select it again to load the latest version."),
       );
       return false;
     } finally {
@@ -253,10 +254,10 @@ export function ReviewConsole({ requestId, initialVerifyRunId }: { requestId?: s
           <>
             <header className="it-page-heading">
               <div>
-                <h1>Tiếp nhận hỗ trợ</h1>
+                <h1>{t("Tiếp nhận hỗ trợ", "Support intake")}</h1>
               </div>
               <Button
-                aria-label="Tải lại danh sách"
+                aria-label={t("Tải lại danh sách", "Reload list")}
                 variant="secondary"
                 onClick={() => void refresh()}
                 disabled={loading || pending}
@@ -265,10 +266,10 @@ export function ReviewConsole({ requestId, initialVerifyRunId }: { requestId?: s
                   size={16}
                   className={loading ? "animate-spin" : ""}
                 />
-                <span className="it-reload-label">Tải lại danh sách</span>
+                <span className="it-reload-label">{t("Tải lại danh sách", "Reload list")}</span>
               </Button>
             </header>
-            <div role="tablist" aria-label="Ban tiếp nhận" className="flex flex-wrap gap-2 mb-4 border-b border-slate-200 pb-3">
+            <div role="tablist" aria-label={t("Nhóm tiếp nhận", "Support teams")} className="flex flex-wrap gap-2 mb-4 border-b border-slate-200 pb-3">
               {supportDivisions.map((value, index) => <button key={value} id={`division-tab-${value}`}
                 type="button" role="tab" aria-selected={division === value} aria-controls="division-queue"
                 tabIndex={division === value ? 0 : -1}
@@ -280,15 +281,15 @@ export function ReviewConsole({ requestId, initialVerifyRunId }: { requestId?: s
                   if (next < 0) return;
                   event.preventDefault(); chooseDivision(supportDivisions[next]);
                   document.getElementById(`division-tab-${supportDivisions[next]}`)?.focus();
-                }}>{divisionLabels[value]}</button>)}
+                }}>{divisionName(value)}</button>)}
             </div>
             {division === "IT" && <IncidentQueue />}
-            <label className="flex items-center gap-2 my-3"><input type="checkbox" checked={groupIncidents} onChange={event => setGroupIncidents(event.target.checked)} />Gộp yêu cầu cùng vấn đề</label>
-            <div className="it-quick-queues" role="group" aria-label="Chọn nhanh hàng đợi">
+            <label className="flex items-center gap-2 my-3"><input type="checkbox" checked={groupIncidents} onChange={event => setGroupIncidents(event.target.checked)} />{t("Gộp yêu cầu cùng vấn đề", "Group requests for the same incident")}</label>
+            <div className="it-quick-queues" role="group" aria-label={t("Chọn nhanh hàng đợi", "Quick queue filters")}>
               {quickQueues.map(({ label, filter: nextFilter, queue: nextQueue, icon: Icon }) => (
-                <button key={label} type="button" aria-pressed={filter === nextFilter && queue === nextQueue}
+                <button key={label[0]} type="button" aria-pressed={filter === nextFilter && queue === nextQueue}
                   onClick={() => { setFilter(nextFilter); setQueue(nextQueue); }}>
-                  <Icon size={19} aria-hidden="true" />{label}
+                  <Icon size={19} aria-hidden="true" />{localized(label[0], label[1], locale)}
                 </button>
               ))}
             </div>
@@ -297,18 +298,18 @@ export function ReviewConsole({ requestId, initialVerifyRunId }: { requestId?: s
               role="tabpanel"
               aria-labelledby={`division-tab-${division}`}
               className="it-queue"
-              aria-label="Danh sách yêu cầu"
+              aria-label={t("Danh sách yêu cầu", "Request list")}
               aria-busy={loading}
             >
               <div className="it-filters" data-guide="reviewer-filters">
                 <label className="it-search">
-                  Tìm nội dung hoặc mã yêu cầu
+                  {t("Tìm nội dung hoặc mã yêu cầu", "Search request text or ID")}
                   <div>
                     <Search size={18} aria-hidden="true" />
                     <input
                       type="search"
                       maxLength={200}
-                      placeholder="Nội dung hoặc mã HT-…"
+                      placeholder={t("Nội dung hoặc mã HT-…", "Request text or ID…")}
                       value={search}
                       onChange={(event) => setSearch(event.target.value)}
                     />
@@ -316,7 +317,7 @@ export function ReviewConsole({ requestId, initialVerifyRunId }: { requestId?: s
                 </label>
                 <div className="it-employee-filter">
                   <label className="it-search" htmlFor="review-employee-id">
-                    Mã nhân viên
+                    {t("Mã nhân viên", "Employee ID")}
                     <div>
                       <Search size={18} aria-hidden="true" />
                       <input
@@ -333,7 +334,7 @@ export function ReviewConsole({ requestId, initialVerifyRunId }: { requestId?: s
                         }
                         maxLength={32}
                         autoComplete="off"
-                        placeholder="Nhập mã nhân viên"
+                        placeholder={t("Nhập mã nhân viên", "Enter an employee ID")}
                         value={employeeId}
                         onFocus={() => {
                           if (employeeSuggestions.length) setEmployeeSuggestionsOpen(true);
@@ -371,7 +372,7 @@ export function ReviewConsole({ requestId, initialVerifyRunId }: { requestId?: s
                       id="review-employee-suggestions"
                       className="it-employee-suggestions"
                       role="listbox"
-                      aria-label="Mã nhân viên gợi ý"
+                      aria-label={t("Mã nhân viên gợi ý", "Employee ID suggestions")}
                     >
                       {employeeSuggestions.map((suggestion, index) => (
                         <li
@@ -390,76 +391,76 @@ export function ReviewConsole({ requestId, initialVerifyRunId }: { requestId?: s
                   )}
                 </div>
                 <label>
-                  Hiển thị
+                  {t("Hiển thị", "Show")}
                   <select
-                    aria-label="Hiển thị"
+                    aria-label={t("Hiển thị", "Show")}
                     value={filter}
                     onChange={(event) => setFilter(event.target.value)}
                   >
-                    <option value="auto">Đã xử lý tự động</option>
-                    <option value="pending">Đang chờ xử lý</option>
+                    <option value="auto">{t("Đã xử lý tự động", "Handled automatically")}</option>
+                    <option value="pending">{t("Đang chờ xử lý", "Awaiting review")}</option>
                     <option value="knowledge">
-                      Gợi ý tri thức
+                      {t("Gợi ý tri thức", "Knowledge suggestions")}
                     </option>
-                    <option value="all">Tất cả trạng thái</option>
+                    <option value="all">{t("Tất cả trạng thái", "All statuses")}</option>
                   </select>
                 </label>
                 <label>
-                  Nguồn yêu cầu
+                  {t("Nguồn yêu cầu", "Request source")}
                   <select
                     value={origin}
                     onChange={(event) => setOrigin(event.target.value)}
                   >
-                    <option value="support">Người dùng gửi</option>
+                    <option value="support">{t("Người dùng gửi", "Requester")}</option>
                     <option value="verify">Case Verify</option>
-                    <option value="all">Tất cả</option>
+                    <option value="all">{t("Tất cả", "All")}</option>
                   </select>
                 </label>
                 <label className="it-queue-filter">
-                  Hàng đợi chuyển tiếp
+                  {t("Hàng đợi chuyển tiếp", "Escalation queue")}
                   <select
                     value={queue}
                     onChange={(event) => setQueue(event.target.value)}
                   >
-                    <option value="all">Tất cả lý do</option>
+                    <option value="all">{t("Tất cả lý do", "All reasons")}</option>
                     <option value="OUT_OF_POLICY">
-                      Ngoài quy định
+                      {t("Ngoài quy định", "Outside policy")}
                     </option>
                     <option value="AUTHORITY_REQUIRED">
-                      Cần thẩm quyền
+                      {t("Cần thẩm quyền", "Authority required")}
                     </option>
                   </select>
                 </label>
               </div>
               <div className="it-queue-caption">
                 <h2>
-                  Yêu cầu phù hợp <span>{total}</span>
+                  {t("Yêu cầu phù hợp", "Matching requests")} <span>{total}</span>
                 </h2>
                 <span role="status" aria-live="polite">
                   {loading
-                    ? "Đang tải danh sách…"
-                    : `${requests.length}/${total} mục`}
+                    ? t("Đang tải danh sách…", "Loading requests…")
+                    : t(`${requests.length}/${total} mục`, `${requests.length}/${total} items`)}
                 </span>
-                {verifyRunId && <span>Lần kiểm thử này</span>}
+                {verifyRunId && <span>{t("Lần kiểm thử này", "This test run")}</span>}
                 {(verifyRunId || search || employeeId || filter !== "all" || origin !== "all" || queue !== "all") && (
-                  <Button variant="quiet" onClick={clearFilters}><X size={14} />Xóa bộ lọc</Button>
+                  <Button variant="quiet" onClick={clearFilters}><X size={14} />{t("Xóa bộ lọc", "Clear filters")}</Button>
                 )}
               </div>
               <div
                 className="it-contained-scroll"
                 data-guide={!requests.length ? "reviewer-list" : undefined}
                 role="region"
-                aria-label="Danh sách yêu cầu phù hợp"
+                aria-label={t("Danh sách yêu cầu phù hợp", "Matching requests")}
                 tabIndex={0}
               >
                 {!loading && !requests.length && !error && (
                   <div className="it-empty">
                     <Inbox size={36} />
-                    <h3>Chưa có yêu cầu phù hợp</h3>
-                    <p>Thử đổi bộ lọc hoặc tìm bằng mã nhân viên, nội dung hay mã yêu cầu.</p>
-                    <Button variant="secondary" onClick={clearFilters}>Xem tất cả yêu cầu</Button>
+                    <h3>{t("Chưa có yêu cầu phù hợp", "No matching requests")}</h3>
+                    <p>{t("Thử đổi bộ lọc hoặc tìm bằng mã nhân viên, nội dung hay mã yêu cầu.", "Change the filters or search by employee ID, request text, or request ID.")}</p>
+                    <Button variant="secondary" onClick={clearFilters}>{t("Xem tất cả yêu cầu", "View all requests")}</Button>
                     <Link className="button secondary" href="/send-help">
-                      Tạo yêu cầu demo
+                      {t("Tạo yêu cầu demo", "Create demo request")}
                     </Link>
                   </div>
                 )}
@@ -468,7 +469,7 @@ export function ReviewConsole({ requestId, initialVerifyRunId }: { requestId?: s
                 </div>}
                 {error && (
                   <div className="it-empty">
-                    <p>Không thể tải danh sách. Hãy thử tải lại.</p>
+                    <p>{t("Không thể tải danh sách. Hãy thử tải lại.", "Could not load the request list. Try reloading.")}</p>
                   </div>
                 )}
                 <ul className="it-request-list review-list">
@@ -490,24 +491,24 @@ export function ReviewConsole({ requestId, initialVerifyRunId }: { requestId?: s
                         </div>
                         <div className="it-row-subject">
                           <strong>{request.title}</strong>
-                          <small>{catalog[request.serviceGroup].label}</small>
+                            <small>{serviceGroupName(request.serviceGroup, locale)}</small>
                           {request.employeeId && (
-                            <small>Mã nhân viên: {request.employeeId}</small>
+                            <small>{t("Mã nhân viên:", "Employee ID:")} {request.employeeId}</small>
                           )}
                           {request.assignedTeam && (
-                            <small>Nơi tiếp nhận: {divisionLabels[request.division ?? "IT"]}</small>
+                            <small>{t("Nơi tiếp nhận:", "Assigned team:")} {divisionName(request.division ?? "IT")}</small>
                           )}
                           <div className="it-row-tags">
                             {request.verifyRunId && <Badge>Case Verify</Badge>}
                             {request.hasKnowledgeCandidate && (
-                              <Badge tone="warning">Gợi ý tri thức</Badge>
+                              <Badge tone="warning">{t("Gợi ý tri thức", "Knowledge suggestion")}</Badge>
                             )}
                             {request.uncertaintyClass === "OUT_OF_POLICY" && (
-                              <Badge tone="warning">Ngoài quy định</Badge>
+                              <Badge tone="warning">{t("Ngoài quy định", "Outside policy")}</Badge>
                             )}
                             {request.uncertaintyClass ===
                               "AUTHORITY_REQUIRED" && (
-                              <Badge tone="warning">Cần thẩm quyền</Badge>
+                              <Badge tone="warning">{t("Cần thẩm quyền", "Authority required")}</Badge>
                             )}
                           </div>
                         </div>
@@ -520,7 +521,7 @@ export function ReviewConsole({ requestId, initialVerifyRunId }: { requestId?: s
                                 : "neutral"
                           }
                         >
-                          {statusLabels[request.status]}
+                          {statusLabel(request.status, locale)}
                         </Badge>
                         <ChevronRight size={18} aria-hidden="true" />
                       </Link>
@@ -535,7 +536,7 @@ export function ReviewConsole({ requestId, initialVerifyRunId }: { requestId?: s
                     disabled={loading}
                     onClick={() => void refresh(nextCursor)}
                   >
-                    Tải thêm yêu cầu
+                    {t("Tải thêm yêu cầu", "Load more requests")}
                   </Button>
                 </div>
               )}
@@ -558,14 +559,14 @@ export function ReviewConsole({ requestId, initialVerifyRunId }: { requestId?: s
           error ? (
             <div className="it-recovery">
               <Button variant="secondary" onClick={() => void loadSelected()}>
-                Thử tải lại yêu cầu
+                {t("Thử tải lại yêu cầu", "Reload request")}
               </Button>
               <Link href="/review" className="button secondary">
-                ← Danh sách yêu cầu
+                ← {t("Danh sách yêu cầu", "Request list")}
               </Link>
             </div>
           ) : (
-            <ContentSkeleton label="Đang tải yêu cầu…" />
+            <ContentSkeleton label="Đang tải yêu cầu…" labelEn="Loading request…" />
           )
         ) : null}
       </main>

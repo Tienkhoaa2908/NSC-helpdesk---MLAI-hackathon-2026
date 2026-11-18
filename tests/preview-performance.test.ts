@@ -7,10 +7,11 @@ import { withSupportMeasurements, supportMeasurements, measureSupportStage } fro
 import { POST } from "@/app/api/support/preview/route";
 import { resetSupportTestStore } from "@/lib/support-repository";
 import * as repository from "@/lib/support-repository";
+import { mockSupportApiAuthorization } from "./support-api-auth";
 
 const vpn = "VPN liên tục ngắt kết nối. Hướng dẫn tôi kiểm tra an toàn.";
 const input = (rawText: string) => prepareInput({ requesterMode: "guest", rawText, idempotencyKey: crypto.randomUUID() }).input;
-beforeEach(() => { vi.stubEnv("AI_PROVIDER", "mock"); vi.stubEnv("MONGODB_URI", ""); resetSupportTestStore(); });
+beforeEach(() => { mockSupportApiAuthorization(); vi.stubEnv("AI_PROVIDER", "mock"); vi.stubEnv("MONGODB_URI", ""); resetSupportTestStore(); });
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllEnvs(); vi.unstubAllGlobals(); });
 
 it("uses the complete reviewed VPN guide after validated extraction without a paraphrase call", async () => {

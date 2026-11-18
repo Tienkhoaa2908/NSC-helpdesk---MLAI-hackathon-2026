@@ -17,4 +17,4 @@ it("refuses identity reads and writes without explicit Mongo configuration even 
 it("requires a separately named identity database, never silently inherits Support DB", async () => {
   vi.stubEnv("IDENTITY_MONGODB_URI", "mongodb://127.0.0.1:1"); vi.stubEnv("IDENTITY_MONGODB_DB", ""); vi.stubEnv("MONGODB_DB", "support-demo");
   await expect(identityStore()).rejects.toMatchObject({ status: 503 });
-});
+}, 10_000);

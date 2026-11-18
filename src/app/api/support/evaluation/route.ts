@@ -3,7 +3,7 @@ import { evaluationReport } from "@/services/evaluation";
 export const dynamic = "force-dynamic";
 export async function POST(request: Request) {
   return supportApi(async () => {
-    requireDemoReviewer();
+    await requireDemoReviewer(request);
     enforceDemoRateLimit(request, "mutation");
     return evaluationReport(await supportBody(request));
   });

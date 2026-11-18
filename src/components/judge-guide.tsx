@@ -6,6 +6,7 @@ import { GUIDE_SESSION_PREFIX, guideStages, type GuideRole } from "@/domain/judg
 import { GuideIllustration } from "./guide-illustration";
 import { usePathname } from "next/navigation";
 import { useNavigationInFlight } from "./route-transition";
+import { useLocale, localized } from "@/i18n/locale";
 
 type Position = { left: number; top: number; width: number; height: number };
 type Guide = { stage: string; index: number };
@@ -18,6 +19,8 @@ function introKeyForPath(pathname: string) {
 }
 
 export function JudgeGuide({ children }: { children: ReactNode }) {
+  const { locale } = useLocale();
+  const t = (vi: string, en: string) => localized(vi, en, locale);
   const pathname = usePathname();
   const navigating = useNavigationInFlight();
   const content = useRef<HTMLDivElement>(null);
@@ -210,36 +213,36 @@ export function JudgeGuide({ children }: { children: ReactNode }) {
         else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
       }}>
         <header className="guide-modal-heading">
-          <p className="eyebrow">HƯỚNG DẪN SỬ DỤNG</p>
-          <h2 id="support-guide-title">Bắt đầu cùng VNG Support</h2>
-          <p>Chọn hướng dẫn phù hợp với công việc bạn cần thực hiện.</p>
+          <p className="eyebrow">{t("HƯỚNG DẪN SỬ DỤNG", "USER GUIDE")}</p>
+          <h2 id="support-guide-title">{t("Bắt đầu cùng VNG Support", "Getting started with VNG Support")}</h2>
+          <p>{t("Chọn hướng dẫn phù hợp với công việc bạn cần thực hiện.", "Choose the guide that matches the task you want to complete.")}</p>
         </header>
-        <div className="guide-modal-scroll" tabIndex={0} aria-label="Nội dung hướng dẫn sử dụng">
+        <div className="guide-modal-scroll" tabIndex={0} aria-label={t("Nội dung hướng dẫn sử dụng", "User guide content")}>
           <section>
-            <h3>1. Nhân viên gửi yêu cầu</h3>
-            <p>Chọn <strong>Tôi cần hỗ trợ</strong> rồi đăng nhập bằng Google với tài khoản đã được IT duyệt. Nếu chưa có ID, đăng nhập Google và gửi đơn qua mục <strong>Nhân viên mới?</strong>; IT phải xác minh trước khi cấp ID. ID nội bộ không phải mật khẩu. Có thể chọn luồng không cần tài khoản để thử yêu cầu demo, nhưng luồng đó không xác minh người gửi.</p>
+            <h3>{t("1. Nhân viên gửi yêu cầu", "1. Employees submit requests")}</h3>
+            <p>{t("Đăng nhập bằng ID nhân viên và mật khẩu đã được cấp. Nếu chưa có tài khoản, chọn Đăng ký rồi gửi họ tên và Gmail để yêu cầu cấp ID. Bạn có thể dùng tài khoản demo guest01 / 12345 để trải nghiệm; không nhập thông tin thật.", "Sign in with your assigned employee ID and password. If you do not have an account, select Register and submit your name and Gmail address to request an ID. You can explore with the demo account guest01 / 12345; do not enter real information.")}</p>
           </section>
           <section>
-            <h3>Gửi yêu cầu hỗ trợ</h3>
-            <p>Chọn mô tả tự do hoặc danh mục, điền những dữ kiện bạn biết rồi bấm <strong>Gửi</strong> để xem preview. Ví dụ: “VPN không kết nối”. Preview chưa lưu hồ sơ; kiểm tra nội dung trước khi xác nhận.</p>
+            <h3>{t("Gửi yêu cầu hỗ trợ", "Submit a support request")}</h3>
+            <p>{t("Chọn mô tả tự do hoặc danh mục, điền những dữ kiện bạn biết rồi bấm Gửi để xem preview. Ví dụ: “VPN không kết nối”. Preview chưa lưu hồ sơ; hãy kiểm tra nội dung trước khi xác nhận.", "Describe the issue or choose a category, enter the facts you know, then select Submit to review the preview. For example: “My VPN will not connect.” A preview does not save a request; check it before confirming.")}</p>
             <GuideIllustration kind="sender" />
-            <p>Đọc phản hồi, sửa nếu cần rồi bấm <strong>Xác nhận và gửi yêu cầu</strong>. Với câu hỏi trò chuyện, bấm <strong>Lưu và tiếp tục trò chuyện</strong> để mở trang theo dõi. <Link className="button primary" href="/send-help">Bấm để gửi yêu cầu hỗ trợ</Link></p>
+            <p>{t("Đọc phản hồi, sửa nếu cần rồi bấm Xác nhận và gửi yêu cầu. Với câu hỏi trò chuyện, bấm Lưu và tiếp tục trò chuyện để mở trang theo dõi.", "Review the response, edit if needed, then select Confirm and submit request. For a conversational question, select Save and continue the conversation to open tracking.")} <Link className="button primary" href="/send-help">{t("Gửi yêu cầu hỗ trợ", "Submit a support request")}</Link></p>
             <GuideIllustration kind="feedback" />
-            <p>Thử A/B/C/D tùy kết quả: đã giải quyết, vẫn lỗi, giải thích thêm hoặc chuyển nhân viên. Có thể hỏi tiếp, bổ sung dữ kiện và mở lịch sử. Lưu liên kết nếu muốn xem lại yêu cầu.</p>
+            <p>{t("Chọn A/B/C/D tùy kết quả: đã giải quyết, vẫn còn lỗi, cần giải thích thêm hoặc chuyển nhân viên. Bạn có thể hỏi tiếp, bổ sung dữ kiện và mở lịch sử. Lưu liên kết để xem lại yêu cầu.", "Choose A/B/C/D based on the outcome: resolved, still failing, explain a step, or ask staff to review. You can ask follow-up questions, add details, and review history. Keep the link to reopen the request.")}</p>
           </section>
           <section>
-            <h3>2. Admin xử lý yêu cầu</h3>
-            <p>Mở hàng đợi, tìm một hồ sơ, đọc dữ kiện và bằng chứng trước khi phản hồi. <Link href="/help/admin">Mở hướng dẫn Admin</Link>.</p>
+            <h3>{t("2. Admin xử lý yêu cầu", "2. Admins review requests")}</h3>
+            <p>{t("Mở hàng đợi, tìm hồ sơ, rồi đọc dữ kiện và bằng chứng trước khi phản hồi.", "Open the queue, find a request, and review its facts and evidence before responding.")} <Link href="/help/admin">{t("Mở hướng dẫn Admin", "Open the Admin guide")}</Link>.</p>
             <GuideIllustration kind="reviewer" />
-            <p>Chọn thao tác phù hợp với điều kiện của hồ sơ. Mở <strong>Lịch sử xử lý</strong> để đối chiếu kết quả. <Link href="/review">Mở hàng đợi Admin</Link></p>
+            <p>{t("Chọn thao tác phù hợp với điều kiện của hồ sơ. Mở Lịch sử xử lý để đối chiếu kết quả.", "Choose an action allowed for the request. Open Activity history to review the result.")} <Link href="/review">{t("Mở hàng đợi Admin", "Open the Admin queue")}</Link></p>
           </section>
           <section className="guide-note">
-            <h3>Hướng dẫn riêng theo vai trò</h3>
-            <p>Không gian Admin và ID demo không xác minh danh tính, không cấp quyền tổ chức và không thay đổi hạ tầng thật. Chỉ dùng dữ liệu minh họa.</p>
-            <p><Link href="/help/employee">Hướng dẫn nhân viên</Link> · <Link href="/help/admin">Hướng dẫn Admin</Link> · <Link href="/send-help">Gửi yêu cầu hỗ trợ</Link></p>
+            <h3>{t("Hướng dẫn theo vai trò", "Role-specific guides")}</h3>
+            <p>{t("Tài khoản demo không xác minh danh tính nhân viên, không cấp quyền tổ chức và không thay đổi hạ tầng thật. Chỉ dùng dữ liệu minh họa.", "Demo accounts do not verify employee identity, grant organizational access, or change real infrastructure. Use synthetic data only.")}</p>
+            <p><Link href="/help/employee">{t("Hướng dẫn nhân viên", "Employee guide")}</Link> · <Link href="/help/admin">{t("Hướng dẫn Admin", "Admin guide")}</Link> · <Link href="/send-help">{t("Gửi yêu cầu hỗ trợ", "Submit a support request")}</Link></p>
           </section>
         </div>
-        <div className="guide-modal-footer"><button className="button primary" onClick={dismissIntro}>Đã hiểu</button></div>
+        <div className="guide-modal-footer"><button className="button primary" onClick={dismissIntro}>{t("Đã hiểu", "Got it")}</button></div>
       </dialog>
       {ready && !intro && guide && step && position && (
         <div className="guide-overlay">
@@ -248,12 +251,12 @@ export function JudgeGuide({ children }: { children: ReactNode }) {
             <defs><marker id="live-guide-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" fill="#dc2626" /></marker></defs>
             <path d={`M ${tipLeft + 160} ${dockTop ? tipTop + (tip.current?.offsetHeight ?? 210) : viewport.height - 12 - (tip.current?.offsetHeight ?? 210)} Q ${targetX + 45} ${targetY + (dockTop ? -50 : 50)} ${targetX} ${targetY}`} stroke="#dc2626" strokeWidth="4" fill="none" strokeLinecap="round" markerEnd="url(#live-guide-arrow)" />
           </svg>
-          <aside ref={tip} className="guide-tip" role="region" aria-label="Hướng dẫn thao tác" style={{ left: tipLeft, maxHeight: tipMaxHeight, ...(dockTop ? { top: tipTop } : { bottom: 12 }) }}>
-            <p className="eyebrow">{guideStages[guide.stage].role === "sender" ? "NGƯỜI GỬI" : "ADMIN"}</p>
-            <div aria-live="polite"><h3>{step.title}</h3><p>{step.text}</p></div>
+          <aside ref={tip} className="guide-tip" role="region" aria-label={t("Hướng dẫn thao tác", "Step-by-step guide")} style={{ left: tipLeft, maxHeight: tipMaxHeight, ...(dockTop ? { top: tipTop } : { bottom: 12 }) }}>
+            <p className="eyebrow">{guideStages[guide.stage].role === "sender" ? t("NGƯỜI GỬI", "REQUESTER") : "ADMIN"}</p>
+            <div aria-live="polite"><h3>{localized(step.title, step.titleEn, locale)}</h3><p>{localized(step.text, step.textEn, locale)}</p></div>
             <div className="guide-tip-actions">
-              {(!last || !waitingStages.includes(guide.stage)) && <button className="button primary" onClick={next}>{last ? "Hoàn tất hướng dẫn" : "Tiếp theo"}</button>}
-              <button className="guide-skip" onClick={finish}>Bỏ qua hướng dẫn</button>
+              {(!last || !waitingStages.includes(guide.stage)) && <button className="button primary" onClick={next}>{last ? t("Hoàn tất hướng dẫn", "Finish guide") : t("Tiếp theo", "Next")}</button>}
+              <button className="guide-skip" onClick={finish}>{t("Bỏ qua hướng dẫn", "Skip guide")}</button>
             </div>
           </aside>
         </div>

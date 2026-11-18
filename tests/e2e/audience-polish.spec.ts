@@ -1,9 +1,11 @@
 import { expect, test } from "./fixtures";
+import { employeeIdentity, fillEmployeeIdentity } from "./intake-helpers";
 
 test("sender sees safe guidance and progress; staff retains sentiment, expected results and full audit", async ({
   page,
 }, info) => {
-  await page.goto("/guest");
+  await page.goto("/send-help");
+  await fillEmployeeIdentity(page);
   await page
     .getByLabel("Mô tả yêu cầu", { exact: true })
     .fill("Máy in văn phòng báo kẹt giấy. Tôi nên kiểm tra gì trước?");
@@ -99,11 +101,11 @@ test("sender sees safe guidance and progress; staff retains sentiment, expected 
 
 test("legacy requests remain readable without inventing an intake sentiment", async ({
   page,
-  request,
+  requesterRequest,
 }) => {
-  const response = await request.post("/api/support/requests", {
+  const response = await requesterRequest.post("/api/support/requests", {
     data: {
-      requesterMode: "guest",
+      ...employeeIdentity,
       rawText: "VPN không kết nối",
       confirmed: true,
       idempotencyKey: crypto.randomUUID(),

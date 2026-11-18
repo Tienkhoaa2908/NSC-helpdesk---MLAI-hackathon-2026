@@ -93,7 +93,7 @@ test("review, audit and verify share one employee workspace", async ({ page }) =
     await expect(page.locator(".it-content")).toBeVisible();
     await expect(nav.getByRole("link", { name: currentLabel, exact: true }))
       .toHaveAttribute("aria-current", "page");
-    const guideNav = page.getByRole("navigation", { name: "Điều hướng Admin" });
+    const guideNav = page.getByRole("navigation", { name: "Điều hướng chính" });
     await expect(guideNav).toBeVisible();
     await expect(guideNav.getByRole("link", { name: "Hướng dẫn Admin", exact: true })).toHaveAttribute("href", "/help/admin");
   }
@@ -134,8 +134,8 @@ test("employee filter suggests matching codes and supports keyboard selection", 
   await expect.poll(() => filteredEmployeeId).toBe("thanhdt");
 });
 
-test("quick queues, displayed ID search, return and reset work together", async ({ page, request }, info) => {
-  const result = await request.post("/api/support/requests", { data: { ...employeeIdentity, rawText: "Open port 3389 public", confirmed: true, idempotencyKey: crypto.randomUUID() } });
+test("quick queues, displayed ID search, return and reset work together", async ({ page, requesterRequest }, info) => {
+  const result = await requesterRequest.post("/api/support/requests", { data: { ...employeeIdentity, rawText: "Open port 3389 public", confirmed: true, idempotencyKey: crypto.randomUUID() } });
   expect(result.ok()).toBe(true);
   const row = (await result.json()).data;
   const code = `HT-${row.id.slice(0, 8).toUpperCase()}`;
@@ -171,7 +171,7 @@ test("quick queues, displayed ID search, return and reset work together", async 
   await page.screenshot({ path: `test-results/vng-audit-${info.project.name}.png`, fullPage: true });
 });
 
-test("failed filter refresh removes stale results and can recover without session storage", async ({ page, request }) => {
+test("failed filter refresh removes stale results and can recover without session storage", async ({ page, requesterRequest }) => {
   await page.addInitScript(() => {
     const original = Storage.prototype.setItem;
     Storage.prototype.setItem = function (key: string, value: string) {
@@ -179,7 +179,7 @@ test("failed filter refresh removes stale results and can recover without sessio
       original.call(this, key, value);
     };
   });
-  const result = await request.post("/api/support/requests", { data: { ...employeeIdentity, rawText: "Open port 3389 public", confirmed: true, idempotencyKey: crypto.randomUUID() } });
+  const result = await requesterRequest.post("/api/support/requests", { data: { ...employeeIdentity, rawText: "Open port 3389 public", confirmed: true, idempotencyKey: crypto.randomUUID() } });
   expect(result.ok()).toBe(true);
   await page.goto("/review");
   await expect(page.locator(".review-list li").first()).toBeVisible();

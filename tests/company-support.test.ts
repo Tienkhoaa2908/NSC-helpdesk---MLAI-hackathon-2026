@@ -19,10 +19,11 @@ import { summarizeReviewRequest } from "@/services/review-summary";
 import { supportApi } from "@/lib/support-http";
 import type { Db } from "mongodb";
 import * as repository from "@/lib/support-repository";
+import { mockSupportApiAuthorization } from "./support-api-auth";
 import { requestGroup } from "@/domain/request-groups";
 
 const input = (rawText: string, fields: Record<string, string> = {}) => prepareInput({ requesterMode: "guest", rawText, fields, confirmed: true, idempotencyKey: crypto.randomUUID() });
-beforeEach(() => { vi.stubEnv("AI_PROVIDER", "mock"); vi.stubEnv("MONGODB_URI", ""); vi.stubEnv("AI_WEB_SEARCH", "false"); resetSupportTestStore(); });
+beforeEach(() => { mockSupportApiAuthorization(); vi.stubEnv("AI_PROVIDER", "mock"); vi.stubEnv("MONGODB_URI", ""); vi.stubEnv("AI_WEB_SEARCH", "false"); resetSupportTestStore(); });
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllEnvs(); vi.unstubAllGlobals(); });
 
 it.each(expansion)("$id: preserves action, authority and correct division", async row => {
@@ -173,7 +174,7 @@ const api: typeof fetch = async (url, init) => {
   const request = new Request(`http://localhost${url}`, init);
   if (init?.method === "POST") return POST(request);
   if (String(url).startsWith("/api/support/events?")) return events(request);
-  if (String(url) === "/api/support/metrics") return metrics();
+  if (String(url) === "/api/support/metrics") return metrics(request);
   if (String(url).startsWith("/api/support/requests?")) return list(request);
   return detail(request, { params: Promise.resolve({ id: String(url).split("/").at(-1)! }) });
 };

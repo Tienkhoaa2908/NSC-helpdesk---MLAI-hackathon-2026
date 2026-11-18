@@ -1,4 +1,5 @@
-import { SupportWorkspace } from "@/components/support-workspace";
-export default function GuestPage() {
-  return <SupportWorkspace guest />;
+import { redirect } from "next/navigation";
+
+export default function GuestAlias() {
+  redirect("/login?next=%2Fsend-help");
 }

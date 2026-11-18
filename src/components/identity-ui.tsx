@@ -1,142 +1,214 @@
 "use client";
+
 import Link from "next/link";
-import { GuestEntryLink } from "./guest-entry-link";
-import { useEffect, useRef, useState } from "react";
-import { applicationInputSchema, environments, operations, resources, scopeKey, scopeRisk, scopeSchema, type JobProfile, type Scope } from "@/domain/identity";
+import { useState } from "react";
+import type { FormEvent } from "react";
 import { Alert, Button } from "./ui";
+import { localized, useLocale } from "@/i18n/locale";
+
+type IdentityResponse<T> = {
+  success?: boolean;
+  data?: T;
+  error?: { code?: string; message?: string };
+};
+
+const apiErrorCopy: Record<string, { vi: string; en: string }> = {
+  AUTHENTICATION_REQUIRED: { vi: "Phiên đăng nhập đã hết hạn. Hãy đăng nhập lại.", en: "Your session has expired. Sign in again." },
+  INVALID_CREDENTIALS: { vi: "ID hoặc mật khẩu không đúng.", en: "The ID or password is incorrect." },
+  ACCOUNT_DISABLED: { vi: "Tài khoản đã bị vô hiệu hóa.", en: "This account has been disabled." },
+  RATE_LIMITED: { vi: "Quá nhiều lần thử. Vui lòng chờ rồi thử lại.", en: "Too many attempts. Wait a moment and try again." },
+  IDENTITY_STORAGE_UNAVAILABLE: { vi: "Cơ sở dữ liệu tài khoản chưa sẵn sàng. Vui lòng thử lại sau.", en: "The account database is unavailable. Try again later." },
+  IDENTITY_EMAIL_NOT_CONFIGURED: { vi: "Email cấp tài khoản chưa được cấu hình. Liên hệ quản trị viên.", en: "Account email is not configured. Contact the administrator." },
+  EMAIL_NOT_CONFIGURED: { vi: "Email cấp tài khoản chưa được cấu hình. Liên hệ quản trị viên.", en: "Account email is not configured. Contact the administrator." },
+  ACCOUNT_REQUEST_EMAIL_FAILED: { vi: "Đơn đã được lưu nhưng chưa gửi được email cho quản trị viên. Hãy thử lại sau.", en: "Your request was saved, but the administrator notification could not be sent. Try again later." },
+  EMAIL_DELIVERY_FAILED: { vi: "Chưa gửi được email. Đơn có thể đã được lưu; hãy thử gửi lại sau.", en: "The email could not be sent. Your request may have been saved; try again later." },
+  ACCOUNT_ALREADY_ACTIVE: { vi: "Gmail này đã có tài khoản. Hãy đăng nhập bằng ID và mật khẩu.", en: "This Gmail address already has an account. Sign in with its ID and password." },
+  ACCOUNT_REQUEST_EXISTS: { vi: "Email này đã có yêu cầu đang chờ xử lý.", en: "A request for this email is already pending." },
+  ACCOUNT_REQUEST_PROCESSING: { vi: "Yêu cầu này đang được xử lý. Hãy thử lại sau.", en: "This request is being processed. Try again shortly." },
+  ACCOUNT_REQUEST_CHANGED: { vi: "Yêu cầu đã thay đổi. Hãy gửi lại sau.", en: "The request changed. Please submit it again." },
+  VALIDATION_ERROR: { vi: "Kiểm tra lại họ tên và địa chỉ Gmail.", en: "Check the name and Gmail address and try again." },
+};
 
 export async function identityApi<T>(path: string, body?: unknown, headers?: HeadersInit): Promise<T> {
-  const response = await fetch(`/api/identity/${path}`, { method: body === undefined ? "GET" : "POST", cache: "no-store", headers: { "content-type": "application/json", ...headers }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
-  const result = await response.json();
-  if (!response.ok || !result.success) throw new Error(result.error?.message || "Chưa kết nối được hệ thống ID. Thử lại sau.");
+  const response = await fetch(`/api/identity/${path}`, {
+    method: body === undefined ? "GET" : "POST",
+    cache: "no-store",
+    credentials: "same-origin",
+    headers: body === undefined
+      ? headers
+      : { "content-type": "application/json", ...headers },
+    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+  });
+  const result = await response.json().catch(() => ({})) as IdentityResponse<T>;
+  if (!response.ok || !result.success) {
+    const locale = document.documentElement.lang === "en" ? "en" : "vi";
+    const code = result.error?.code ?? "";
+    const known = apiErrorCopy[code];
+    throw new Error(known?.[locale] ?? (locale === "vi"
+      ? result.error?.message ?? "Không thể hoàn tất yêu cầu. Vui lòng thử lại."
+      : "The request could not be completed. Try again."));
+  }
   return result.data as T;
 }
-export const identityStatus = { PENDING: "Chờ quản trị viên duyệt", ID_CONFLICT: "Quản trị viên đang xử lý trùng ID", APPROVED: "Đã cấp ID", REJECTED: "Quản trị viên đã từ chối" };
-export function ScopeList({ scopes }: { scopes: Scope[] }) {
-  return <ul className="scope-list">{scopes.map((scope) => <li key={scopeKey(scope)}><strong>{operations[scope.operation]} · {resources[scope.resource]}</strong><span>{environments[scope.environment]} · <code>{scope.target}</code></span>{scopeRisk(scope) && <small className="risk-label">Cần thẩm quyền riêng — duyệt job chưa cho phép thực thi</small>}</li>)}</ul>;
-}
-export function LoginPanel() {
-  const [error, setError] = useState("");
-  const [busy, setBusy] = useState(false);
-  useEffect(() => {
-    if (new URLSearchParams(window.location.search).get("error") === "google_sign_in")
-      setError("Đăng nhập Google chưa hoàn tất hoặc phiên đã hết hạn. Hãy thử lại.");
-  }, []);
-  return <section className="identity-login" aria-labelledby="login-title">
-    <h1 id="login-title">Đăng nhập</h1>
-    <div className="identity-form">
-      <p>Đăng nhập bằng tài khoản Gmail đã xác minh. Nếu chưa có ID nhân viên, chọn “Nhân viên mới?” để gửi yêu cầu truy cập; quản trị viên sẽ xác minh và duyệt.</p>
-      {error && <Alert tone="error">{error}</Alert>}
-      <Button type="button" disabled={busy} onClick={async () => {
-        setError(""); setBusy(true);
-      try {
-        const next = new URLSearchParams(window.location.search).get("next");
-        const returnTo = next === "/identity/review" ? next : "/send-help";
-        const result = await identityApi<{ authorizationUrl: string }>("google/start", { returnTo });
-        window.location.assign(result.authorizationUrl);
-      } catch (cause) { setError(cause instanceof Error ? cause.message : "Chưa đăng nhập được. Thử lại."); }
-      finally { setBusy(false); }
-      }}>{busy ? "Đang chuyển tới Google…" : "Đăng nhập bằng Google"}</Button>
-    </div>
-    <GuestEntryLink className="button secondary guest-entry">Đăng nhập không cần tài khoản</GuestEntryLink>
-    <Link className="identity-text-link" href="/identity/new">Nhân viên mới?</Link>
 
-    <details className="login-options"><summary>Hướng dẫn & tùy chọn</summary><p>Google chỉ xác minh tài khoản và email. Quản trị viên vẫn cần xác minh nhân sự trước khi cấp ID. ID nhân viên là mã nhận diện nội bộ, không phải thông tin đăng nhập.</p><div className="identity-links"><Link href="/identity/track">Theo dõi đơn cấp ID</Link><Link href="/help">Hướng dẫn sử dụng</Link><button type="button" onClick={() => window.dispatchEvent(new Event("vng-open-guide"))}>Hướng dẫn demo</button><Link href="/send-help">Trải nghiệm demo</Link></div></details>
-  </section>;
-}
-export function ScopeEditor({ value, onChange }: { value: Scope[]; onChange: (value: Scope[]) => void }) {
-  const [draft, setDraft] = useState<Scope>({ environment: "sandbox", resource: "project", operation: "read", target: "" });
+export function LoginPanel() {
+  const { locale } = useLocale();
+  const [employeeId, setEmployeeId] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState("");
-  return <fieldset className="scope-editor"><legend>Phạm vi cần yêu cầu</legend><p>Chọn từng quyền và đích cụ thể. Không nhập wildcard (*), mật khẩu hoặc giá trị secrets.</p><div className="identity-grid">
-    <label>Môi trường<select aria-label="Môi trường" value={draft.environment} onChange={(e) => setDraft({ ...draft, environment: e.target.value as Scope["environment"] })}>{Object.entries(environments).map(([key, name]) => <option key={key} value={key}>{name}</option>)}</select></label>
-    <label>Tài nguyên<select aria-label="Tài nguyên" value={draft.resource} onChange={(e) => setDraft({ ...draft, resource: e.target.value as Scope["resource"] })}>{Object.entries(resources).map(([key, name]) => <option key={key} value={key}>{name}</option>)}</select></label>
-    <label>Thao tác<select aria-label="Thao tác" value={draft.operation} onChange={(e) => setDraft({ ...draft, operation: e.target.value as Scope["operation"] })}>{Object.entries(operations).map(([key, name]) => <option key={key} value={key}>{name}</option>)}</select></label>
-    <label>Phạm vi đích<input value={draft.target} maxLength={120} onChange={(e) => setDraft({ ...draft, target: e.target.value })} placeholder="Ví dụ: project-demo/task-01" /></label>
-  </div>{scopeRisk(draft) && <p className="risk-label">Quyền nhạy cảm: cần thẩm quyền riêng, không tự động thực thi sau khi cấp job.</p>}{error && <Alert tone="error">{error}</Alert>}
-    <Button variant="secondary" type="button" onClick={() => { const parsed = scopeSchema.safeParse(draft); if (!parsed.success) { setError("Nhập đích cụ thể, 2–120 ký tự: chữ không dấu, số, dấu / . : _ hoặc -. Không dùng wildcard hay ‘all’."); return; } if (value.length >= 30 || value.some((s) => scopeKey(s) === scopeKey(parsed.data))) { setError("Phạm vi đã có hoặc đã đủ 30 quyền."); return; } onChange([...value, parsed.data]); setError(""); }}>Thêm phạm vi</Button>
-    <ol className="scope-list">{value.map((scope, i) => <li key={scopeKey(scope)}><span>{operations[scope.operation]} · {resources[scope.resource]} · {environments[scope.environment]} · <code>{scope.target}</code></span><Button type="button" variant="quiet" aria-label={`Bỏ phạm vi ${i + 1}`} onClick={() => onChange(value.filter((_, index) => index !== i))}>Bỏ</Button></li>)}</ol>
-  </fieldset>;
-}
-export function NewIdentityApplication() {
-  const [principal, setPrincipal] = useState<{ status: "ACTIVE" | "PENDING" | "ADMIN"; id?: string; name: string; email: string; applicationStatus?: keyof typeof identityStatus } | null>(null);
-  const [authLoading, setAuthLoading] = useState(true);
-  const [signedOut, setSignedOut] = useState(false);
-  const [authError, setAuthError] = useState("");
-  const [profiles, setProfiles] = useState<JobProfile[]>([]);
-  const [existing, setExisting] = useState<Tracking | null>(null);
-  const [loadError, setLoadError] = useState("");
-  const [name, setName] = useState("");
-  const [job, setJob] = useState("");
-  const [jobName, setJobName] = useState("");
-  const [search, setSearch] = useState("");
-  const [scopes, setScopes] = useState<Scope[]>([]);
-  const [step, setStep] = useState(1);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  const [receipt, setReceipt] = useState("");
-  const submitted = useRef<{ id: string; token: string; payload: string } | null>(null);
-  const heading = useRef<HTMLHeadingElement>(null);
-  const load = async () => { setLoadError(""); try { setProfiles(await identityApi<JobProfile[]>("profiles")); } catch (cause) { setLoadError((cause as Error).message); } };
-  const refreshApplication = async () => { try { setExisting(await identityApi<Tracking | null>("my-application")); } catch (cause) { setLoadError((cause as Error).message); } };
-  useEffect(() => {
-    let current = true;
-    void identityApi<{ status: "ACTIVE" | "PENDING" | "ADMIN"; id?: string; name: string; email: string; applicationStatus?: keyof typeof identityStatus }>("session")
-      .then(async (value) => {
-        if (!current) return;
-        setPrincipal(value); setSignedOut(false); setName(value.name);
-        if (value.status === "PENDING") {
-          const [availableProfiles, application] = await Promise.all([
-            identityApi<JobProfile[]>("profiles").catch(() => []),
-            identityApi<Tracking | null>("my-application").catch(() => null),
-          ]);
-          if (current) { setProfiles(availableProfiles); setExisting(application); }
-        }
-      })
-      .catch((cause) => { if (current) { setSignedOut(true); setAuthError((cause as Error).message); } })
-      .finally(() => { if (current) setAuthLoading(false); });
-    return () => { current = false; };
-  }, []);
-  useEffect(() => { heading.current?.focus(); }, [step, receipt]);
-  async function signIn() {
-    setError(""); setAuthError(""); setBusy(true);
-    try { const result = await identityApi<{ authorizationUrl: string }>("google/start", { returnTo: "/identity/new" }); window.location.assign(result.authorizationUrl); }
-    catch (cause) { setAuthError((cause as Error).message); }
-    finally { setBusy(false); }
+
+  async function signIn(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError("");
+    setBusy(true);
+    try {
+      const query = new URLSearchParams(window.location.search);
+      const next = query.get("next") ?? undefined;
+      const result = await identityApi<{ redirectTo: string }>("login", {
+        employeeId: employeeId.trim(),
+        password,
+        ...(next ? { next } : {}),
+      });
+      window.location.assign(result.redirectTo);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : localized("Đăng nhập không thành công. Thử lại.", "Sign-in failed. Try again.", locale));
+    } finally {
+      setBusy(false);
+    }
   }
-  const profile = profiles.find((p) => `${p.id}:${p.version}` === job);
-  if (receipt) return <main className="identity-page"><section className="identity-card"><span className="eyebrow">ĐÃ LƯU ĐƠN</span><h1 ref={heading} tabIndex={-1}>Đơn đang chờ quản trị viên duyệt</h1><p>Chưa có ID chính thức. Lưu liên kết riêng bên dưới để xem kết quả và lý do xử lý.</p><label>Liên kết theo dõi riêng<input readOnly value={receipt} onFocus={(e) => e.target.select()} /></label><p className="identity-note">Ai có liên kết này có thể đọc đơn. Chỉ chia sẻ cho người liên quan. Liên kết không được lưu trong trình duyệt.</p><a className="button primary" href={receipt}>Theo dõi đơn</a><Link className="identity-text-link" href="/login">Về đăng nhập</Link></section></main>;
-  if (authLoading) return <main className="identity-page"><section className="identity-card"><p role="status">Đang kiểm tra phiên đăng nhập…</p></section></main>;
-  if (signedOut) return <main className="identity-page"><section className="identity-card"><Link href="/login" className="identity-text-link">← Đăng nhập</Link><h1 ref={heading} tabIndex={-1}>Yêu cầu cấp ID</h1><p>Đăng nhập bằng tài khoản Gmail đã xác minh trước khi gửi yêu cầu. Quản trị viên sẽ xác minh nhân sự và phạm vi.</p>{authError && <Alert tone="error">{authError}</Alert>}<Button type="button" disabled={busy} onClick={() => void signIn()}>{busy ? "Đang chuyển tới Google…" : "Đăng nhập bằng Google"}</Button></section></main>;
-  if (principal?.status === "ADMIN") return <main className="identity-page"><section className="identity-card"><span className="eyebrow">QUẢN TRỊ DANH TÍNH</span><h1 ref={heading} tabIndex={-1}>Đã đăng nhập với quyền quản trị</h1><p>{principal.email} có thể xem và duyệt các yêu cầu cấp ID.</p><Link className="button primary" href="/identity/review">Mở hàng đợi duyệt ID</Link></section></main>;
-  if (principal?.status === "ACTIVE") return <main className="identity-page"><section className="identity-card"><span className="eyebrow">TÀI KHOẢN ĐÃ ĐƯỢC DUYỆT</span><h1 ref={heading} tabIndex={-1}>Bạn đã có ID nhân viên</h1><p>Tài khoản Google {principal.email} đã được quản trị viên duyệt.</p><p className="issued-id">{principal.id}</p><p>ID là mã nhận diện nội bộ, không phải mật khẩu. Dùng Google Sign-In để đăng nhập.</p><Link className="button primary" href="/send-help">Gửi yêu cầu hỗ trợ</Link></section></main>;
-  if (existing && ["PENDING", "ID_CONFLICT"].includes(existing.status)) return <main className="identity-page"><section className="identity-card"><span className="eyebrow">{identityStatus[existing.status]}</span><h1 ref={heading} tabIndex={-1}>Đơn cấp ID đang được xử lý</h1><p>{existing.fullName} · {existing.jobName}</p><p>Đăng nhập Google xác định đúng người gửi. Quản trị viên phải xác minh nhân sự trước khi cấp ID.</p>{existing.reason && <Alert>{existing.reason}</Alert>}<ScopeList scopes={existing.scopes} /><div className="identity-actions"><Button variant="secondary" type="button" disabled={busy} onClick={() => { setBusy(true); void refreshApplication().finally(() => setBusy(false)); }}>{busy ? "Đang tải…" : "Tải lại trạng thái"}</Button><Link className="button secondary" href="/login">Về đăng nhập</Link></div></section></main>;
-  return <main className="identity-page"><section className="identity-card"><Link href="/login" className="identity-text-link">← Đăng nhập</Link><h1 ref={heading} tabIndex={-1}>Yêu cầu cấp ID</h1><p>Đã đăng nhập: <strong>{principal?.email}</strong>. Quản trị viên sẽ xác minh nhân sự và phạm vi trước khi cấp ID. Không nhập thông tin liên hệ hoặc dữ liệu mật.</p>{existing?.status === "REJECTED" && <Alert>Đơn trước bị từ chối: {existing.reason ?? "Quản trị viên yêu cầu gửi lại sau khi bổ sung thông tin."}</Alert>}<ol className="identity-steps" aria-label="Các bước cấp ID">{["Thông tin", "Phạm vi", "Xác nhận"].map((title, index) => <li key={title} aria-current={step === index + 1 ? "step" : undefined}>{index + 1}. {title}</li>)}</ol>
-    {loadError && <Alert tone="error">{loadError} <button type="button" className="identity-text-link" onClick={() => void load()}>Thử tải lại</button></Alert>}
-    <form className="identity-form" onSubmit={async (event) => {
-      event.preventDefault(); setError("");
-      if (step === 1) { if (!name.trim() || !job) { setError("Nhập họ tên và chọn job."); return; } setStep(2); return; }
-      const selection = job === "new" ? { kind: "new" as const, name: jobName, scopes } : { kind: "existing" as const, profileId: profile?.id, version: profile?.version };
-      const payload = JSON.stringify({ fullName: name, job: selection });
-      if (!submitted.current || submitted.current.payload !== payload) submitted.current = { id: crypto.randomUUID(), token: Array.from(crypto.getRandomValues(new Uint8Array(32)), (b) => b.toString(16).padStart(2, "0")).join(""), payload };
-      const input = { id: submitted.current.id, trackingToken: submitted.current.token, fullName: name, job: selection };
-      if (!applicationInputSchema.safeParse(input).success) { setError("Kiểm tra họ tên chỉ gồm chữ, tên job tối thiểu 2 ký tự và ít nhất một phạm vi hợp lệ. Job có sẵn cần được tải thành công."); return; }
-      if (step === 2) { setStep(3); return; }
-      setBusy(true);
-      try { await identityApi("applications", input); setReceipt(`${window.location.origin}/identity/track#id=${input.id}&token=${input.trackingToken}`); }
-      catch (cause) { setError((cause as Error).message); }
-      finally { setBusy(false); }
-    }}>
-      {step === 1 && <><label>Họ và tên người cần cấp ID<input required maxLength={120} autoComplete="name" value={name} onChange={(e) => setName(e.target.value)} /></label><label>Tìm job có sẵn<input type="search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Tìm theo tên job" /></label><label>Tên job<select aria-label="Tên job" required value={job} onChange={(e) => setJob(e.target.value)}><option value="">Chọn job</option>{profiles.filter((p) => p.name.toLocaleLowerCase("vi").includes(search.toLocaleLowerCase("vi")) || `${p.id}:${p.version}` === job).map((p) => <option key={`${p.id}:${p.version}`} value={`${p.id}:${p.version}`}>{p.name} · phiên bản {p.version}</option>)}<option value="new">Tạo job mới — quản trị viên duyệt phạm vi</option></select></label>{job === "new" && <label>Tên job mới<input required minLength={2} maxLength={100} value={jobName} onChange={(e) => setJobName(e.target.value)} /></label>}</>}
-      {step === 2 && (job === "new" ? <ScopeEditor value={scopes} onChange={setScopes} /> : <><h2>{profile?.name} · phiên bản {profile?.version}</h2><p>Có thể yêu cầu các quyền dưới đây. Không được làm ngoài phạm vi hoặc đích này; quyền nhạy cảm vẫn cần thẩm quyền riêng. quản trị viên duyệt việc gắn nguyên profile cho bạn.</p><ScopeList scopes={profile?.scopes ?? []} /></>)}
-      {step === 3 && <><h2>Kiểm tra trước khi gửi</h2><dl className="identity-summary"><dt>Họ tên</dt><dd>{name}</dd><dt>Job</dt><dd>{job === "new" ? `${jobName} — job mới` : `${profile?.name} — phiên bản ${profile?.version}`}</dd></dl><ScopeList scopes={job === "new" ? scopes : profile?.scopes ?? []} /><p>Gửi đơn chưa cấp tài khoản. Chỉ sau khi quản trị viên duyệt, ID chính thức mới xuất hiện trong trang theo dõi.</p></>}
-      {error && <Alert tone="error">{error}</Alert>}<div className="identity-actions">{step > 1 && <Button type="button" variant="secondary" disabled={busy} onClick={() => { setStep(step - 1); setError(""); }}>Quay lại</Button>}<Button disabled={busy}>{busy ? "Đang lưu đơn…" : step === 3 ? "Gửi đơn cho quản trị viên" : "Tiếp tục"}</Button></div>
-    </form></section></main>;
+
+  return (
+    <section className="identity-login" aria-labelledby="login-title">
+      <h1 id="login-title">{localized("Đăng nhập", "Sign in", locale)}</h1>
+      <div className="identity-form">
+        <p>{localized("Dùng ID nhân viên và mật khẩu đã được cấp để gửi yêu cầu hỗ trợ.", "Use your issued employee ID and password to submit a support request.", locale)}</p>
+        {error && <Alert tone="error">{error}</Alert>}
+        <form className="identity-form" onSubmit={(event) => void signIn(event)}>
+          <label>
+            {localized("ID nhân viên hoặc email", "Employee ID or email", locale)}
+            <input
+              required
+              autoCapitalize="none"
+              autoComplete="username"
+              maxLength={254}
+              value={employeeId}
+              onChange={(event) => setEmployeeId(event.target.value)}
+            />
+          </label>
+          <label>
+            {localized("Mật khẩu", "Password", locale)}
+            <input
+              required
+              type="password"
+              autoComplete="current-password"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+            />
+          </label>
+          <Button disabled={busy}>{busy ? localized("Đang đăng nhập…", "Signing in…", locale) : localized("Đăng nhập", "Sign in", locale)}</Button>
+        </form>
+        <div className="identity-note demo-credentials" role="note">
+          <strong>{localized("Tài khoản trải nghiệm", "Demo account", locale)}</strong>
+          <p>{localized("ID", "ID", locale)}: <code>guest01</code></p>
+          <p>{localized("Mật khẩu", "Password", locale)}: <code>12345</code></p>
+          <small>{localized("Tài khoản này chỉ dùng để trải nghiệm dữ liệu mô phỏng.", "This account is for synthetic demo data only.", locale)}</small>
+        </div>
+        <Link className="identity-text-link" href="/identity/new">{localized("Nhân viên mới? Gửi yêu cầu cấp tài khoản", "New employee? Request an account", locale)}</Link>
+        <details className="login-options">
+          <summary>{localized("Hướng dẫn sử dụng", "User guide", locale)}</summary>
+          <p>{localized("Nhập ID và mật khẩu được cấp. Nếu chưa có tài khoản, gửi yêu cầu bằng họ tên và Gmail; quản trị viên sẽ gửi thông tin đăng nhập sau khi xác nhận.", "Enter your issued ID and password. If you do not have an account, submit your name and Gmail address; the administrator will email your sign-in details after approval.", locale)}</p>
+          <div className="identity-links">
+            <Link href="/help/employee">{localized("Hướng dẫn nhân viên", "Employee guide", locale)}</Link>
+            <Link href="/help">{localized("Trung tâm hướng dẫn", "Help center", locale)}</Link>
+          </div>
+        </details>
+      </div>
+    </section>
+  );
 }
-type Tracking = { fullName: string; status: keyof typeof identityStatus; jobName: string; scopes: Scope[]; grantedScopes?: Scope[]; reason?: string; employeeId?: string };
+
+export function NewIdentityApplication() {
+  const { locale } = useLocale();
+  const [fullName, setFullName] = useState("");
+  const [email, setEmail] = useState("");
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [submittedEmail, setSubmittedEmail] = useState("");
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError("");
+    setBusy(true);
+    try {
+      await identityApi<{ id: string; status: string }>("applications", {
+        fullName: fullName.trim().replace(/\s+/g, " "),
+        email: email.trim().toLowerCase(),
+      });
+      setSubmittedEmail(email.trim().toLowerCase());
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : localized("Chưa gửi được yêu cầu. Thử lại.", "Could not submit the request. Try again.", locale));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (submittedEmail) {
+    return (
+      <main className="identity-page">
+        <section className="identity-card" aria-labelledby="application-sent-title">
+          <span className="eyebrow">{localized("ĐÃ GỬI YÊU CẦU", "REQUEST SENT", locale)}</span>
+          <h1 id="application-sent-title">{localized("Yêu cầu cấp tài khoản đã được gửi", "Your account request has been sent", locale)}</h1>
+          <p>{localized(`Quản trị viên đã nhận yêu cầu cho ${submittedEmail}. Sau khi xác nhận, thông tin đăng nhập sẽ được gửi tới địa chỉ này.`, `The administrator has received the request for ${submittedEmail}. After approval, sign-in details will be sent to this address.`, locale)}</p>
+          <div className="identity-note demo-credentials" role="note">
+            <strong>{localized("Bạn có thể trải nghiệm ngay", "You can try the system now", locale)}</strong>
+            <p>{localized("ID", "ID", locale)}: <code>guest01</code></p>
+            <p>{localized("Mật khẩu", "Password", locale)}: <code>12345</code></p>
+            <small>{localized("Tài khoản demo chỉ dùng dữ liệu mô phỏng.", "The demo account uses synthetic data only.", locale)}</small>
+          </div>
+          <div className="identity-actions">
+            <Link className="button primary" href="/login">{localized("Đăng nhập demo", "Sign in to the demo", locale)}</Link>
+            <Link className="button secondary" href="/">{localized("Về trang chính", "Back to home", locale)}</Link>
+          </div>
+        </section>
+      </main>
+    );
+  }
+
+  return (
+    <main className="identity-page">
+      <section className="identity-card" aria-labelledby="application-title">
+        <Link href="/login" className="identity-text-link">← {localized("Đăng nhập", "Sign in", locale)}</Link>
+        <span className="eyebrow">{localized("DÀNH CHO NHÂN VIÊN MỚI", "NEW EMPLOYEE", locale)}</span>
+        <h1 id="application-title">{localized("Yêu cầu cấp tài khoản", "Request an account", locale)}</h1>
+        <p>{localized("Nhập họ tên và Gmail của bạn. Quản trị viên sẽ kiểm tra yêu cầu rồi gửi ID và mật khẩu qua email.", "Enter your name and Gmail address. The administrator will review your request and email your ID and password.", locale)}</p>
+        <form className="identity-form" onSubmit={(event) => void submit(event)}>
+          <label>
+            {localized("Họ và tên", "Full name", locale)}
+            <input required minLength={2} maxLength={120} autoComplete="name" value={fullName} onChange={(event) => setFullName(event.target.value)} />
+          </label>
+          <label>
+            Gmail
+            <input required type="email" autoComplete="email" maxLength={254} pattern="[A-Za-z0-9._%+-]+@gmail\.com" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="name@gmail.com" />
+          </label>
+          <p className="field-hint">{localized("Email này sẽ là ID nhân viên và địa chỉ nhận thông tin đăng nhập.", "This email address will be your employee ID and the destination for your sign-in details.", locale)}</p>
+          {error && <Alert tone="error">{error}</Alert>}
+          <Button disabled={busy}>{busy ? localized("Đang gửi yêu cầu…", "Sending request…", locale) : localized("Gửi yêu cầu cấp tài khoản", "Send account request", locale)}</Button>
+        </form>
+      </section>
+    </main>
+  );
+}
+
 export function IdentityTracking() {
-  const [id, setId] = useState(""); const [token, setToken] = useState("");
-  const [data, setData] = useState<Tracking | null>(null); const [error, setError] = useState(""); const [busy, setBusy] = useState(false);
-  async function load(key: string, secret: string) { setBusy(true); setData(null); setError(""); try { setData(await identityApi<Tracking>(`applications/${encodeURIComponent(key)}`, undefined, { "x-tracking-token": secret })); } catch (cause) { setError((cause as Error).message); } finally { setBusy(false); } }
-  useEffect(() => { const hash = new URLSearchParams(window.location.hash.slice(1)); const key = hash.get("id") ?? "", secret = hash.get("token") ?? ""; setId(key); setToken(secret); if (key && secret) void load(key, secret); }, []);
-  return <main className="identity-page"><section className="identity-card"><Link href="/login">← Đăng nhập</Link><h1>Theo dõi đơn cấp ID</h1><p>Mở liên kết riêng trong biên nhận hoặc nhập mã và khóa theo dõi.</p><form className="identity-form" onSubmit={(e) => { e.preventDefault(); void load(id, token); }}><label>Mã đơn<input required value={id} onChange={(e) => { setId(e.target.value); setData(null); }} /></label><label>Khóa theo dõi<input required autoComplete="off" value={token} onChange={(e) => { setToken(e.target.value); setData(null); }} /></label><Button disabled={busy}>{busy ? "Đang tải…" : "Xem trạng thái"}</Button></form>{error && <Alert tone="error">{error}</Alert>}{data && <section className="identity-result" aria-live="polite"><span className="eyebrow">{identityStatus[data.status]}</span><h2>{data.fullName}</h2><p>{data.jobName}</p>{data.reason && <Alert>{data.reason}</Alert>}{data.employeeId ? <><h3>ID chính thức của bạn</h3><p className="issued-id">{data.employeeId}</p><p>ID là mã nhận diện nội bộ, không phải mật khẩu. Đăng nhập bằng tài khoản Google đã dùng để gửi đơn.</p><Link className="button primary" href="/login">Đăng nhập bằng Google</Link></> : <p>Chưa cấp ID. {data.status === "REJECTED" ? "Xem lý do và gửi đơn mới với thông tin phù hợp." : "Quản trị viên sẽ xem xét đơn; dùng nút Xem trạng thái để cập nhật."}</p>}<h3>Phạm vi đã yêu cầu</h3><ScopeList scopes={data.scopes} />{data.grantedScopes && <><h3>Phạm vi Quản trị viên đã duyệt</h3><ScopeList scopes={data.grantedScopes} /></>}{data.status === "REJECTED" && <Link href="/identity/new">Gửi đơn mới</Link>}</section>}</section></main>;
+  const { locale } = useLocale();
+  return (
+    <main className="identity-page">
+      <section className="identity-card">
+        <h1>{localized("Theo dõi yêu cầu cấp tài khoản", "Account request status", locale)}</h1>
+        <p>{localized("Sau khi quản trị viên xác nhận, ID và mật khẩu sẽ được gửi tới Gmail bạn đã đăng ký.", "After the administrator approves your request, your ID and password will be sent to the Gmail address you registered.", locale)}</p>
+        <Link className="button secondary" href="/identity/new">{localized("Gửi yêu cầu cấp tài khoản", "Request an account", locale)}</Link>
+      </section>
+    </main>
+  );
 }

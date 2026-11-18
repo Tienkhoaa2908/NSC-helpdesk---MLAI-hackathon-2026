@@ -1,5 +1,6 @@
 import type { RequestStatus } from "./contracts";
 import { companyServices } from "./company-support";
+import type { Locale } from "@/i18n/types";
 export const intentLabels: Record<string, string> = {
   ...Object.fromEntries(Object.values(companyServices).flatMap(service => service.topics.map(topic => [topic.id, topic.label]))),
   DEVICE_SHUTDOWN_GUIDANCE: "Tắt máy",
@@ -235,6 +236,27 @@ const optionLabels: Record<string, string> = {
   approved: "Được cho phép",
   unapproved: "Chưa được cho phép",
 };
+const optionEnglish: Record<string, string> = {
+  it: "Information technology", engineering: "Engineering", product: "Product",
+  sales: "Sales", marketing: "Marketing", finance: "Finance", human_resources: "Human resources",
+  operations: "Operations", other: "Other", factory_reset: "Factory reset (may erase data)",
+  unknown: "I don't know", Unknown: "I don't know", not_provided: "Not provided",
+  no: "No", No: "No", yes: "Yes", Yes: "Yes", sandbox: "Sandbox", development: "Development",
+  staging: "Staging", production: "Production", Laptop: "Laptop", Desktop: "Desktop",
+  Monitor: "Monitor", Printer: "Printer", Mobile: "Mobile phone", Other: "Other",
+  Personal: "Personal", Corporate: "Company-owned", Shared: "Shared", guidance: "Guidance",
+  diagnose: "Troubleshooting", restart: "Restart", repair: "Repair", replace: "Replace",
+  wipe: "Erase", view_logs: "View logs", rerun: "Rerun", deploy: "Deploy", change: "Change",
+  "read-only": "Read only", read: "Read", standard: "Standard", write: "Write", admin: "Admin",
+  root: "Highest privilege", owner: "Owner", maintain: "Maintain", "cluster-admin": "Cluster admin",
+  provision: "Provision", query_help: "Query help", export: "Export", import: "Import",
+  backup: "Backup", restore: "Restore", delete: "Delete", normal: "Normal", low: "Low",
+  high: "High", critical: "Critical", claimed: "Approval claimed (must be verified)",
+  pending: "Pending review", synthetic: "Synthetic data", internal: "Internal", customer: "Customer",
+  confidential: "Confidential", approved: "Approved", unapproved: "Not approved",
+  "Công nghệ thông tin": "Information technology", "Kỹ thuật": "Engineering", "Sản phẩm": "Product",
+  "Kinh doanh": "Business", "Nhân sự": "Human resources", "Vận hành": "Operations",
+};
 export const statusLabels: Record<RequestStatus, string> = {
   RECEIVED: "Đã tiếp nhận",
   PROCESSING: "Đang xử lý",
@@ -246,7 +268,45 @@ export const statusLabels: Record<RequestStatus, string> = {
   STOPPED: "Đã dừng xử lý",
   COMPLETED: "Đã hoàn tất",
 };
-export const intentName = (value: string) =>
-  intentLabels[value] ?? "Nhu cầu hỗ trợ";
-export const optionName = (value: string) => optionLabels[value] ?? value;
+const statusEnglish: Record<RequestStatus, string> = {
+  RECEIVED: "Received", PROCESSING: "Processing", AUTO_APPROVED: "Guidance provided",
+  NEEDS_INFORMATION: "More information needed", ESCALATED: "Awaiting staff review",
+  APPROVED_BY_HUMAN: "Approved by staff", REJECTED: "Request rejected", STOPPED: "Processing stopped",
+  COMPLETED: "Completed",
+};
+const serviceGroupEnglish: Record<string, string> = {
+  DEVICE_BOOT: "Devices", ACCOUNT_ACCESS: "Accounts and access", DATABASE: "Databases",
+  NETWORK_VPN: "Network, VPN and DNS", SOFTWARE_LICENSE: "Software and licenses",
+  CLOUD_GPU: "Cloud and GPU", KUBERNETES: "Kubernetes", CI_CD: "CI/CD and deployments",
+  MONITORING: "Monitoring and incidents", STORAGE_BACKUP: "Storage and backup",
+  SECURITY: "Security", GIT_PERMISSION: "Git and source control", GENERAL_SUPPORT: "General support",
+  PEOPLE_HR: "People and HR", PAYROLL_BENEFITS: "Payroll and benefits",
+  FINANCE_ACCOUNTING: "Finance and accounting", PROCUREMENT: "Procurement and vendors",
+  WORKPLACE_FACILITIES: "Office and facilities", CORPORATE_ADMIN: "Corporate administration",
+  LEGAL_COMPLIANCE: "Legal and compliance", BUSINESS_SALES: "Sales and business development",
+  MARKETING_COMMUNICATIONS: "Marketing and communications", CUSTOMER_OPERATIONS: "Customer operations",
+  PRODUCT_PROJECTS: "Product and projects", DATA_ANALYTICS: "Data and analytics",
+  LEARNING_DEVELOPMENT: "Learning and development", TRAVEL_EVENTS: "Travel and events",
+  WORKPLACE_SAFETY: "Workplace safety",
+};
+const intentEnglish: Record<string, string> = {
+  DEVICE_SHUTDOWN_GUIDANCE: "Shut down a device", DEVICE_RESTART_GUIDANCE: "Restart a device",
+  DEVICE_RESET_GUIDANCE: "Reset a device", DEVICE_FACTORY_RESET: "Factory reset a device",
+  DEVICE_WONT_BOOT: "Device will not start", DEVICE_FREEZE: "Device is frozen", DEVICE_SLOW: "Slow device",
+  VPN_NOT_CONNECTING: "VPN will not connect", WIFI_NOT_WORKING: "Wi-Fi is not working",
+  SOFTWARE_INSTALL: "Install software", ACCOUNT_LOGIN: "Account sign-in", PASSWORD_RESET: "Reset a password",
+  DATABASE_CONNECTION: "Database connection", CLOUD_VM_REQUEST: "Request a cloud VM",
+  GPU_REQUEST: "Request a GPU", INCIDENT_REPORT: "Report an incident", SECURITY_INCIDENT: "Security incident",
+};
+function humanizeCode(value: string) {
+  return value.toLowerCase().replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+export const statusLabel = (value: RequestStatus, locale: Locale = "vi") =>
+  locale === "en" ? statusEnglish[value] : statusLabels[value];
+export const intentName = (value: string, locale: Locale = "vi") =>
+  locale === "en" ? intentEnglish[value] ?? humanizeCode(value) : intentLabels[value] ?? "Nhu cầu hỗ trợ";
+export const optionName = (value: string, locale: Locale = "vi") =>
+  locale === "en" ? optionEnglish[value] ?? value : optionLabels[value] ?? value;
+export const serviceGroupName = (value: string, locale: Locale = "vi") =>
+  locale === "en" ? serviceGroupEnglish[value] ?? humanizeCode(value) : companyServices[value as keyof typeof companyServices]?.label ?? "Nhu cầu hỗ trợ";
 export const displayId = (id: string) => "HT-" + id.slice(0, 8).toUpperCase();

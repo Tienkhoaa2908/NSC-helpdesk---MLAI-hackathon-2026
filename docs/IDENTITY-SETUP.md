@@ -1,54 +1,59 @@
-# Cấu hình Google Sign-In và cấp ID nhân viên
+# Cấu hình đăng nhập và cấp tài khoản demo
 
-## Mô hình truy cập
+Ứng dụng dùng ID nhân viên và mật khẩu. Người đăng ký gửi họ tên cùng email; email được dùng làm ID đăng nhập sau khi chủ hệ thống cấp tài khoản. Đây là cơ chế trình diễn, không thay thế Google Workspace, IAM hoặc quy trình cấp tài khoản doanh nghiệp.
 
-Nhân viên đăng nhập bằng Google. Ứng dụng yêu cầu các scope `openid`, `email` và `profile`, kiểm tra danh tính Google ở server rồi gắn session vào `sub` ổn định. Google xác minh tài khoản/email; quản trị viên vẫn phải xác minh quan hệ nhân sự và phạm vi công việc trước khi duyệt đơn.
+## Luồng tài khoản
 
-Sau khi duyệt, hệ thống cấp một ID nội bộ theo mẫu tên cuối + chữ cái đầu các tên đứng trước. Ví dụ `Đào Tiến Khoa` thành `khoadt`. ID dùng để tra cứu và liên kết hồ sơ, không phải tên đăng nhập hay mật khẩu. Nhân viên tiếp tục đăng nhập bằng chính tài khoản Google đã dùng để gửi đơn.
+1. Người dùng gửi họ tên và email từ mục **Nhân viên mới?**. Email được nhập bởi người dùng và chưa được xác minh độc lập trước khi Admin cấp tài khoản.
+2. Đơn chờ được lưu trong MongoDB. Chỉ Admin đăng nhập bằng thông tin cấu hình phía server mới xem được danh sách này; người dùng chưa thể đăng nhập bằng đơn đang chờ.
+3. Admin nhận email có liên kết cấp tài khoản dùng một lần, hết hạn sau một giờ. Mở liên kết sẽ cấp tài khoản ngay lập tức và gửi thông tin đăng nhập đến email đã đăng ký. Admin phải xác minh người yêu cầu trước khi bấm liên kết.
+4. Email của người đăng ký là ID nhân viên. Server tạo mật khẩu ngẫu nhiên năm chữ số; MongoDB chỉ lưu bản băm mật khẩu. Mật khẩu được gửi qua email để dùng cho bản demo.
+5. Người dùng đăng nhập bằng ID email và mật khẩu. Tài khoản mẫu công khai dành cho người gửi yêu cầu là `guest01 / 12345`; dữ liệu qua tài khoản mẫu và các yêu cầu thử nghiệm phải là synthetic.
 
-## Cấu hình Google Cloud
+Admin xem danh sách yêu cầu cấp tài khoản ở chế độ chỉ đọc; không có thao tác duyệt trong màn hình này. API reviewer và audit của Support cũng yêu cầu phiên Admin. Requester chỉ có thể gửi yêu cầu và xem hồ sơ thông qua liên kết theo dõi của chính hồ sơ.
 
-1. Tạo project riêng trong Google Cloud Console và cấu hình Google Auth Platform. Tạo OAuth client loại **Web application**.
-2. Thêm Authorized redirect URI chính xác:
+### Rủi ro liên kết cấp tài khoản
 
-   ```text
-   https://nsclub-support-desk.vercel.app/api/identity/google/callback
-   ```
-
-   Khi chạy local, có thể thêm `http://localhost:3000/api/identity/google/callback` vào OAuth client dành cho môi trường phát triển. URI ở Google Cloud và `GOOGLE_REDIRECT_URI` phải trùng tuyệt đối.
-3. Lưu Client ID và Client Secret vào password manager hoặc secret store. Không commit, ghi vào issue, gửi qua chat hoặc đưa vào mã trình duyệt.
-4. Code chỉ yêu cầu `openid email profile`, không yêu cầu quyền truy cập Gmail, Drive hay dữ liệu Workspace. Mặc định ứng dụng chỉ nhận email đã xác minh có domain chính xác `gmail.com`; đây là tài khoản Gmail tiêu dùng, không phải Workspace domain. Nếu chuyển sang Workspace, đặt `GOOGLE_ALLOWED_DOMAIN` thành domain tổ chức; ứng dụng yêu cầu cả email có domain đó và claim `hd` đã xác minh. IT vẫn phải xác minh quan hệ nhân sự trong bước duyệt vì domain email không chứng minh người dùng là nhân viên.
-
-Google yêu cầu `redirect_uri` khớp chính xác với URI đã đăng ký. Với các scope sign-in cơ bản đang dùng, Google ghi nhận ngoại lệ so với giới hạn test-user và hết hạn bảy ngày của ứng dụng Testing; nếu thêm scope khác, hãy kiểm tra lại audience, test users và yêu cầu xác minh của OAuth client. Xem [OpenID Connect](https://developers.google.com/identity/openid-connect/openid-connect), [OAuth web-server flow](https://developers.google.com/identity/protocols/oauth2/web-server) và [quản lý audience](https://support.google.com/cloud/answer/15549945?hl=en).
+Liên kết trong email thực hiện cấp tài khoản ngay khi được mở bằng `GET`, theo lựa chọn cho bản demo. Một số bộ lọc email có thể tự mở liên kết để quét an toàn; khi đó tài khoản có thể được cấp trước khi Admin bấm. Token dùng một lần và có hạn một giờ, nhưng không thể ngăn việc quét tự động. Dùng mailbox riêng cho demo và không áp dụng luồng này cho tài khoản hoặc dữ liệu tổ chức.
 
 ## Biến môi trường
 
-Thêm các biến sau vào **Vercel → Project Settings → Environment Variables** với scope **Production**. Không lưu chúng trong repository:
+Khai báo ở `.env.local` khi chạy local hoặc tại **Vercel → Project Settings → Environment Variables** cho Production. Không ghi giá trị bí mật vào Git, log, issue hoặc chat.
 
-```dotenv
-GOOGLE_CLIENT_ID=""
-GOOGLE_CLIENT_SECRET=""
-GOOGLE_REDIRECT_URI="https://nsclub-support-desk.vercel.app/api/identity/google/callback"
-GOOGLE_ALLOWED_DOMAIN="gmail.com"
-IDENTITY_ADMIN_EMAILS=""
-IDENTITY_MONGODB_DB="nsclub_support_desk"
-```
+| Biến | Mục đích |
+| --- | --- |
+| `IDENTITY_ADMIN_ID` | ID đăng nhập Admin. Chỉ cấu hình phía server. |
+| `IDENTITY_ADMIN_PASSWORD` | Mật khẩu đăng nhập Admin. Dùng mật khẩu dài, duy nhất; không đưa vào tài liệu hoặc trình duyệt. |
+| `IDENTITY_ADMIN_EMAIL` | Hộp thư nhận yêu cầu cấp tài khoản và liên kết xác nhận. |
+| `SMTP_HOST` | Máy chủ SMTP; Gmail dùng `smtp.gmail.com`. |
+| `SMTP_PORT` | `465` cho TLS hoặc `587` cho STARTTLS. |
+| `SMTP_USER` | Tài khoản Gmail dùng xác thực SMTP. |
+| `SMTP_PASSWORD` | Mật khẩu ứng dụng Gmail, không phải mật khẩu đăng nhập Gmail. |
+| `SMTP_FROM` | Địa chỉ gửi; dùng tài khoản xác thực hoặc alias gửi đã được Gmail cho phép. |
+| `APP_BASE_URL` | Origin HTTPS của ứng dụng, ví dụ `https://nsclub-support-desk.vercel.app`. Dùng origin local HTTP chỉ trong môi trường phát triển. |
+| `MONGODB_URI`, `MONGODB_DB` | Database lưu Support; `MONGODB_DB` mặc định là `nsclub_support_desk`. |
+| `IDENTITY_MONGODB_URI`, `IDENTITY_MONGODB_DB` | Database Identity riêng tùy chọn. Nếu URI để trống, Identity dùng `MONGODB_URI`; database mặc định là `nsclub_support_desk`. |
 
-`GOOGLE_ALLOWED_DOMAIN` mặc định là `gmail.com`. Với Gmail tiêu dùng, server đối chiếu domain trong email đã xác minh; Google không phát claim Workspace `hd` cho tài khoản này. Với Workspace, nhập domain tổ chức chính xác và server cũng yêu cầu `hd` khớp. `IDENTITY_ADMIN_EMAILS` là danh sách email đã được domain-check cho phép xem và duyệt đơn, phân tách bằng dấu phẩy. Chỉ điền email của người trực tiếp vận hành cấp ID; không dùng tên hiển thị hoặc giá trị do người dùng gửi lên để cấp quyền. Biến này chỉ bảo vệ màn hình/quy trình Identity, **không khóa hàng đợi Support** đang để public demo.
+Các giá trị SMTP và mật khẩu Admin là secrets. Nếu đổi chúng trên Vercel, lưu lại và tạo deployment mới để áp dụng.
 
-Identity dùng `IDENTITY_MONGODB_URI` nếu được đặt; nếu không thì dùng `MONGODB_URI`. Dữ liệu nằm trong các collection `identity_*`. MongoDB phải hỗ trợ transaction (replica set hoặc sharded cluster) và tài khoản ứng dụng cần các quyền đọc/ghi, tạo index/collection, cùng quyền cài validator cần thiết. Không dùng tài khoản Atlas Admin cho ứng dụng.
+## Dùng Gmail SMTP
 
-Sau khi thay đổi environment variables, tạo deployment mới để biến có hiệu lực. Không thể kiểm tra live sign-in cho đến khi OAuth Client, callback, MongoDB và ít nhất một `IDENTITY_ADMIN_EMAILS` được cấu hình đúng.
+1. Bật **2-Step Verification** cho tài khoản Gmail dùng gửi thư.
+2. Tạo **App Password** trong phần bảo mật tài khoản Google; Google chỉ cho tạo loại mật khẩu này khi 2-Step Verification được bật. Dán App Password vào `SMTP_PASSWORD`. Không dùng mật khẩu Google chính.
+3. Đặt `SMTP_HOST=smtp.gmail.com`, chọn `SMTP_PORT=465` hoặc `587`, rồi cấu hình `SMTP_USER` và `SMTP_FROM` bằng địa chỉ gửi đã được phép.
+4. Đặt `IDENTITY_ADMIN_EMAIL` là hộp thư Admin nhận thông báo. Có thể trùng `SMTP_USER`.
+5. Đặt `APP_BASE_URL` thành origin Production chính xác. `APP_BASE_URL` được dùng để tạo liên kết trong thư.
+6. Lưu secrets trong Vercel, sau đó triển khai lại. Dùng địa chỉ thử nghiệm do bạn kiểm soát để xác nhận cả thư yêu cầu và thư cấp tài khoản.
 
-## Luồng cấp quyền
+Tham khảo [hướng dẫn App Password của Google](https://support.google.com/accounts/answer/185833?hl=vi) và [giới hạn SMTP của Vercel](https://vercel.com/kb/guide/serverless-functions-and-smtp). Vercel không cho phép SMTP outbound trên port 25; code hiện hỗ trợ port 465/587. Hạn mức gửi của Gmail áp dụng. Nếu thiếu biến, SMTP từ chối kết nối hoặc provider giới hạn gửi, đăng ký không được báo là đã cấp tài khoản; kiểm tra cấu hình server rồi thử lại.
 
-1. Người dùng đăng nhập bằng Google, rồi chọn **Nhân viên mới?**.
-2. Người dùng nhập tên pháp lý hiển thị và chức danh/phạm vi cần thiết; ứng dụng không yêu cầu ngày sinh, số điện thoại, mật khẩu hay giấy tờ tùy thân.
-3. IT xác minh nhân viên qua kênh đáng tin cậy bên ngoài ứng dụng, rà soát job và scopes, rồi duyệt hoặc từ chối đơn. Đơn trùng ID được giữ ở trạng thái cần xử lý; chỉ IT mới chọn hậu tố số kèm lý do.
-4. Khi được duyệt, ứng dụng tạo ID nội bộ, gắn với Google `sub` và profile phạm vi đã duyệt. Session ứng dụng được lưu dạng hash, có thời hạn và có thể thu hồi khi đăng xuất.
+## Vận hành demo
 
-Không cấp quyền chỉ vì người dùng có tài khoản Google, tự khai tên/chức danh hoặc biết một ID. Tài khoản Google xác minh quyền kiểm soát tài khoản, không thay thế quy trình HR/IT. Các bản ghi nhân viên cũ không có `googleSub` chưa tự liên kết được với Google Sign-In; không chạy script roster demo trên cơ sở dữ liệu mới để cấp đăng nhập. Cần kế hoạch migration có đối chiếu chủ tài khoản trước khi chuyển dữ liệu cũ.
+- Tài khoản Admin dùng `IDENTITY_ADMIN_ID` và `IDENTITY_ADMIN_PASSWORD`; không chia sẻ hai giá trị này.
+- Tài khoản requester mẫu `guest01 / 12345` và mật khẩu ngẫu nhiên năm chữ số chỉ dùng với dữ liệu synthetic. Không tái sử dụng ngoài demo.
+- Không lưu mật khẩu dạng rõ, không ghi mật khẩu phát sinh vào log và không yêu cầu người dùng gửi mật khẩu hiện có.
+- Đơn đăng ký chứa họ tên và email. Chỉ Admin xem được; giới hạn quyền truy cập MongoDB ở database ứng dụng.
+- Màn hình danh sách đơn không thể tự duyệt hoặc tự gửi credentials. Việc cấp xảy ra khi liên kết một lần trong email được mở.
+- Website này không xác minh người đăng ký thuộc công ty nào; email Gmail không phải bằng chứng quan hệ lao động. Không nhập dữ liệu nhân sự, ticket hoặc thông tin doanh nghiệp thật.
 
-## Giới hạn của bản triển khai
-
-Hàng đợi reviewer Support, đọc danh sách và các thao tác reviewer vẫn là public demo theo lựa chọn sản phẩm. Google Sign-In và `IDENTITY_ADMIN_EMAILS` chỉ áp dụng cho luồng Identity; chúng không làm nội dung yêu cầu riêng tư hoặc tạo ranh giới bảo mật giữa nhân viên và Admin. Chỉ dùng dữ liệu tổng hợp trên website public. Xem [privacy inventory](PRIVACY-INVENTORY.md) và [hướng dẫn vận hành](../RUNBOOK.md).
+Xem thêm [kiến trúc](ARCHITECTURE.md), [inventory riêng tư](PRIVACY-INVENTORY.md) và [runbook](../RUNBOOK.md).

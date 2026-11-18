@@ -4,7 +4,7 @@ import { draftReviewReasons } from "@/services/review-drafts";
 import { submitSupport } from "@/services/support";
 import { reviewSupport } from "@/services/review";
 import { resetSupportTestStore, getSupportRequest } from "@/lib/support-repository";
-import { ModelFailure } from "@/lib/support-model";
+import { ModelFailure, type ModelCall } from "@/lib/support-model";
 
 const parts = [
   "Ghi lại mã lỗi, thời điểm và hệ điều hành; không gửi mật khẩu, token hoặc mã MFA.",
@@ -91,4 +91,13 @@ it("refuses stale model results when the reviewer changes the record during infe
     await reviewSupport(row.id, { version: row.version, action: "STOP", reason: "Bạn trao đổi thêm với người phụ trách nhé." }, "public-demo-reviewer");
     return valid();
   } })).rejects.toMatchObject({ code: "VERSION_CONFLICT" });
+});
+it("adds the selected language instruction without changing review boundaries", async () => {
+  const row = await submitSupport({ requesterMode: "guest", rawText: "VPN không kết nối", confirmed: true, idempotencyKey: crypto.randomUUID() });
+  const run = vi.fn(async (call: ModelCall) => { void call; return valid(); });
+  await draftReviewReasons(row.id, { version: row.version }, { locale: "en", run });
+  const instructions = run.mock.calls[0][0].instructions;
+  expect(instructions).toContain("prose in English");
+  expect(instructions).toContain("requiredAnswerParts line verbatim");
+  expect(instructions).toContain("Only a reviewer can confirm sending");
 });

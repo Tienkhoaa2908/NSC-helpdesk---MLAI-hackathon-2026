@@ -12,7 +12,7 @@ export async function POST(
 ) {
   return supportApi(async () => {
     enforceDemoRateLimit(request, "mutation");
-    const actor = requireDemoReviewer();
+    const actor = await requireDemoReviewer(request);
     return reviewSupport(
       requestId((await context.params).id),
       await supportBody(request),

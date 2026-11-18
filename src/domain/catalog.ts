@@ -1,4 +1,5 @@
 import type { ServiceGroup } from "./contracts";
+import type { Locale } from "@/i18n/types";
 import { departmentOptions } from "./departments";
 import { companyServiceGroups, companyServices } from "./company-support";
 
@@ -327,7 +328,39 @@ export const fieldLabels: Record<string, string> = {
   assetOrService: "Asset hoặc service bị ảnh hưởng",
   issue: "Vấn đề hoặc nghi vấn",
 };
-export function labelForField(name: string) {
+const fieldLabelsEnglish: Record<string, string> = {
+  neededBy: "Needed by", requestReference: "Request or document reference (no personal data)",
+  department: "Department", incidentSite: "Incident location code", employeeId: "Employee ID",
+  impact: "Impact", urgency: "Urgency", desiredOutcome: "Desired outcome", dataSensitivity: "Data type",
+  deviceType: "Device type", dataLossRisk: "Risk of data loss", backup: "Backup available",
+  accessType: "Access needed", databaseType: "Database type", operation: "Requested operation",
+  dataVolume: "Data volume", destination: "Data destination", rollbackPlan: "Rollback plan",
+  source: "Source device or network", target: "Target device or service", protocol: "Connection protocol",
+  port: "Port", publicExposure: "Public internet access", affectedUsers: "Affected users",
+  software: "Software", version: "Version", os: "Operating system", approvedCatalogStatus: "Approved catalog status",
+  installationSource: "Installation source", licenseDuration: "License duration", businessPurpose: "Business purpose",
+  provider: "Provider", resourceType: "Resource type", gpuType: "GPU type", quantity: "Quantity",
+  cpu: "CPU cores", ram: "Memory (GB)", disk: "Disk (GB)", publicIp: "Public IP needed",
+  purpose: "Purpose", estimatedCost: "Estimated cost (USD)", cleanupPlan: "Resource cleanup plan",
+  cluster: "Cluster", namespace: "Namespace", workload: "Workload", privilegeLevel: "Privilege level",
+  secretAccess: "Secret access needed", repository: "Repository", pipeline: "Pipeline", branchOrTag: "Branch or tag",
+  configChange: "Configuration change", secretChange: "Secret change", service: "Service", alertId: "Alert ID",
+  startTime: "Incident start time", affectedScope: "Affected scope", severity: "Severity", storageType: "Storage type",
+  pathOrBucket: "Path or bucket", retention: "Retention period", productionData: "Production data involved",
+  asset: "Affected device or system", incidentType: "Incident type", evidence: "Observed evidence",
+  detectedAt: "Detected at", containmentRequested: "Requested containment", containsSecret: "Contains secrets",
+  containsCustomerData: "Contains customer data", reporterContact: "Reporter contact", summary: "Issue summary",
+  targetServiceOrDevice: "Target service or device", environmentIfKnown: "Environment (if known)",
+  verifiedApproval: "Verified approval", intentLabel: "Specific request", system: "System", targetSystem: "Target system",
+  resourceScope: "Resource scope", environment: "Environment", duration: "Duration", approvalReference: "Approval reference (must be verified)",
+  approvalStatus: "Approval status", permission: "Permission requested", deviceId: "Device ID", location: "Location",
+  requestedAction: "Requested action", ownership: "Device owner", symptom: "Symptom", reason: "Reason",
+  incidentId: "Incident ID", resetType: "Reset type", resourceLifecycle: "Resource lifecycle", licenseType: "License type",
+  timeWindow: "Time window", dashboardOrLogSource: "Dashboard, log source, or alert ID", assetOrService: "Affected asset or service",
+  issue: "Issue or concern",
+};
+export function labelForField(name: string, locale: Locale = "vi") {
+  if (locale === "en") return fieldLabelsEnglish[name] ?? name.replace(/([A-Z])/g, " $1").trim();
   return fieldLabels[name] ?? name.replace(/([A-Z])/g, " $1");
 }
 export const allFields = new Set([

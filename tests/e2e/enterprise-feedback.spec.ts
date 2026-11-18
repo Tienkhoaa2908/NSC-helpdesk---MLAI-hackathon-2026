@@ -1,10 +1,10 @@
 import { expect, requesterLink, test } from "./fixtures";
-import { employeeIdentity, fillEmployeeIdentity } from "./intake-helpers";
+import { employeeIdentity, fillEmployeeIdentity, withRequesterIdentity } from "./intake-helpers";
 
-test("affect-only feedback keeps the ticket open until an explicit outcome", async ({ page, request }) => {
-  const response = await request.post("/api/support/requests", { data: {
+test("affect-only feedback keeps the ticket open until an explicit outcome", async ({ page, request, requesterRequest }) => {
+  const response = await requesterRequest.post("/api/support/requests", { data: withRequesterIdentity({
     ...employeeIdentity, rawText: "VPN không kết nối", confirmed: true, idempotencyKey: crypto.randomUUID(),
-  } });
+  }) });
   expect(response.status()).toBe(201);
   const { data: row } = await response.json();
   await page.goto(requesterLink(row));
@@ -41,9 +41,9 @@ for (const text of ["tôi không vào acc youtube được", "tôi không vào a
     await expect(page.getByText("Trạng thái:")).toContainText("Đã hoàn tất");
   });
 }
-test("reviewer can select separate policy and authority queues", async ({ page }) => {
+test("reviewer can select separate policy and authority queues", async ({ page, requesterRequest }) => {
   const create = async (rawText: string) => {
-    const response = await page.request.post("/api/support/requests", { headers: { "x-tracking-proof": crypto.randomUUID().replaceAll("-", "") + crypto.randomUUID().replaceAll("-", "") }, data: { ...employeeIdentity, rawText, confirmed: true, idempotencyKey: crypto.randomUUID() } });
+    const response = await requesterRequest.post("/api/support/requests", { data: withRequesterIdentity({ ...employeeIdentity, rawText, confirmed: true, idempotencyKey: crypto.randomUUID() }) });
     expect(response.ok(), await response.text()).toBe(true);
     return (await response.json()).data.id as string;
   };

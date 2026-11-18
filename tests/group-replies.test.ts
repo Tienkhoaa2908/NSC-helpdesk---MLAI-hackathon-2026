@@ -14,8 +14,10 @@ import { feedbackSupport, reviewSupport } from "@/services/review";
 import type { SupportRequest } from "@/domain/contracts";
 import * as repository from "@/lib/support-repository";
 import type { Db } from "mongodb";
+import { mockSupportApiAuthorization } from "./support-api-auth";
 
 beforeEach(() => {
+  mockSupportApiAuthorization();
   vi.stubEnv("AI_PROVIDER", "mock"); vi.stubEnv("MONGODB_URI", "");
   resetSupportTestStore(); resetGroupRepliesForTest();
 });

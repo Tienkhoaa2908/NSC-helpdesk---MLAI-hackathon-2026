@@ -6,6 +6,7 @@ import {
 } from "@/lib/support-http";
 import { clarifySupport } from "@/services/review";
 import { requireRequesterTracking } from "@/lib/support-tracking";
+import { requestLocale } from "@/i18n/server";
 export async function POST(
   request: Request,
   context: { params: Promise<{ id: string }> },
@@ -17,6 +18,7 @@ export async function POST(
     return clarifySupport(
       id,
       await supportBody(request),
+      { locale: requestLocale(request) },
     );
   });
 }

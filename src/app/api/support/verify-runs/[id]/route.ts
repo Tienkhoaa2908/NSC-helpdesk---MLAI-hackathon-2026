@@ -9,15 +9,15 @@ import { getVerifyRun } from "@/lib/verify-repository";
 import { changeVerifyRun } from "@/services/verification";
 type Context = { params: Promise<{ id: string }> };
 export const dynamic = "force-dynamic";
-export async function GET(_request: Request, context: Context) {
+export async function GET(request: Request, context: Context) {
   return supportApi(async () => {
-    requireDemoReviewer();
+    await requireDemoReviewer(request);
     return getVerifyRun(requestId((await context.params).id));
   });
 }
 export async function POST(request: Request, context: Context) {
   return supportApi(async () => {
-    requireDemoReviewer();
+    await requireDemoReviewer(request);
     enforceDemoRateLimit(request, "mutation");
     return changeVerifyRun(
       requestId((await context.params).id),

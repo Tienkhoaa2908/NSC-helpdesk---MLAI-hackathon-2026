@@ -29,8 +29,8 @@ test("record a raw demo and verify reviewer override, stop and audit", async ({
     await page
       .getByRole("link", { name: "Tôi cần hỗ trợ", exact: true })
       .click();
-    await page.getByText("Hướng dẫn & tùy chọn", { exact: true }).click();
-    await page.getByRole("link", { name: "Trải nghiệm demo", exact: true }).click();
+    await expect(page).toHaveURL(/\/login$/);
+    await page.goto("/send-help");
     await fillEmployeeIdentity(page);
     await page
       .getByLabel("Mô tả yêu cầu", { exact: true })
@@ -87,11 +87,9 @@ test("record a raw demo and verify reviewer override, stop and audit", async ({
     ).toBe(true);
     await page.goto("/verify");
     await page
-      .getByRole("button", { name: "Chạy toàn bộ test (5)", exact: true })
+      .getByRole("button", { name: /Chạy toàn bộ ca \(5\)|Run all cases \(5\)/ })
       .click();
-    await expect(page.getByRole("status")).toContainText(
-      "5/5 · Pass: 5 · Fail: 0",
-    );
+    await expect(page.getByRole("status")).toContainText(/5\/5 · (?:Đạt:|Pass:) 5 · (?:Lỗi:|Fail:) 0/);
     await page.reload();
     await expect(page.getByRole("table")).toBeVisible();
     await page.screenshot({

@@ -1,14 +1,15 @@
 import { test, expect, requesterLink, requesterTokenHeader } from "./fixtures";
 import dataset from "../../data/evaluation/cache-system.json";
 import type { SupportRequest } from "../../src/domain/contracts";
+import { employeeIdentity, withRequesterIdentity } from "./intake-helpers";
 
-test("admin opens seven grouped requests and sends a reply to every tracker, with safe retry and membership refresh", async ({ page, request, context }, info) => {
+test("admin opens seven grouped requests and sends a reply to every tracker, with safe retry and membership refresh", async ({ page, request, requesterRequest, context }, info) => {
   test.setTimeout(120_000);
   const rows: Array<SupportRequest & { trackingToken: string }> = [];
   async function create(text: string) {
-    const response = await request.post("/api/support/requests", { data: {
-      requesterMode: "guest", rawText: text, confirmed: true, idempotencyKey: crypto.randomUUID(),
-    } });
+    const response = await requesterRequest.post("/api/support/requests", { data: withRequesterIdentity({
+      ...employeeIdentity, rawText: text, confirmed: true, idempotencyKey: crypto.randomUUID(),
+    }) });
     expect(response.ok()).toBe(true);
     const original = (await response.json()).data as SupportRequest & { trackingToken: string };
     const handoff = await request.post(`/api/support/requests/${original.id}/feedback`, { headers: requesterTokenHeader(original), data: { version: original.version, choice: "ADMIN" } });

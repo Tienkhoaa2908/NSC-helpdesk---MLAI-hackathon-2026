@@ -1,5 +1,7 @@
-import { afterEach, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { POST } from "@/app/api/support/evaluation/route";
+import { mockSupportApiAuthorization } from "./support-api-auth";
+beforeEach(() => mockSupportApiAuthorization());
 afterEach(() => vi.unstubAllEnvs());
 function request(value: unknown) { return new Request("http://local/api/support/evaluation", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(value) }); }
 const evaluation = { datasetId: "synthetic-test", split: "held-out", evidence: "synthetic", policyVersion: "test", sourceRevision: "a".repeat(40), developmentCaseIds: [], rows: [] };

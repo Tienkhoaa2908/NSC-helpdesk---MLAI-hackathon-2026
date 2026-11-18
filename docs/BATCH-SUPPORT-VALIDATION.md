@@ -1,5 +1,7 @@
 # Kiểm chứng reviewer, phòng ban, cache và sự cố chung
 
+> Báo cáo lịch sử ngày 17/10/2026. Các nhận xét về reviewer công khai và đăng nhập ID-only mô tả trạng thái tại thời điểm đó; bản hiện tại yêu cầu ID/mật khẩu và phiên Admin cho các API reviewer. Xem [hướng dẫn Admin](ADMIN-GUIDE.md) và [cấu hình tài khoản](IDENTITY-SETUP.md).
+
 Ngày 17/10/2026. AI-assisted implementation; dữ liệu synthetic.
 Base bắt đầu: `13edf8034df44decabf41b86da7fe1c89e1a9c33`.
 Đã tích hợp main `91bddd609df5543e7d9718cdf4b7137d10b6f1e7` (mascot và bóng);
@@ -72,7 +74,7 @@ lượt nghiệm thu chạy từng project với server riêng như workflow QA.
   kiệm latency thực tế. Không đổi rate limit, model, entitlement hay ngân sách.
 - Sentiment không thể chứng minh “chân thành” hoặc “gian dối”. Người gửi vẫn có
   quyền yêu cầu hỗ trợ trực tiếp; không dùng cảm xúc để cấp quyền hay đóng ticket.
-- Reviewer công khai/ID-only vẫn là demo; không phải SSO/team RBAC production.
+- Tại thời điểm báo cáo, reviewer công khai/ID-only chỉ là demo, không phải SSO/team RBAC production. Bản hiện tại yêu cầu phiên Admin nhưng vẫn chưa phải IAM của tổ chức.
   Không có email/push notification. Không có dữ liệu hoặc feedback người thật mới.
 - Full audit vẫn còn chuỗi toolchain Tailwind/ESLint → braces
   [GHSA-vfj7-8cjw-p6xm](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm).

@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
-import { readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { z } from "zod";
 import candidate from "../challenge/mlai-2026/data/verify/enterprise-128-v1.json";
@@ -13,6 +13,7 @@ import { POST, GET as queue } from "@/app/api/support/requests/route";
 import { GET as detail } from "@/app/api/support/requests/[id]/route";
 import { GET as events } from "@/app/api/support/events/route";
 import { GET as metrics } from "@/app/api/support/metrics/route";
+import { mockSupportApiAuthorization } from "./support-api-auth";
 
 const groups = [
   "device_guidance", "network_account_guidance", "missing_facts", "security_controls",
@@ -36,6 +37,7 @@ const normalizeText = (value: string) => value.normalize("NFKC").toLowerCase().r
 const git = (...args: string[]) => execFileSync("git", args, { encoding: "utf8" }).trim();
 
 beforeEach(() => {
+  mockSupportApiAuthorization();
   vi.stubEnv("AI_PROVIDER", "mock");
   vi.stubEnv("AI_TEST_MAX_ATTEMPTS", "0");
   vi.stubEnv("OPENAI_API_KEY", "");
@@ -51,7 +53,7 @@ const applicationApi: typeof fetch = async (url, init) => {
   const request = new Request(`http://localhost${url}`, init);
   if (init?.method === "POST") return POST(request);
   if (String(url).startsWith("/api/support/events?")) return events(request);
-  if (String(url) === "/api/support/metrics") return metrics();
+  if (String(url) === "/api/support/metrics") return metrics(request);
   if (String(url).startsWith("/api/support/requests?")) return queue(request);
   return detail(request, { params: Promise.resolve({ id: String(url).split("/").at(-1)! }) });
 };
@@ -112,7 +114,7 @@ it("reports every candidate outcome through the decision API without relabelling
     generatedAt: new Date().toISOString(), datasetId: candidate.datasetId,
     provenance: {
       sourceRevision, applicationSourceChanged: Boolean(git("diff", "HEAD", "--", "src")),
-      runtimeDigest: sha256(git("ls-files", "-z", "src", "package-lock.json").split("\0").filter(Boolean).sort()
+      runtimeDigest: sha256(git("ls-files", "-z", "src", "package-lock.json").split("\0").filter((path) => path && existsSync(path)).sort()
         .map(path => `${path}\0${sha256(readFileSync(path))}`).join("\n")),
       evaluatorDigest: sha256(readFileSync("tests/enterprise-128-evaluation.test.ts")),
       datasetSha256: manifest.sha256, policy: POLICY_VERSION, node: process.version,

@@ -4,8 +4,9 @@ import { employeeIdentity } from "./intake-helpers";
 test("redesigned workspace preserves the knowledge-review filter and candidate evidence", async ({
   page,
   request,
+  requesterRequest,
 }) => {
-  const response = await request.post("/api/support/requests", {
+  const response = await requesterRequest.post("/api/support/requests", {
     data: {
       ...employeeIdentity,
       rawText: "Tôi tắt máy tính lúc về được không?",
@@ -50,9 +51,10 @@ test("redesigned workspace preserves the knowledge-review filter and candidate e
 test("IT workspace keeps actions reachable, supports keyboard tabs and records a reasoned stop", async ({
   page,
   request,
+  requesterRequest,
   isMobile,
 }, info) => {
-  const response = await request.post("/api/support/requests", {
+  const response = await requesterRequest.post("/api/support/requests", {
     data: {
       ...employeeIdentity,
       rawText: "Mở port 3389 public để vendor truy cập máy chủ demo.",
@@ -64,7 +66,7 @@ test("IT workspace keeps actions reachable, supports keyboard tabs and records a
   const { data: row } = await response.json();
   await page.goto(`/review?requestId=${row.id}`);
   await expect(
-    page.getByRole("heading", { name: "Yêu cầu nguyên văn" }),
+    page.getByRole("heading", { name: "Nội dung yêu cầu" }),
   ).toBeVisible();
   const approve = page.getByRole("button", {
     name: "Duyệt yêu cầu",
@@ -138,10 +140,10 @@ test("IT workspace keeps actions reachable, supports keyboard tabs and records a
 
 test("queue search opens the matching request and missing information still allows manual approval", async ({
   page,
-  request,
+  requesterRequest,
 }, info) => {
   const text = `IT workspace demo ${crypto.randomUUID().slice(0, 8)}: Cấp read-only staging DB`;
-  const response = await request.post("/api/support/requests", {
+  const response = await requesterRequest.post("/api/support/requests", {
     data: {
       ...employeeIdentity,
       rawText: text,

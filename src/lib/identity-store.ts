@@ -9,6 +9,8 @@ const validators = {
   identity_applications: { required: ["id", "fullName", "applicant", "job", "requestedScopes", "trackingHash", "fingerprint", "status", "version", "createdAt", "updatedAt"], properties: { id: { bsonType: "string" }, fullName: { bsonType: "string" }, applicant: { bsonType: "object", required: ["sub", "email"], properties: { sub: { bsonType: "string", minLength: 1 }, email: { bsonType: "string", minLength: 3 } } }, job: { bsonType: "object" }, requestedScopes: { bsonType: "array", minItems: 1, maxItems: 30 }, trackingHash: { bsonType: "string", pattern: "^[a-f0-9]{64}$" }, fingerprint: { bsonType: "string" }, status: { enum: ["PENDING", "ID_CONFLICT", "APPROVED", "REJECTED"] }, version: { bsonType: "number", minimum: 0 }, createdAt: { bsonType: "string" }, updatedAt: { bsonType: "string" } } },
   identity_audit: { required: ["id", "at", "actor", "action", "subject", "reason"], properties: { id: { bsonType: "string" }, at: { bsonType: "string" }, actor: { bsonType: "string" }, action: { bsonType: "string" }, subject: { bsonType: "string" }, reason: { bsonType: "string" } } },
   identity_oauth_transactions: { required: ["hash", "state", "nonce", "verifier", "returnTo", "appOrigin", "createdAt", "expiresAt"], properties: { hash: { bsonType: "string", pattern: "^[a-f0-9]{64}$" }, state: { bsonType: "string" }, nonce: { bsonType: "string" }, verifier: { bsonType: "string" }, returnTo: { bsonType: "string" }, appOrigin: { bsonType: "string" }, createdAt: { bsonType: "date" }, expiresAt: { bsonType: "date" } } },
+  identity_password_accounts: { required: ["id", "loginId", "email", "fullName", "passwordHash", "role", "kind", "status", "applicationId", "createdAt", "updatedAt"], properties: { id: { bsonType: "string" }, loginId: { bsonType: "string", minLength: 3, maxLength: 254, pattern: "^(guest[0-9]{2}|[^\\s@]+@[^\\s@]+\\.[^\\s@]+)$" }, email: { bsonType: "string", minLength: 3, maxLength: 254 }, fullName: { bsonType: "string", minLength: 2, maxLength: 120 }, passwordHash: { bsonType: "string", pattern: "^\\$2[aby]\\$[0-9]{2}\\$[./A-Za-z0-9]{53}$" }, role: { enum: ["requester"] }, kind: { enum: ["demo", "employee"] }, status: { enum: ["ACTIVE", "PENDING_DELIVERY", "DISABLED"] }, applicationId: { bsonType: "string" }, createdAt: { bsonType: "string" }, updatedAt: { bsonType: "string" } } },
+  identity_account_requests: { required: ["id", "fullName", "email", "status", "notificationStatus", "approvalTokenHash", "approvalExpiresAt", "createdAt", "updatedAt"], properties: { id: { bsonType: "string" }, fullName: { bsonType: "string", minLength: 2, maxLength: 120 }, email: { bsonType: "string", minLength: 3, maxLength: 254 }, status: { enum: ["PENDING", "APPROVED"] }, notificationStatus: { enum: ["PENDING", "SENT", "FAILED"] }, approvalTokenHash: { bsonType: ["string", "null"], pattern: "^[a-f0-9]{64}$" }, approvalExpiresAt: { bsonType: "date" }, processingUntil: { bsonType: "date" }, createdAt: { bsonType: "string" }, updatedAt: { bsonType: "string" }, approvedAt: { bsonType: "string" }, accountId: { bsonType: "string" } } },
 } as const;
 async function initializeIdentity(db: Db) {
   for (const [name, schema] of Object.entries({ ...validators, ...demoAuthorityValidators })) {
@@ -23,8 +25,8 @@ async function initializeIdentity(db: Db) {
 }
 export async function identityStore(): Promise<{ db: Db; client: MongoClient }> {
   const uri = process.env.IDENTITY_MONGODB_URI?.trim() || process.env.MONGODB_URI?.trim();
-  const name = process.env.IDENTITY_MONGODB_DB?.trim();
-  if (!uri || !name) throw new SupportError("IDENTITY_STORAGE_UNAVAILABLE", "Đăng nhập nhân viên và cấp ID chưa sẵn sàng. Bạn vẫn có thể chọn Đăng nhập không cần tài khoản để gửi hỗ trợ; liên hệ IT nếu cần ID.", 503);
+  const name = process.env.IDENTITY_MONGODB_DB?.trim() || process.env.MONGODB_DB?.trim() || "nsclub_support_desk";
+  if (!uri) throw new SupportError("IDENTITY_STORAGE_UNAVAILABLE", "Hệ thống tài khoản chưa sẵn sàng. Kiểm tra cấu hình hoặc thử lại sau.", 503);
   try {
     if (!runtime.identityMongo || runtime.identityMongo.uri !== uri || runtime.identityMongo.name !== name) {
       await runtime.identityMongo?.client.close();
@@ -50,6 +52,12 @@ export async function identityStore(): Promise<{ db: Db; client: MongoClient }> 
       db.collection("identity_audit").createIndex({ subject: 1, at: -1 }),
       db.collection("identity_sessions").createIndex({ hash: 1 }, { unique: true }),
       db.collection("identity_sessions").createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
+      db.collection("identity_password_accounts").createIndex({ loginId: 1 }, { unique: true }),
+      db.collection("identity_password_accounts").createIndex({ applicationId: 1 }, { unique: true, partialFilterExpression: { kind: "employee" } }),
+      db.collection("identity_account_requests").createIndex({ id: 1 }, { unique: true }),
+      db.collection("identity_account_requests").createIndex({ email: 1 }, { unique: true, partialFilterExpression: { status: "PENDING" } }),
+      db.collection("identity_account_requests").createIndex({ approvalTokenHash: 1 }, { unique: true, partialFilterExpression: { approvalTokenHash: { $type: "string" } } }),
+      db.collection("identity_account_requests").createIndex({ status: 1, createdAt: -1 }),
       db.collection("identity_limits").createIndex({ key: 1 }, { unique: true }),
       db.collection("identity_limits").createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),
     ])).then(() => undefined).catch((error: unknown) => { runtime.identityIndexes = undefined; throw error; });

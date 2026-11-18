@@ -20,6 +20,7 @@ import {
 import { submitSupport } from "@/services/support";
 import { groupedSupportPage } from "@/lib/support-groups";
 import { requesterTrackingProofHash, requesterTrackingToken, requesterTrackingTokenHash } from "@/lib/support-tracking";
+import { requestLocale } from "@/i18n/server";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 export async function POST(request: Request) {
@@ -34,7 +35,7 @@ export async function POST(request: Request) {
     const trackingToken = requesterTrackingToken(body.idempotencyKey);
     const row = await submitSupport(
       body,
-      verifyModelOptions(request),
+      { ...verifyModelOptions(request), locale: requestLocale(request) },
       requesterTrackingTokenHash(trackingToken),
       requesterTrackingProofHash(trackingProof),
     );
@@ -45,7 +46,7 @@ export async function POST(request: Request) {
 }
 export async function GET(request: Request) {
   return supportApi(async () => {
-    requireDemoReviewer();
+    await requireDemoReviewer(request);
     const view = new URL(request.url).searchParams.get("view");
     if (view === "grouped") return groupedSupportPage(parseSupportQuery(request.url));
     if (view === "employee-suggestions")

@@ -7,8 +7,10 @@ import { identityCookie } from "@/lib/identity-auth";
 import { GET as employees } from "@/app/api/employees/route";
 import { supportInputSchema } from "@/domain/input";
 import { supportRequestProof } from "./support-request-proof";
+import { mockSupportApiAuthorization } from "./support-api-auth";
 
 beforeEach(() => {
+  mockSupportApiAuthorization();
   vi.stubEnv("AI_PROVIDER", "mock"); vi.stubEnv("AI_TEST_MAX_ATTEMPTS", "0");
   vi.stubEnv("MONGODB_URI", ""); vi.stubEnv("IDENTITY_MONGODB_URI", "");
   vi.stubEnv("IDENTITY_MONGODB_DB", ""); resetSupportTestStore();

@@ -5,7 +5,8 @@ import { supportInputSchema } from "@/domain/input";
 import { employeeIdentityError } from "@/domain/employee-identity";
 import { safeInput } from "@/domain/text";
 import { validateVerificationInput } from "@/services/verification";
-import { requireIdentitySession, sessionToken } from "./identity-auth";
+import { identityPrincipalForRequest, requireIdentitySession } from "./identity-auth";
+import { isGuestDepartment } from "@/domain/guest-session";
 
 type RateWindow = { startedAt: number; count: number };
 type SupportHttpRuntime = { supportRateLimits?: Map<string, RateWindow> };
@@ -13,8 +14,8 @@ const httpRuntime = globalThis as typeof globalThis & SupportHttpRuntime;
 
 export async function supportApi(work: () => Promise<unknown>, status = 200) {
   try {
-    // ID-only/public reviewer is an explicit demo, not an organization login.
-    // Fail closed instead of exposing corporate data in an unimplemented private mode.
+    // This profile enables synthetic demo workflows; it does not grant reviewer access.
+    // Fail closed until organization authentication is configured for non-demo operation.
     if (process.env.NODE_ENV === "production" && process.env.SUPPORT_ACCESS_MODE !== "public-demo")
       throw new SupportError("ORGANIZATION_AUTH_REQUIRED", "Cần cấu hình xác thực và phân quyền tổ chức trước khi vận hành với dữ liệu thật.", 403);
     return successResponse(await work(), { status });
@@ -85,36 +86,46 @@ export async function supportBody(request: Request) {
     throw new SupportError("VALIDATION_ERROR", "JSON không hợp lệ.", 422);
   }
 }
-export function requireDemoReviewer() {
-  if (
-    process.env.NODE_ENV === "production" &&
-    process.env.SUPPORT_ACCESS_MODE !== "public-demo"
-  )
-    throw new SupportError(
-      "REVIEW_NOT_ENABLED",
-      "Reviewer công khai chỉ dùng cho demo đã bật rõ ràng.",
-      403,
-    );
-  return "public-demo-reviewer";
+export async function requireDemoReviewer(request: Request) {
+  const { principal } = await requireIdentitySession(request, true);
+  return `identity-admin:${principal.id}`;
 }
 export async function requireEmployeeIdentity(value: unknown, request?: Request) {
   const input = supportInputSchema.parse(value);
-  // Guest support is independent of Mongo identity and existing cookies.
-  // Policy and IT authentication remain server-enforced.
-  if (input.requesterMode === "guest") return input;
+  if (!request) throw new SupportError("AUTHENTICATION_REQUIRED", "Đăng nhập bằng ID nhân viên và mật khẩu để gửi yêu cầu hỗ trợ.", 401);
+  const principal = await identityPrincipalForRequest(request);
   // Only an exact fixture in a server-created Verify run can use the synthetic path.
-  // Validate here too: preview does not go through submitSupport's Verify guard.
+  // The employee UI cannot submit a reviewer fixture. Validate it against the
+  // server-created run only after the caller has proved admin authority.
   if (input.verifyRunId) {
+    if (principal.status !== "ADMIN" || !principal.canReviewIds)
+      throw new SupportError("IT_AUTHORITY_REQUIRED", "Chỉ quản trị viên mới có thể chạy bộ kiểm thử Verify.", 403);
     await validateVerificationInput(safeInput(input).input);
     return input;
   }
-  if (request && sessionToken(request)) {
-    const { employee } = await requireIdentitySession(request);
-    if (input.fields.employeeId?.trim().toLowerCase() !== employee.id)
-      throw new SupportError("IDENTITY_MISMATCH", "ID trong yêu cầu khác phiên hiện tại. Tải lại hoặc đăng xuất để dùng demo.", 403);
-    input.fields.employeeId = employee.id;
-    if (employee.department) input.fields.department = employee.department;
+  // The test-only loopback identity is an authenticated fixture. Preserve its
+  // guest-shaped policy cases without granting that path to production clients.
+  if (principal.isTestIdentity && input.requesterMode === "guest") return input;
+  const employee = principal.employee;
+  if (!employee)
+    throw new SupportError("REQUESTER_ACCOUNT_REQUIRED", "Tài khoản này chỉ có quyền xử lý yêu cầu hỗ trợ.", 403);
+  if (principal.demoRequester) {
+    const department = input.guestDepartment ?? input.fields.department;
+    if (!isGuestDepartment(department))
+      throw new SupportError("IDENTITY_REQUIRED", "Chọn phòng ban trước khi gửi yêu cầu.", 422);
+    input.requesterMode = "guest";
+    input.guestDepartment = department;
+    delete input.fields.employeeId;
+    delete input.fields.department;
+    return input;
   }
+  if (input.requesterMode === "guest") {
+    input.requesterMode = undefined;
+    input.guestDepartment = undefined;
+  }
+  if (input.fields.employeeId && input.fields.employeeId.trim().toLowerCase() !== employee.id.toLowerCase())
+    throw new SupportError("IDENTITY_MISMATCH", "ID trong yêu cầu khác phiên hiện tại. Tải lại hoặc đăng nhập lại.", 403);
+  input.fields.employeeId = employee.id;
   const identityError = employeeIdentityError(input.fields);
   if (identityError)
     throw new SupportError(

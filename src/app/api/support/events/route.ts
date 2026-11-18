@@ -8,7 +8,7 @@ import {
 export const dynamic = "force-dynamic";
 export async function GET(request: Request) {
   return supportApi(async () => {
-    requireDemoReviewer();
+    await requireDemoReviewer(request);
     if (new URL(request.url).searchParams.get("view") === "page")
       return auditPage(parseSupportQuery(request.url));
     const id = new URL(request.url).searchParams.get("requestId");

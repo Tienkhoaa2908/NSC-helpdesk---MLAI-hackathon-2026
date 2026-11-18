@@ -1,51 +1,96 @@
 "use client";
-import Link from "next/link";
+
 import { useCallback, useEffect, useState } from "react";
-import { type IdentityApplication, type IdentityAudit, environments, operations, resources, scopeKey, scopeRisk } from "@/domain/identity";
-import { identityApi, identityStatus, ScopeList } from "./identity-ui";
+import Link from "next/link";
+import { identityApi } from "./identity-ui";
 import { Alert, Button } from "./ui";
 import { StaffWorkspace } from "./staff-workspace";
+import { localized, useLocale } from "@/i18n/locale";
 
-function ApplicationDecision({ row, onDone }: { row: IdentityApplication; onDone: (message: string) => Promise<void> }) {
-  const [reason, setReason] = useState(""); const [suffix, setSuffix] = useState("");
-  const [selected, setSelected] = useState<string[]>(row.requestedScopes.map(scopeKey));
-  const [error, setError] = useState(""); const [busy, setBusy] = useState(false);
-  return <article className="identity-card"><div className="identity-review-heading"><h2>{row.fullName}</h2><span className="eyebrow">{identityStatus[row.status]}</span></div><p>{row.profile?.name ?? (row.job.kind === "new" ? `${row.job.name} · Job mới` : "Job có sẵn")} · đơn <code>{row.id}</code></p>
-    {row.applicant?.email && <p>Email Google đã xác minh: <strong>{row.applicant.email}</strong></p>}
-    <details><summary>Xem phạm vi yêu cầu</summary><ScopeList scopes={row.requestedScopes} /></details>
-    {row.decisionReason && <p>Lý do: {row.decisionReason}</p>}{row.employeeId && <p>ID đã cấp: <strong>{row.employeeId}</strong></p>}
-    {["PENDING", "ID_CONFLICT"].includes(row.status) && <form className="identity-form" onSubmit={(event) => event.preventDefault()}>
-      {row.job.kind === "new" && <fieldset><legend>Chọn phạm vi duyệt cho job mới</legend>{row.requestedScopes.map((scope, index) => <label key={scopeKey(scope)} className="check-row"><input type="checkbox" checked={selected.includes(scopeKey(scope))} onChange={(event) => setSelected(event.target.checked ? [...selected, scopeKey(scope)] : selected.filter((key) => key !== scopeKey(scope)))} /><span>Phạm vi {index + 1}: {operations[scope.operation]} · {resources[scope.resource]} · {environments[scope.environment]} · {scope.target}{scopeRisk(scope) && " — vẫn cần thẩm quyền riêng"}</span></label>)}</fieldset>}
-      {row.status === "ID_CONFLICT" && <label>Hậu tố số do quản trị viên chọn<input inputMode="numeric" pattern="[1-9][0-9]{0,3}" maxLength={4} value={suffix} onChange={(event) => setSuffix(event.target.value)} placeholder="Ví dụ: 2 → ID gốc-2" /><small>Chỉ chọn sau khi xác minh đây là người khác; ghi lý do bên dưới.</small></label>}
-      <label>Lý do quyết định (hiển thị cho người gửi)<textarea required minLength={8} maxLength={1000} value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Ghi rõ căn cứ xác minh, phạm vi được duyệt hoặc điều cần bổ sung." /></label>
-      {error && <Alert tone="error">{error}</Alert>}<div className="identity-actions">{(["approve", "reject"] as const).map((action) => <Button key={action} type="button" variant={action === "approve" ? "primary" : "secondary"} disabled={busy} onClick={async () => {
-        if (reason.trim().length < 8) { setError("Nhập lý do ít nhất 8 ký tự."); return; }
-        if (action === "approve" && row.job.kind === "new" && !selected.length) { setError("Chọn ít nhất một phạm vi để duyệt job mới."); return; }
-        setBusy(true); setError("");
-        try { const result = await identityApi<{ employeeId?: string }>(`review/${row.id}`, { action, version: row.version, reason, ...(action === "approve" && row.job.kind === "new" ? { approvedScopes: row.requestedScopes.filter((scope) => selected.includes(scopeKey(scope))) } : {}), ...(action === "approve" && suffix ? { suffix } : {}) }); await onDone(action === "approve" ? `Đã cấp ID ${result.employeeId}. Người gửi có thể xem kết quả trong liên kết theo dõi.` : "Đã từ chối đơn và lưu lý do cho người gửi."); }
-        catch (cause) { setError((cause as Error).message); }
-        finally { setBusy(false); }
-      }}>{busy ? "Đang xử lý…" : action === "approve" ? "Duyệt và cấp ID" : "Từ chối có lý do"}</Button>)}</div>
-      <p className="identity-note">Quản trị viên phải xác minh nhân sự qua quy trình tin cậy trước khi duyệt. Duyệt profile không cấp vai trò quản trị danh tính hoặc cho phép thực thi quyền nhạy cảm.</p>
-    </form>}
-  </article>;
+type AccountRequest = {
+  id: string;
+  fullName: string;
+  email: string;
+  status: "PENDING" | "ISSUED" | "DELIVERY_FAILED";
+  createdAt: string;
+  updatedAt: string;
+};
+
+function statusLabel(status: AccountRequest["status"], locale: "vi" | "en") {
+  const labels = {
+    PENDING: ["Chờ xác nhận qua email", "Pending email confirmation"],
+    ISSUED: ["Đã gửi tài khoản", "Account issued"],
+    DELIVERY_FAILED: ["Gửi email thất bại", "Email delivery failed"],
+  } as const;
+  return localized(labels[status][0], labels[status][1], locale);
 }
+
 export function IdentityReview() {
-  const [rows, setRows] = useState<IdentityApplication[]>([]); const [audit, setAudit] = useState<IdentityAudit[]>([]);
-  const [error, setError] = useState(""); const [busy, setBusy] = useState(false); const [filter, setFilter] = useState("pending");
-  const [page, setPage] = useState(1); const [auditPage, setAuditPage] = useState(1);
-  const [more, setMore] = useState(false); const [moreAudit, setMoreAudit] = useState(false);
-  const [notice, setNotice] = useState("");
-  const load = useCallback(async (nextPage: number, nextFilter: string, nextAuditPage: number) => { setBusy(true); setRows([]); setAudit([]); setError(""); setPage(nextPage); setFilter(nextFilter); setAuditPage(nextAuditPage); try { const [applications, events] = await Promise.all([identityApi<{ items: IdentityApplication[]; hasMore: boolean }>(`review?page=${nextPage}&status=${nextFilter}`), identityApi<{ items: IdentityAudit[]; hasMore: boolean }>(`audit?page=${nextAuditPage}`)]); setRows(applications.items); setAudit(events.items); setMore(applications.hasMore); setMoreAudit(events.hasMore); } catch (cause) { setError((cause as Error).message); } finally { setBusy(false); } }, []);
-  useEffect(() => { void load(1, "pending", 1); }, [load]);
-  const visible = rows.filter((row) => filter === "all" || ["PENDING", "ID_CONFLICT"].includes(row.status));
-  return <StaffWorkspace active="identity"><main className="identity-review"><div className="identity-review-heading"><div><span className="eyebrow">QUẢN TRỊ DANH TÍNH</span><h1>Cấp ID nhân viên</h1><p>Duyệt nhân sự, profile và phạm vi; mọi quyết định được ghi audit cùng giao dịch.</p></div><Button variant="secondary" disabled={busy} onClick={() => void load(page, filter, auditPage)}>{busy ? "Đang tải…" : "Tải lại danh sách"}</Button></div>
-    <Alert>Chỉ email Google nằm trong biến môi trường server `IDENTITY_ADMIN_EMAILS` mới được duyệt đơn. Xác minh nhân sự bằng quy trình tin cậy trước khi cấp ID.</Alert>
-    <Link href="/identity/authority" className="identity-text-link">Sổ quyền và quota DEMO-SANDBOX</Link>
-    {notice && <p role="status" className="identity-card">{notice}</p>}
-    {error && <Alert tone="error">{error} <Link className="identity-text-link" href="/login?next=%2Fidentity%2Freview">Đăng nhập bằng Google</Link></Alert>}
-    {!error && <><label className="identity-filter">Trạng thái<select aria-label="Lọc trạng thái đơn cấp ID" value={filter} disabled={busy} onChange={(event) => void load(1, event.target.value, auditPage)}><option value="pending">Chờ quản trị viên / trùng ID</option><option value="all">Tất cả trạng thái</option></select></label><p role="status">{busy ? "Đang tải đơn…" : `${visible.length} đơn · trang ${page}.`}</p>{visible.map((row) => <ApplicationDecision key={`${row.id}:${row.version}`} row={row} onDone={async (message) => { await load(page, filter, auditPage); setNotice(message); }} />)}{!busy && !visible.length && <p>Chưa có đơn trong bộ lọc này.</p>}
-    <div className="identity-actions"><Button variant="secondary" disabled={busy || page === 1} onClick={() => void load(page - 1, filter, auditPage)}>Trang đơn trước</Button><Button variant="secondary" disabled={busy || !more} onClick={() => void load(page + 1, filter, auditPage)}>Trang đơn sau</Button></div>
-    <details className="identity-card"><summary>Nhật ký cấp ID và quyền · trang {auditPage}</summary><ol className="scope-list">{audit.map((event) => <li key={event.id}><strong>{event.action} · {event.actor}</strong><time dateTime={event.at}>{new Date(event.at).toLocaleString("vi-VN")}</time><span>{event.subject}</span><p>{event.reason}</p></li>)}</ol><div className="identity-actions"><Button variant="secondary" disabled={busy || auditPage === 1} onClick={() => void load(page, filter, auditPage - 1)}>Nhật ký trước</Button><Button variant="secondary" disabled={busy || !moreAudit} onClick={() => void load(page, filter, auditPage + 1)}>Nhật ký sau</Button></div></details></>}
-  </main></StaffWorkspace>;
+  const { locale } = useLocale();
+  const [rows, setRows] = useState<AccountRequest[]>([]);
+  const [status, setStatus] = useState<"pending" | "all">("pending");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  const load = useCallback(async (nextStatus: "pending" | "all") => {
+    setBusy(true);
+    setError("");
+    try {
+      const result = await identityApi<{ items: AccountRequest[]; hasMore: boolean }>(`review?status=${nextStatus}`);
+      setRows(result.items);
+      setStatus(nextStatus);
+    } catch (cause) {
+      setRows([]);
+      setError(cause instanceof Error ? cause.message : localized("Không tải được danh sách yêu cầu.", "Could not load account requests.", locale));
+    } finally {
+      setBusy(false);
+    }
+  }, [locale]);
+
+  useEffect(() => { void load("pending"); }, [load]);
+
+  return (
+    <StaffWorkspace active="identity">
+      <main className="identity-review">
+        <header className="identity-review-heading">
+          <div>
+            <span className="eyebrow">{localized("QUẢN TRỊ TÀI KHOẢN", "ACCOUNT ADMIN", locale)}</span>
+            <h1>{localized("Yêu cầu cấp tài khoản", "Account requests", locale)}</h1>
+            <p>{localized("Danh sách này chỉ dành cho quản trị viên. Tài khoản được cấp qua liên kết xác nhận gửi tới email quản trị.", "This list is private to the administrator. Accounts are issued through the confirmation link sent by email.", locale)}</p>
+          </div>
+          <Button variant="secondary" disabled={busy} onClick={() => void load(status)}>
+            {busy ? localized("Đang tải…", "Loading…", locale) : localized("Tải lại danh sách", "Refresh", locale)}
+          </Button>
+        </header>
+
+        <Alert>{localized("Màn hình chỉ hiển thị yêu cầu; không có nút duyệt hoặc cấp tài khoản tại đây.", "This screen lists requests only. It does not approve requests or issue accounts.", locale)}</Alert>
+
+        {error && <Alert tone="error">{error} <Link className="identity-text-link" href="/login?next=%2Fidentity%2Freview">{localized("Đăng nhập bằng ID quản trị", "Sign in with the admin ID", locale)}</Link></Alert>}
+
+        {!error && <>
+          <label className="identity-filter">
+            {localized("Trạng thái", "Status", locale)}
+            <select aria-label={localized("Lọc yêu cầu", "Filter requests", locale)} value={status} disabled={busy} onChange={(event) => void load(event.target.value as "pending" | "all")}>
+              <option value="pending">{localized("Chờ xử lý", "Pending", locale)}</option>
+              <option value="all">{localized("Tất cả", "All", locale)}</option>
+            </select>
+          </label>
+          <p role="status">{busy ? localized("Đang tải yêu cầu…", "Loading requests…", locale) : localized(`${rows.length} yêu cầu`, `${rows.length} requests`, locale)}</p>
+          {!busy && rows.length === 0 && <p>{localized("Chưa có yêu cầu trong mục này.", "There are no requests in this view.", locale)}</p>}
+          <div className="identity-request-list">
+            {rows.map((row) => (
+              <article className="identity-card" key={row.id}>
+                <div className="identity-review-heading">
+                  <h2>{row.fullName}</h2>
+                  <span className="eyebrow">{statusLabel(row.status, locale)}</span>
+                </div>
+                <p><strong>{localized("Email / ID dự kiến", "Email / requested ID", locale)}:</strong> <a href={`mailto:${row.email}`}>{row.email}</a></p>
+                <p><strong>{localized("Ngày gửi", "Submitted", locale)}:</strong> <time dateTime={row.createdAt}>{new Date(row.createdAt).toLocaleString(locale === "vi" ? "vi-VN" : "en-US")}</time></p>
+              </article>
+            ))}
+          </div>
+        </>}
+      </main>
+    </StaffWorkspace>
+  );
 }

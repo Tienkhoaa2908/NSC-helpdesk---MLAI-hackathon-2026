@@ -5,6 +5,7 @@ import type {
   ReactNode,
   TextareaHTMLAttributes,
 } from "react";
+import { LocaleText } from "@/i18n/locale";
 
 export function cx(...values: Array<string | false | null | undefined>) {
   return values.filter(Boolean).join(" ");
@@ -86,9 +87,8 @@ export function Textarea({
 export function Spinner() {
   return (
     <span
-      aria-label="Đang xử lý"
       className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-current border-r-transparent"
-    />
+    ><LocaleText as="span" className="sr-only" vi="Đang xử lý" en="Loading" /></span>
   );
 }
 
@@ -127,9 +127,9 @@ export function Dialog({
           <button
             className="text-2xl leading-none text-slate-400 hover:text-ink"
             onClick={onClose}
-            aria-label="Close"
           >
             ×
+            <LocaleText as="span" className="sr-only" vi="Đóng" en="Close" />
           </button>
         </div>
         {children}

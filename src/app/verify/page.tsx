@@ -2,7 +2,7 @@
 import type { VerifyRun } from "@/domain/verification";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { supportVerifyCases, verifyPersistence, judgePackIds } from "@/lib/support-verify";
 import { Alert, Button, Card, Textarea } from "@/components/ui";
 import { browserApi } from "@/lib/browser-api";
@@ -15,9 +15,12 @@ import { VerifyProgress } from "@/components/verify-progress";
 import { AiPending } from "@/components/loading-feedback";
 import { cachePackId, cachePackName, cacheVerificationCases } from "@/domain/cache-verification";
 import { CacheGroupResults } from "@/components/cache-group-results";
-import { divisionLabels } from "@/domain/support-divisions";
+import { divisionLabel } from "@/domain/support-divisions";
+import { useLocale, localized, localizedError } from "@/i18n/locale";
 
 export default function VerifyPage() {
+  const { locale } = useLocale();
+  const t = useCallback((vi: string, en: string) => localized(vi, en, locale), [locale]);
   const router = useRouter();
   const [pack, setPack] = useState("de-a-v3"),
     [running, setRunning] = useState(false);
@@ -70,13 +73,13 @@ export default function VerifyPage() {
       exposeQueue();
       router.push(`/review?verifyRunId=${row.id}`);
     } catch (error) {
-      setError(error instanceof Error ? error.message : "Không mở được yêu cầu. Vui lòng thử lại.");
+      setError(localizedError(error, locale, "Không mở được yêu cầu. Vui lòng thử lại.", "Could not open the requests. Please try again."));
     } finally {
       activeOperation.current = false;
       setLoading(false);
     }
   }
-  async function loadRun(id: string) {
+  const loadRun = useCallback(async (id: string) => {
     const sequence = ++loadSequence.current;
     loadingRun.current = true;
     setLoading(true);
@@ -87,21 +90,21 @@ export default function VerifyPage() {
       setPack(judgePackIds.includes(row.pack) ? row.pack : "de-a-v3");
       window.history.replaceState(null, "", `/verify?run=${id}`);
     } catch {
-      if (sequence === loadSequence.current) setError("Không tải được lần kiểm thử.");
+      if (sequence === loadSequence.current) setError(t("Không tải được lần kiểm thử.", "Could not load the test run."));
     } finally {
       if (sequence === loadSequence.current) {
         loadingRun.current = false;
         setLoading(false);
       }
     }
-  }
+  }, [t]);
   useEffect(() => {
     void browserApi<typeof history>("/api/support/verify-runs")
       .then(setHistory)
-      .catch(() => setError("Không tải được lịch sử Verify."));
+      .catch(() => setError(t("Không tải được lịch sử Verify.", "Could not load test history.")));
     const id = new URLSearchParams(window.location.search).get("run");
     if (id) void loadRun(id);
-  }, []);
+  }, [loadRun, t]);
   async function run(resume = false) {
     if (activeOperation.current || loadingRun.current) return;
     activeOperation.current = true;
@@ -132,11 +135,7 @@ export default function VerifyPage() {
         if (row.pack === cachePackId) exposeQueue();
       }
     } catch (error) {
-      setError(
-        error instanceof Error
-          ? error.message
-          : "Không thể tiếp tục Verify. Kết quả đã chạy vẫn được lưu; dùng Tiếp tục.",
-      );
+      setError(localizedError(error, locale, "Không thể tiếp tục Verify. Kết quả đã chạy vẫn được lưu; dùng Tiếp tục.", "Could not continue the test run. Completed results are saved; select Resume to continue."));
     } finally {
       // Keep pack selection locked until the final persisted readback completes.
       if (row) await loadRun(row.id);
@@ -144,7 +143,7 @@ export default function VerifyPage() {
       setRunning(false);
       void browserApi<typeof history>("/api/support/verify-runs")
         .then(setHistory)
-        .catch(() => setError("Không tải được lịch sử Verify."));
+        .catch(() => setError(t("Không tải được lịch sử Verify.", "Could not load test history.")));
     }
   }
   async function stopRun() {
@@ -158,16 +157,14 @@ export default function VerifyPage() {
           ),
         );
     } catch {
-      setError(
-        "Không lưu được trạng thái dừng. Lần chạy trên trang đã dừng; tải lại để kiểm tra.",
-      );
+      setError(t("Không lưu được trạng thái dừng. Lần chạy trên trang đã dừng; tải lại để kiểm tra.", "Could not save the stopped status. This page has stopped the run; reload to check its status."));
     }
   }
   async function runJudge() {
     if (activeOperation.current || loadingRun.current) return;
     const identityError = employeeIdentityError(identity);
     if (identityError) {
-      setError(identityError);
+      setError(t(identityError, "Enter a valid department and employee ID."));
       return;
     }
     activeOperation.current = true;
@@ -196,20 +193,20 @@ export default function VerifyPage() {
         idempotencyKey: submission.idempotencyKey,
       }, { "x-tracking-proof": submission.trackingProof });
       setJudged(row);
-      setReadback("Đang kiểm tra…");
+      setReadback(t("Đang kiểm tra…", "Checking saved results…"));
       try {
         const persistence = await verifyPersistence(row);
         setReadback(
           `${persistence.pass ? "PASS" : "FAIL"}: ${persistence.checks.join(" · ")}`,
         );
       } catch (error) {
-        setReadback("Chưa xác minh: không đọc lại được hồ sơ qua API.");
+        setReadback(t("Chưa xác minh: không đọc lại được hồ sơ qua API.", "Not verified: the saved request could not be read through the API."));
         throw error;
       }
       setJudge("");
       judgeSubmission.current = null;
     } catch (error) {
-      setError(error instanceof Error ? error.message : "API error");
+      setError(localizedError(error, locale, "Lỗi API.", "The API request failed."));
     } finally {
       activeOperation.current = false;
       setJudging(false);
@@ -221,21 +218,19 @@ export default function VerifyPage() {
       <main className="it-content space-y-6">
         <header className="it-page-heading">
           <div>
-            <p className="eyebrow">VERIFY · ĐỀ A</p>
-            <h1>Đối chiếu, không đoán.</h1>
+            <p className="eyebrow">{t("KIỂM THỬ · ĐỀ A", "TESTS · PROBLEM A")}</p>
+            <h1>{t("Đối chiếu bằng dữ liệu, không phỏng đoán.", "Verify against data, not assumptions.")}</h1>
           </div>
         </header>
         <Alert>
-          Các bộ dữ liệu mô phỏng: 4 trường hợp kiểm thử chung, 5 trường hợp Đề A
-          gồm 3 tự động xử lý và 2 chuyển tiếp, cùng 15 tình huống gồm thiếu
-          thông tin, ngoài quy định và vượt thẩm quyền. Mỗi bộ chạy bằng một nút,
-          qua cùng API xử lý yêu cầu và kiểm tra lại nhật ký. Đây không phải kết
-          quả thử nghiệm người dùng thật. Bộ test cache system kiểm tra riêng
-          các cách diễn đạt cùng ý và trường hợp không được dùng chung cache.
+          {t(
+            "Khu vực kiểm thử dành cho ban giám khảo MLAI 2026, theo yêu cầu của track VNG. Các bộ dữ liệu tổng hợp gồm: 15 tình huống; Đề A gồm 5 ca (3 tự động xử lý, 2 chuyển tiếp); bộ chung gồm 4 ca; bộ cache gồm 42 ca; bộ mở rộng gồm 30 ca cho IT, Commercial và HR. Mỗi lượt chạy gọi API hỗ trợ và lưu kết quả cùng nhật ký audit. Đây là dữ liệu kiểm thử tổng hợp, không phải kết quả thử nghiệm người dùng thật.",
+            "Test area for MLAI 2026 judges, prepared for the VNG track. Synthetic test packs include: 15 scenarios; Problem A with 5 cases (3 automated, 2 escalated); a 4-case general pack; a 42-case cache pack; and a 30-case expansion pack for IT, Commercial, and HR. Each run uses the support API and saves results with an audit trail. These are synthetic tests, not real-user study results."
+          )}
         </Alert>
         <fieldset disabled={busy} className="flex flex-wrap items-end gap-3">
           <label>
-            Bộ kiểm thử
+            {t("Bộ kiểm thử", "Test pack")}
             <select
               className="mt-1 block max-w-full rounded border p-3"
               value={pack}
@@ -245,26 +240,26 @@ export default function VerifyPage() {
               }}
             >
               <option value="de-a-v3">
-                Đề A — 5 trường hợp (3 tự động / 2 chuyển tiếp)
+                {t("Đề A — 5 ca (3 tự động / 2 chuyển tiếp)", "Problem A — 5 cases (3 automated / 2 escalated)")}
               </option>
               <option value="submission-4">
-                Bộ kiểm thử chung — 4 trường hợp
+                {t("Bộ chung — 4 ca", "General pack — 4 cases")}
               </option>
               <option value="judge-15">
-                Bộ dữ liệu kiểm thử — 15 tình huống
+                {t("Bộ kiểm thử — 15 tình huống", "Test pack — 15 scenarios")}
               </option>
-              <option value={cachePackId}>{cachePackName}</option>
-              <option value="support-desk-expansion">Support Desk expansion — IT / Commercial / HR</option>
+              <option value={cachePackId}>{t("Bộ cache — 42 ca", "Cache system — 42 cases")}</option>
+              <option value="support-desk-expansion">{t("Bộ mở rộng — 30 ca, IT / Commercial / HR", "Expansion pack — 30 cases, IT / Commercial / HR")}</option>
             </select>
           </label>
           <Button onClick={() => void run(false)}>
-            Chạy toàn bộ test ({cases.length})
+            {t("Chạy toàn bộ ca", "Run all cases")} ({cases.length})
           </Button>
         </fieldset>
         {pack === cachePackId && <Card>
-          <h2 className="text-xl font-bold">{cachePackName}</h2>
+          <h2 className="text-xl font-bold">{t("Bộ kiểm thử cache", "Cache test pack")}</h2>
           <details className="mt-3">
-            <summary>Xem 42 câu và kỳ vọng</summary>
+            <summary>{t("Xem 42 tình huống và kết quả kỳ vọng", "View 42 scenarios and expected outcomes")}</summary>
             <ul className="space-y-2 mt-2">
               {cacheVerificationCases.map(item => <li key={item.id}>
                 <strong>{item.group} · {item.expected}</strong>: {item.rawText}
@@ -278,42 +273,41 @@ export default function VerifyPage() {
           pending={running} loading={loading} starting={running && !currentRun} />}
         {currentRun && (
           <Card>
-            <h2>Lần kiểm thử {currentRun.id.slice(0, 8)}</h2>
+            <h2>{t("Lần chạy", "Test run")} {currentRun.id.slice(0, 8)}</h2>
             <p>
-              Bắt đầu: {new Date(currentRun.createdAt).toLocaleString("vi-VN")} ·{" "}
-              {currentRun.status}
+              {t("Bắt đầu:", "Started:")} {new Intl.DateTimeFormat(locale === "vi" ? "vi-VN" : "en-US", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Ho_Chi_Minh" }).format(new Date(currentRun.createdAt))} ·{" "}
+              {{ RUNNING: t("Đang chạy", "Running"), COMPLETE: t("Hoàn tất", "Complete"), STOPPED: t("Đã dừng", "Stopped") }[currentRun.status]}
             </p>
             <div className="flex flex-wrap items-center gap-3 my-3">
             <Link
               className="text-accent underline"
               href={`/verify?run=${currentRun.id}`}
             >
-              Liên kết kết quả đã lưu
+              {t("Mở kết quả đã lưu", "Open saved results")}
             </Link>
             {cacheRun && cacheRun.results.length > 0 && <Button disabled={busy} onClick={() => void openCacheRequests()}>
-              Xem yêu cầu cần xử lý
+              {t("Xem yêu cầu cần xử lý", "View requests to review")}
             </Button>}
             {running && !judging ? (
               <Button variant="danger" onClick={() => void stopRun()}>
-                Dừng sau case hiện tại
+                {t("Dừng sau ca hiện tại", "Stop after this case")}
               </Button>
             ) : (
               currentRun.status !== "COMPLETE" && judgePackIds.includes(currentRun.pack) && (
                 <Button disabled={busy} onClick={() => void run(true)}>
-                  Tiếp tục lần kiểm thử
+                  {t("Tiếp tục lần chạy", "Resume run")}
                 </Button>
               )
             )}
             </div>
             <p className="text-sm">
-              Có thể rời trang rồi mở lại liên kết này. Khi bị giới hạn tốc độ,
-              chờ một phút và bấm Tiếp tục.
+              {t("Có thể rời trang rồi mở lại liên kết này. Nếu gặp giới hạn tốc độ, chờ một phút rồi chọn Tiếp tục.", "You can leave the page and reopen this link. If rate-limited, wait one minute and select Resume.")}
             </p>
           </Card>
         )}
         {!!history.length && (
           <details>
-            <summary>Lịch sử kiểm thử gần đây</summary>
+            <summary>{t("Lịch sử kiểm thử gần đây", "Recent test runs")}</summary>
             <ul>
               {history.filter((row) => judgePackIds.includes(row.pack)).map((row) => (
                 <li key={row.id}>
@@ -331,10 +325,10 @@ export default function VerifyPage() {
           </details>
         )}
         <p role="status">
-          {loading ? "Đang tải kết quả đã lưu… " : ""}
-          {running ? "Đang chạy… " : ""}
-          {results.length}/{currentRun?.cases.length ?? cases.length} · Pass:{" "}
-          {results.filter((result) => result.pass).length} · Fail:{" "}
+          {loading ? t("Đang tải kết quả đã lưu… ", "Loading saved results… ") : ""}
+          {running ? t("Đang chạy… ", "Running… ") : ""}
+          {results.length}/{currentRun?.cases.length ?? cases.length} · {t("Đạt:", "Pass:")}{" "}
+          {results.filter((result) => result.pass).length} · {t("Lỗi:", "Fail:")}{" "}
           {results.filter((result) => !result.pass).length}
         </p>
         {error && <Alert tone="error">{error}</Alert>}
@@ -343,19 +337,19 @@ export default function VerifyPage() {
           <div
             className="overflow-x-auto"
             tabIndex={0}
-            aria-label="Bảng kết quả Verify"
+            aria-label={t("Bảng kết quả kiểm thử", "Test results table")}
           >
             <table className="w-full text-left text-sm">
-              <caption>Kết quả của lần kiểm thử đã lưu</caption>
+              <caption>{t("Kết quả của lần chạy đã lưu", "Saved test run results")}</caption>
               <thead>
                 <tr>
                   {[
                     "Case",
-                    "Kỳ vọng",
-                    "Thực tế",
-                    "Kết quả",
-                    "Thời điểm",
-                    "Quy tắc",
+                    t("Kỳ vọng", "Expected"),
+                    t("Thực tế", "Actual"),
+                    t("Kết quả", "Result"),
+                    t("Thời điểm", "Time"),
+                    t("Quy tắc", "Rules"),
                   ].map((text) => (
                     <th className="p-2 border-b" key={text}>
                       {text}
@@ -371,7 +365,7 @@ export default function VerifyPage() {
                     <td className="p-2">{result.cache?.actual ?? result.actual?.action ?? "ERROR"}</td>
                     <td className="p-2">{result.pass ? "PASS" : "FAIL"}</td>
                     <td className="p-2 whitespace-nowrap">
-                      {new Date(result.timestamp).toLocaleTimeString("vi-VN")}
+                      {new Intl.DateTimeFormat(locale === "vi" ? "vi-VN" : "en-US", { timeStyle: "short", timeZone: "Asia/Ho_Chi_Minh" }).format(new Date(result.timestamp))}
                     </td>
                     <td className="p-2">
                       {result.actual?.ruleIds.join(", ") ?? "—"}
@@ -394,37 +388,37 @@ export default function VerifyPage() {
                 </strong>
               </div>
               <p>
-                Tình huống: {supportVerifyCases.find((item) => item.id === result.caseId)?.rawText ?? "Xem input trong hồ sơ đã lưu."}
+                {t("Tình huống:", "Scenario:")} {supportVerifyCases.find((item) => item.id === result.caseId)?.rawText ?? t("Xem input trong hồ sơ đã lưu.", "See the input in the saved request.")}
               </p>
-              <p className="text-xs text-slate-500">{result.timestamp}</p>
+              <p className="text-xs text-slate-500">{new Intl.DateTimeFormat(locale === "vi" ? "vi-VN" : "en-US", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Ho_Chi_Minh" }).format(new Date(result.timestamp))}</p>
               {result.cache && <div className="rounded border p-3 space-y-1">
-                <p>Nhóm: {result.cache.group}</p>
-                <p>Cache kỳ vọng: {result.cache.expected} · thực tế: {result.cache.actual}</p>
-                <p>Chủ đề nhận diện: {result.cache.topic ?? "Không thuộc FAQ dùng chung"} · câu mồi: {result.cache.seeds}</p>
-                {result.cache.lexicalSimilarity !== undefined && <p>Trùng từ: {Math.round(result.cache.lexicalSimilarity * 100)}%. Ghép cache theo cùng đối tượng và triệu chứng; số này không phải độ tin cậy AI.</p>}
+                <p>{t("Nhóm:", "Group:")} {result.cache.group}</p>
+                <p>{t("Cache kỳ vọng:", "Expected cache:")} {result.cache.expected} · {t("thực tế:", "actual:")} {result.cache.actual}</p>
+                <p>{t("Chủ đề nhận diện:", "Recognized topic:")} {result.cache.topic ?? t("Không thuộc FAQ dùng chung", "Not a shared FAQ topic")} · {t("số câu mồi:", "seed count:")} {result.cache.seeds}</p>
+                {result.cache.lexicalSimilarity !== undefined && <p>{t("Độ tương đồng từ vựng:", "Lexical similarity:")} {Math.round(result.cache.lexicalSimilarity * 100)}%. {t("Cache ghép theo cùng đối tượng và triệu chứng; đây không phải độ tin cậy của AI.", "Cache matching uses the same object and symptom; this is not an AI confidence score.")}</p>}
                 <p>{result.cache.checks.join(" · ")}</p>
               </div>}
               <p>
-                Expected: {result.expected.action} · {result.expected.bucket}{" "}
+                {t("Kỳ vọng:", "Expected:")} {result.expected.action} · {result.expected.bucket}{" "}
                 {result.expected.rule && `· ${result.expected.rule}`}
               </p>
               <p>
-                Actual: {result.actual?.action ?? "ERROR"} ·{" "}
+                {t("Thực tế:", "Actual:")} {result.actual?.action ?? "ERROR"} ·{" "}
                 {result.actual?.bucket}
               </p>
-              <p>Rule IDs: {result.actual?.ruleIds.join(", ") ?? "—"}</p>
-              {result.response && <p>Kiểm tra phản hồi: {result.response.checks.join(" · ")}</p>}
+              <p>{t("Mã quy tắc:", "Rule IDs:")} {result.actual?.ruleIds.join(", ") ?? "—"}</p>
+              {result.response && <p>{t("Kiểm tra phản hồi:", "Response checks:")} {result.response.checks.join(" · ")}</p>}
               {result.actual && <>
-                <p>Ban tiếp nhận: {result.actual.division ? divisionLabels[result.actual.division] : "Chưa xác định"}{result.expected.division && ` · kỳ vọng: ${divisionLabels[result.expected.division]}`}</p>
+                <p>{t("Ban tiếp nhận:", "Assigned team:")} {result.actual.division ? divisionLabel(result.actual.division, locale) : t("Chưa xác định", "Unassigned")}{result.expected.division && ` · ${t("kỳ vọng:", "expected:")} ${divisionLabel(result.expected.division, locale)}`}</p>
                 <p>Policy: {result.actual.policyVersion}</p>
                 <details>
-                  <summary>Bằng chứng quyết định</summary>
+                  <summary>{t("Bằng chứng cho quyết định", "Decision evidence")}</summary>
                   <ul className="list-disc pl-5">{result.actual.safeEvidence.map((quote, index) => <li className="break-words" key={index}>{quote}</li>)}</ul>
                 </details>
               </>}
               <p>{result.actual?.adminReason ?? result.error}</p>
               {!result.cache && <p>
-                Kiểm tra lưu trữ:{" "}
+                {t("Kiểm tra lưu trữ:", "Persistence checks:")}{" "}
                 {result.persistence?.checks.join(" · ") ?? result.error}
               </p>}
               <ul>
@@ -438,8 +432,7 @@ export default function VerifyPage() {
               {supportVerifyCases.find((item) => item.id === result.caseId)
                 ?.fault && (
                 <p className="text-sm text-amber-800">
-                  Fault injection của adapter model (mô phỏng lỗi, không phải mất
-                  kết nối thật).
+                  {t("Fault injection của adapter mô hình (mô phỏng lỗi, không phải mất kết nối thật).", "Model adapter fault injection (simulated failure, not a real connection loss).")}
                 </p>
               )}
               {result.requestId && (
@@ -447,17 +440,16 @@ export default function VerifyPage() {
                   className="text-accent underline"
                   href={`/review?requestId=${result.requestId}`}
                 >
-                  Mở request / audit
+                  {t("Mở hồ sơ / nhật ký", "Open request / audit")}
                 </Link>
               )}
             </Card>
           ))}
         </div>
         <Card>
-          <h2 className="mb-3 text-xl font-bold">Tình huống mới để thử</h2>
+          <h2 className="mb-3 text-xl font-bold">{t("Đánh giá tình huống mới", "Evaluate a new scenario")}</h2>
           <p className="mb-3 text-sm">
-            Nhập một yêu cầu chưa có trong fixture. Kết quả lưu thành hồ sơ demo
-            để kiểm tra reviewer và audit.
+            {t("Nhập yêu cầu chưa có trong bộ dữ liệu. Kết quả được lưu thành hồ sơ demo để kiểm tra luồng reviewer và audit.", "Enter a request that is not in the fixture. The result is saved as a demo request for reviewer and audit checks.")}
           </p>
           <form
             noValidate
@@ -471,7 +463,7 @@ export default function VerifyPage() {
               <EmployeeIdentityFields fields={identity} onChange={setIdentity} />
             </fieldset>
             <label className="block">
-              Yêu cầu tự do
+              {t("Nội dung yêu cầu", "Request description")}
               <Textarea
                 value={judge}
                 onChange={(event) => {
@@ -484,13 +476,13 @@ export default function VerifyPage() {
               />
             </label>
             <Button disabled={busy || !judge.trim()}>
-              Đánh giá input mới
+              {t("Đánh giá yêu cầu", "Evaluate request")}
             </Button>
           </form>
-          {judging && <AiPending message="Đang kiểm tra tình huống mới và đọc lại hồ sơ…" />}
+          {judging && <AiPending message="Đang kiểm tra tình huống mới và đọc lại hồ sơ…" messageEn="Evaluating the scenario and reading back the saved request…" />}
           {judged?.decision && judged.canonical && (
             <div className="mt-4 space-y-3">
-              <p>Kiểm tra lưu trữ: {readback}</p>
+              <p>{t("Kiểm tra lưu trữ:", "Persistence checks:")} {readback}</p>
               <SupportResult
                 decision={judged.decision}
                 canonical={judged.canonical}
@@ -500,7 +492,7 @@ export default function VerifyPage() {
                 className="text-accent underline"
                 href={`/review?requestId=${judged.id}`}
               >
-                Xem hướng dẫn / chuyển admin
+                {t("Xem hướng dẫn / chuyển Admin", "View guidance / route to Admin")}
               </Link>
             </div>
           )}

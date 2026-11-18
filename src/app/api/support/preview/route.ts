@@ -5,6 +5,7 @@ import {
   supportBody,
 } from "@/lib/support-http";
 import { previewSupport } from "@/services/support";
+import { requestLocale } from "@/i18n/server";
 import { measureSupportStage, supportMeasurements, withSupportMeasurements } from "@/lib/support-telemetry";
 export const maxDuration = 60;
 export async function POST(request: Request) {
@@ -14,7 +15,7 @@ export async function POST(request: Request) {
         enforceDemoRateLimit(request, "intake");
         return requireEmployeeIdentity(await supportBody(request), request);
       });
-      const result = await previewSupport(body);
+      const result = await previewSupport(body, { locale: requestLocale(request) });
       return { ...result, diagnostics: supportMeasurements() };
     });
     const metrics = supportMeasurements();

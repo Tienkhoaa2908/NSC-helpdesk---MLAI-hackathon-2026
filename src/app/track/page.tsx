@@ -2,17 +2,17 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Alert, Button, Card, Input } from "@/components/ui";
-import { GuestRequestHistory } from "@/components/guest-request-history";
+import { localized, useLocale } from "@/i18n/locale";
 export default function TrackPage() {
+  const { locale } = useLocale();
   const [value, setValue] = useState(""),
     [error, setError] = useState("");
   const router = useRouter();
   return (
     <main className="page page-narrow">
-      <h1>Theo dõi yêu cầu</h1>
-      <GuestRequestHistory />
+      <h1>{localized("Theo dõi yêu cầu", "Track a request", locale)}</h1>
       <Card>
-        <p>Dán liên kết theo dõi đầy đủ đã nhận sau khi gửi.</p>
+        <p>{localized("Dán liên kết theo dõi đầy đủ đã nhận sau khi gửi.", "Paste the complete tracking link you received after submitting.", locale)}</p>
         <form
           className="space-y-4"
           onSubmit={(event) => {
@@ -26,12 +26,13 @@ export default function TrackPage() {
                 return;
               }
             } catch { /* Show the same validation message for malformed links. */ }
-            setError("Cần dán liên kết theo dõi đầy đủ đã nhận sau khi gửi; mã yêu cầu riêng lẻ không cấp quyền truy cập.");
+            setError(localized("Cần dán liên kết theo dõi đầy đủ đã nhận sau khi gửi; mã yêu cầu riêng lẻ không cấp quyền truy cập.", "Paste the full tracking link you received after submitting. A request ID alone does not grant access.", locale));
           }}
         >
           <label>
-            Liên kết theo dõi
+            {localized("Liên kết theo dõi", "Tracking link", locale)}
             <Input
+              aria-label={localized("Liên kết theo dõi", "Tracking link", locale)}
               value={value}
               onChange={(event) => {
                 setValue(event.target.value);
@@ -41,7 +42,7 @@ export default function TrackPage() {
             />
           </label>
           {error && <Alert tone="error">{error}</Alert>}
-          <Button>Theo dõi</Button>
+          <Button>{localized("Theo dõi", "Track", locale)}</Button>
         </form>
       </Card>
     </main>

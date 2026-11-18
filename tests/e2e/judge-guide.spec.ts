@@ -1,5 +1,5 @@
 import { expect, freshTest as test, type Page } from "./fixtures";
-import { employeeIdentity, fillEmployeeIdentity } from "./intake-helpers";
+import { employeeIdentity, fillEmployeeIdentity, withRequesterIdentity } from "./intake-helpers";
 
 for (const viewport of [{ width: 1280, height: 600 }, { width: 844, height: 390 }, { width: 390, height: 844 }]) {
   test(`tour leaves header navigation reachable at ${viewport.width}x${viewport.height}`, async ({ page }) => {
@@ -25,69 +25,61 @@ for (const viewport of [{ width: 1280, height: 600 }, { width: 844, height: 390 
 
 async function departmentGuideGeometry(page: Page) {
   return page.evaluate(() => {
-    const department = document.querySelector('select[aria-label="Phòng ban"]');
-    const employeeId = document.querySelector('input[aria-label="Mã nhân viên"]');
+    const department = document.querySelector<HTMLSelectElement>('[data-guide="sender-department"]');
     const ring = document.querySelector(".guide-target-ring");
     const arrow = document.querySelector<SVGPathElement>(".guide-arrow > path");
     const matrix = arrow?.getScreenCTM();
-    if (!department || !employeeId || !ring || !arrow || !matrix) return null;
+    if (!department || !ring || !arrow || !matrix) return null;
     const field = department.getBoundingClientRect();
-    const id = employeeId.getBoundingClientRect();
     const highlight = ring.getBoundingClientRect();
     const end = arrow.getPointAtLength(arrow.getTotalLength());
     const point = new DOMPoint(end.x, end.y).matrixTransform(matrix);
     return {
+      departmentRequired: department.required,
       ringTracksDepartment:
         Math.abs(highlight.left - (field.left - 4)) < 2 &&
         Math.abs(highlight.top - (field.top - 4)) < 2 &&
         Math.abs(highlight.width - (field.width + 8)) < 2 &&
         Math.abs(highlight.height - (field.height + 8)) < 2,
-      ringOverlapsId:
-        highlight.left < id.right && highlight.right > id.left &&
-        highlight.top < id.bottom && highlight.bottom > id.top,
       arrowPointsToDepartment:
         point.x >= field.left - 2 && point.x <= field.right + 2 &&
         point.y >= field.top - 2 && point.y <= field.bottom + 2,
-      arrowPointsToId:
-        point.x >= id.left && point.x <= id.right &&
-        point.y >= id.top && point.y <= id.bottom,
     };
   });
 }
 
 for (const mode of ["Mô tả vấn đề", "Chọn theo danh mục"]) {
-  test(`${mode}: department arrow excludes employee ID and follows resizing`, async ({ page }, info) => {
+  test(`${mode}: department guide follows the required field while resizing`, async ({ page }, info) => {
     await page.goto("/send-help");
     await page.getByRole("button", { name: "Đã hiểu", exact: true }).click();
     await page.getByRole("button", { name: mode, exact: true }).click();
     const tip = page.getByRole("region", { name: "Hướng dẫn thao tác" });
     const department = page.getByLabel("Phòng ban", { exact: true });
-    const employeeId = page.getByLabel("Mã nhân viên", { exact: true });
     await expect(tip).toContainText("Chọn phòng ban");
+    await expect(department).toHaveAttribute("required", "");
     const originalViewport = page.viewportSize()!;
     for (const viewport of [originalViewport, { width: 320, height: 568 }, { width: 844, height: 390 }]) {
       await page.setViewportSize(viewport);
       await department.scrollIntoViewIfNeeded();
       await expect.poll(() => departmentGuideGeometry(page)).toEqual({
+        departmentRequired: true,
         ringTracksDepartment: true,
-        ringOverlapsId: false,
         arrowPointsToDepartment: true,
-        arrowPointsToId: false,
       });
     }
     await page.setViewportSize(originalViewport);
     await department.scrollIntoViewIfNeeded();
-    await expect.poll(() => departmentGuideGeometry(page)).toMatchObject({ ringTracksDepartment: true });
+    await expect.poll(() => departmentGuideGeometry(page)).toMatchObject({ departmentRequired: true, ringTracksDepartment: true, arrowPointsToDepartment: true });
     await page.screenshot({ path: `artifacts/guide-department-${info.project.name}-${mode === "Mô tả vấn đề" ? "freeform" : "structured"}.png` });
-    await employeeId.fill("DEMO-42");
-    await employeeId.press("Tab");
+    await expect(department).toHaveAttribute("required", "");
+    await expect(department).toHaveValue("");
     await expect(tip).toContainText("Chọn phòng ban");
     await department.selectOption("");
     await expect(tip).toContainText("Chọn phòng ban");
-    await employeeId.fill("");
     await department.selectOption("engineering");
     await expect(tip).toContainText("2. Chọn nhóm hỗ trợ");
-    await expect(employeeId).toHaveValue("");
+    await expect(department).toHaveAttribute("required", "");
+    await expect(department).toHaveValue("engineering");
   });
 }
 
@@ -109,12 +101,9 @@ test("structured sender tour points to the fields before the description", async
   await expect(tip).toContainText("5. Gửi để xem phản hồi");
 });
 
-test("explicit demo guide opens a bounded scrollable introduction without blocking default login", async ({ page }, info) => {
+test("login introduction is scrollable and the sign-in guide remains available", async ({ page }, info) => {
   await page.goto("/login");
   await expect(page.getByRole("dialog", { name: "Bắt đầu cùng VNG Support" })).toBeVisible();
-  await page.getByRole("button", { name: "Đã hiểu", exact: true }).click();
-  await page.getByText("Hướng dẫn & tùy chọn", { exact: true }).click();
-  await page.getByRole("button", { name: "Hướng dẫn demo", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "Bắt đầu cùng VNG Support" });
   await expect(dialog).toBeVisible();
   await expect(dialog).toHaveCSS("border-top-color", "rgb(240, 90, 34)");
@@ -135,6 +124,9 @@ test("explicit demo guide opens a bounded scrollable introduction without blocki
   await dialog.getByRole("button", { name: "Đã hiểu", exact: true }).click();
   await expect(dialog).not.toBeVisible();
   await expect(page.getByRole("heading", { name: "Đăng nhập", exact: true })).toBeVisible();
+  await expect(page.getByLabel("ID nhân viên hoặc email")).toBeVisible();
+  await page.getByText("Hướng dẫn sử dụng", { exact: true }).click();
+  await expect(page.getByRole("navigation", { name: "Điều hướng chính" }).getByRole("link", { name: "Hướng dẫn nhân viên" })).toBeVisible();
   await page.reload();
   await expect(dialog).not.toBeVisible();
 });
@@ -142,10 +134,7 @@ test("explicit demo guide opens a bounded scrollable introduction without blocki
 test("sender follows actual controls, sees feedback and does not repeat after returning home", async ({ page }, info) => {
   await page.goto("/login");
   await page.getByRole("button", { name: "Đã hiểu", exact: true }).click();
-  await page.getByText("Hướng dẫn & tùy chọn", { exact: true }).click();
-  await page.getByRole("button", { name: "Hướng dẫn demo", exact: true }).click();
-  await page.getByRole("button", { name: "Đã hiểu", exact: true }).click();
-  await page.getByRole("link", { name: "Trải nghiệm demo", exact: true }).click();
+  await page.goto("/send-help");
   const tip = page.getByRole("region", { name: "Hướng dẫn thao tác" });
   await expect(tip).toContainText("1. Chọn cách gửi");
   await page.getByRole("button", { name: "Mô tả vấn đề", exact: true }).click();
@@ -177,35 +166,23 @@ test("sender follows actual controls, sees feedback and does not repeat after re
   await expect(tip).not.toBeVisible();
   await page.getByRole("link", { name: "VNG Support", exact: true }).click();
   await page.getByRole("link", { name: "Tôi cần hỗ trợ", exact: true }).click();
-  await page.getByText("Hướng dẫn & tùy chọn", { exact: true }).click();
-  await page.getByRole("link", { name: "Trải nghiệm demo", exact: true }).click();
+  await expect(page).toHaveURL(/\/login$/);
+  await page.goto("/send-help");
   await expect(tip).not.toBeVisible();
   await page.reload();
   await expect(tip).not.toBeVisible();
 });
 
-test("reviewer tour is independent and never executes a decision automatically", async ({ page, request }, info) => {
-  const response = await request.post("/api/support/requests", { data: {
+test("reviewer tour is independent and never executes a decision automatically", async ({ page, request, requesterRequest }, info) => {
+  const response = await requesterRequest.post("/api/support/requests", { data: withRequesterIdentity({
     ...employeeIdentity, rawText: "Mở port 3389 public", mode: "freeform", serviceGroup: "OTHER", confirmed: true, idempotencyKey: crypto.randomUUID(),
-  } });
+  }) });
   expect(response.ok()).toBe(true);
   const { data: row } = await response.json();
-  await page.goto("/login");
+  await page.goto("/review");
   await page.getByRole("button", { name: "Đã hiểu", exact: true }).click();
-  await page.getByText("Hướng dẫn & tùy chọn", { exact: true }).click();
-  await page.getByRole("button", { name: "Hướng dẫn demo", exact: true }).click();
-  await page.getByRole("button", { name: "Đã hiểu", exact: true }).click();
-  await page.getByRole("link", { name: "Trải nghiệm demo", exact: true }).click();
   const tip = page.getByRole("region", { name: "Hướng dẫn thao tác" });
   await expect(tip).toBeVisible();
-  await page.getByRole("link", { name: "VNG Support", exact: true }).click();
-  await page.getByRole("link", { name: "Tôi cần hỗ trợ", exact: true }).click();
-  await page.getByText("Hướng dẫn & tùy chọn", { exact: true }).click();
-  await page.getByRole("link", { name: "Trải nghiệm demo", exact: true }).click();
-  await expect(tip).not.toBeVisible();
-  await page.getByRole("link", { name: "VNG Support", exact: true }).click();
-  await page.getByRole("link", { name: "Dành cho Admin", exact: true }).click();
-  await page.getByRole("button", { name: "Đã hiểu", exact: true }).click();
   await expect(tip).toContainText("1. Tìm yêu cầu cần xử lý");
   await page.getByLabel("Hiển thị", { exact: true }).selectOption("all");
   await expect(tip).toContainText("2. Mở một hồ sơ");
@@ -224,28 +201,22 @@ test("reviewer tour is independent and never executes a decision automatically",
   await expect(page.locator("#request-audit")).toContainText("Dừng yêu cầu demo để kiểm tra nhật ký.");
   await tip.getByRole("button", { name: "Hoàn tất hướng dẫn" }).click();
   await page.getByRole("link", { name: "VNG Support", exact: true }).click();
-  await page.getByRole("link", { name: "Dành cho Admin", exact: true }).click();
+  await page.goto("/review");
   await expect(tip).not.toBeVisible();
 });
 
-test("a fresh tab offers the introduction and starts the sender tour again", async ({ page, context }) => {
+test("a fresh tab offers the introduction and starts the requester tour again", async ({ page, context }) => {
   await page.goto("/login");
   await expect(page.getByRole("dialog", { name: "Bắt đầu cùng VNG Support" })).toBeVisible();
-  await page.getByRole("button", { name: "Đã hiểu", exact: true }).click();
-  await page.getByText("Hướng dẫn & tùy chọn", { exact: true }).click();
-  await page.getByRole("button", { name: "Hướng dẫn demo", exact: true }).click();
   await page.getByRole("button", { name: "Đã hiểu", exact: true }).click();
   await page.close();
   const fresh = await context.newPage();
   await fresh.goto("/login");
   await expect(fresh.getByRole("dialog", { name: "Bắt đầu cùng VNG Support" })).toBeVisible();
   await fresh.getByRole("button", { name: "Đã hiểu", exact: true }).click();
-  await fresh.getByText("Hướng dẫn & tùy chọn", { exact: true }).click();
+  await fresh.getByText("Hướng dẫn sử dụng", { exact: true }).click();
   await expect(fresh.getByRole("heading", { name: "Đăng nhập", exact: true })).toBeVisible();
-  await fresh.getByRole("button", { name: "Hướng dẫn demo", exact: true }).click();
-  await expect(fresh.getByRole("dialog", { name: "Bắt đầu cùng VNG Support" })).toBeVisible();
-  await fresh.getByRole("button", { name: "Đã hiểu", exact: true }).click();
-  await fresh.getByRole("link", { name: "Trải nghiệm demo", exact: true }).click();
+  await fresh.goto("/send-help");
   await expect(fresh.getByRole("region", { name: "Hướng dẫn thao tác" })).toContainText("1. Chọn cách gửi");
 });
 
@@ -269,9 +240,10 @@ test("sender and Admin introductions have separate dismiss state and Admin can r
   await expect(page.getByRole("button", { name: "Hướng dẫn nhanh", exact: true })).toBeVisible();
 });
 
-test("guest intake stays immediately usable and links to the employee guide", async ({ page }) => {
-  await page.goto("/guest");
-  await expect(page.getByRole("dialog", { name: "Bắt đầu cùng VNG Support" })).not.toBeVisible();
+test("authenticated intake stays usable and links to the employee guide", async ({ page }) => {
+  await page.goto("/send-help");
+  const introduction = page.getByRole("dialog", { name: "Bắt đầu cùng VNG Support" });
+  if (await introduction.isVisible()) await introduction.getByRole("button", { name: "Đã hiểu", exact: true }).click();
   await expect(page.getByRole("link", { name: "Hướng dẫn", exact: true })).toBeVisible();
   await expect(page.getByLabel("Mô tả yêu cầu", { exact: true })).toBeVisible();
 });

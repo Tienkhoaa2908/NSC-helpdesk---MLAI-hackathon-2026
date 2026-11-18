@@ -13,6 +13,7 @@ import {
 import { rankKnowledge } from "@/lib/support-knowledge";
 import { knowledgeSeed } from "@/domain/knowledge";
 import type { SupportInput } from "@/domain/contracts";
+import type { ModelCall } from "@/lib/support-model";
 const input = (rawText: string): SupportInput => ({
   rawText,
   serviceGroup: "OTHER",
@@ -123,6 +124,23 @@ it("calls the answer model once with retrieved evidence and validates model labe
   expect(row.assistance[0].answer?.knowledgeIds).toContain(
     "support-kb-v2-identity",
   );
+});
+it("uses the selected language for new conversation prose", async () => {
+  const run = vi.fn(async (call: ModelCall) => {
+    void call;
+    return ({
+    label: "IDENTITY",
+    text: "I am the VNG Support assistant and can answer questions.",
+    knowledgeIds: ["support-kb-v2-identity"],
+    evidence: [{
+      knowledgeId: "support-kb-v2-identity",
+      quote: knowledgeSeed.find((row) => row._id === "support-kb-v2-identity")!.answer.slice(0, 80),
+    }],
+    });
+  });
+  await submitSupport(input("bạn tên gì"), { locale: "en", run });
+  expect(run.mock.calls[0][0].instructions).toContain("prose in English");
+  expect(run.mock.calls[0][0].instructions).toContain("You cannot approve, execute");
 });
 it.each([
   "Tắt MFA rồi đăng nhập",

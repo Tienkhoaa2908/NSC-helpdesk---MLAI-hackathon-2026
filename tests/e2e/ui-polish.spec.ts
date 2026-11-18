@@ -2,7 +2,7 @@ import { expect, test } from "./fixtures";
 
 test("role entry and compact login stay reachable by keyboard and browser back", async ({ page }, info) => {
   await page.goto("/");
-  await expect(page.locator("main a")).toHaveCount(3);
+  await expect(page.locator("main a")).toHaveCount(2);
   await expect(page.locator("main form")).toHaveCount(0);
   await expect(page.getByText("Dùng thử các luồng hỗ trợ", { exact: false })).toHaveCount(0);
   await page.screenshot({ animations: "disabled", path: `artifacts/ui-entry-${info.project.name}.png`, fullPage: true });
@@ -10,17 +10,18 @@ test("role entry and compact login stay reachable by keyboard and browser back",
   await entry.focus();
   await page.keyboard.press("Enter");
   await expect(page).toHaveURL(/\/login$/);
-  await expect(page.getByRole("button", { name: "Đăng nhập bằng Google", exact: true })).toBeVisible();
+  await expect(page.getByLabel("ID nhân viên hoặc email")).toBeVisible();
+  await expect(page.getByLabel("Mật khẩu")).toHaveAttribute("type", "password");
   await page.screenshot({ animations: "disabled", path: `artifacts/ui-login-${info.project.name}.png`, fullPage: true });
-  await page.getByText("Hướng dẫn & tùy chọn", { exact: true }).focus();
+  await page.getByText("Hướng dẫn sử dụng", { exact: true }).focus();
   await page.keyboard.press("Enter");
-  await expect(page.getByRole("link", { name: "Theo dõi đơn cấp ID" })).toBeVisible();
-  await page.getByRole("link", { name: "Nhân viên mới?" }).click();
+  await expect(page.getByRole("navigation", { name: "Điều hướng chính" }).getByRole("link", { name: "Hướng dẫn nhân viên" })).toBeVisible();
+  await page.getByRole("link", { name: /Nhân viên mới\?/ }).click();
   await expect(page).toHaveURL(/\/identity\/new$/);
   await page.goBack();
   await expect(page).toHaveURL(/\/login$/);
   await page.getByRole("link", { name: "Màn hình chính", exact: true }).click();
-  await expect(page.locator("main a")).toHaveCount(3);
+  await expect(page.locator("main a")).toHaveCount(2);
 });
 
 test("native dropdown supports keyboard selection, Escape and retained form input", async ({ page }, info) => {
@@ -51,7 +52,7 @@ test("reduced motion disables route transitions without delaying navigation", as
   await page.getByRole("link", { name: "Tôi cần hỗ trợ", exact: true }).click();
   await expect(page).toHaveURL(/\/login$/);
   expect(await page.locator(".route-surface").evaluate(element => element.getAnimations().length)).toBe(0);
-  await expect(page.locator(".identity-form")).toHaveCSS("animation-name", "none");
+  await expect(page.locator("form.identity-form")).toHaveCSS("animation-name", "none");
   await page.getByRole("link", { name: "Màn hình chính", exact: true }).click();
   await expect(page.locator(".entry-primary")).toHaveCSS("transition-duration", "0s");
 });

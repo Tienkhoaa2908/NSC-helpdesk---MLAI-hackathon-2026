@@ -6,8 +6,9 @@ import type { ModelCall } from "@/lib/support-model";
 import { labelForField } from "@/domain/catalog";
 import { clarificationPlan } from "@/domain/questions";
 import { POST } from "@/app/api/review/[id]/information/route";
+import { mockSupportApiAuthorization } from "./support-api-auth";
 
-beforeEach(() => { vi.stubEnv("AI_PROVIDER", "mock"); vi.stubEnv("MONGODB_URI", ""); resetSupportTestStore(); });
+beforeEach(() => { mockSupportApiAuthorization(); vi.stubEnv("AI_PROVIDER", "mock"); vi.stubEnv("MONGODB_URI", ""); resetSupportTestStore(); });
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllEnvs(); });
 const create = (rawText = "Cấp read-only staging DB") => submitSupport({ requesterMode: "guest", rawText, confirmed: true, idempotencyKey: crypto.randomUUID() });
 
@@ -34,6 +35,18 @@ it("uses Luna's configured model and redacted context for an editable informatio
   expect(run.mock.calls[0][0].data).not.toContain("demo@example.invalid");
   expect(run.mock.calls[0][0].data).not.toContain("employeeId");
   expect(result.text).toContain("mã lỗi hoặc thông báo lỗi");
+});
+it("uses English field labels, fallback text and model instructions when the UI locale is English", async () => {
+  vi.stubEnv("AI_PROVIDER", "openai");
+  const row = await create("VPN không kết nối");
+  const run = vi.fn(async (call: ModelCall) => {
+    const { missing } = JSON.parse(call.data) as { missing: string[] };
+    expect(missing).toContain("error code or error message");
+    return { text: `Please share ${missing.join(", ")} so I can check the issue.`, evidence: missing[0] };
+  });
+  const result = await draftReviewInformation(row.id, { version: row.version }, { locale: "en", run });
+  expect(result.text).toContain("error code or error message");
+  expect(run.mock.calls[0][0].instructions).toContain("prose in English");
 });
 it.each([
   { text: "Bạn gửi thêm thông tin giúp mình nhé.", evidence: "missing" },

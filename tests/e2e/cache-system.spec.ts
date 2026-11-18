@@ -20,15 +20,15 @@ async function expectGroupedResults(page: Page) {
 
 test("test cache system runs 42 real cases and restores grouped statistics", async ({ page, request }, info) => {
   await page.goto("/verify");
-  await page.getByLabel("Bộ kiểm thử").selectOption({ label: "test cache system" });
-  await expect(page.getByRole("heading", { name: "test cache system" })).toBeVisible();
-  await page.getByText("Xem 42 câu và kỳ vọng", { exact: true }).click();
+  await page.getByLabel("Bộ kiểm thử").selectOption("test-cache-system");
+  await expect(page.getByRole("heading", { name: "Bộ kiểm thử cache" })).toBeVisible();
+  await page.getByText("Xem 42 tình huống và kết quả kỳ vọng", { exact: true }).click();
   await expect(page.getByText("Bạn ơi, VPN của mình không kết nối được. Nhờ bạn hướng dẫn với.", { exact: false }).first()).toBeVisible();
-  await page.getByText("Xem 42 câu và kỳ vọng", { exact: true }).click();
-  await page.getByRole("button", { name: "Chạy toàn bộ test (42)" }).click();
+  await page.getByText("Xem 42 tình huống và kết quả kỳ vọng", { exact: true }).click();
+  await page.getByRole("button", { name: /Chạy toàn bộ ca \(42\)|Run all cases \(42\)/ }).click();
   const progress = page.getByRole("progressbar", { name: "Tiến độ kiểm thử" });
   await expect(progress).toHaveAttribute("aria-valuenow", "42", { timeout: 45_000 });
-  await expect(page.getByRole("status")).toContainText("Pass: 42 · Fail: 0");
+  await expect(page.getByRole("status")).toContainText(/42\/42 · (?:Đạt:|Pass:) 42 · (?:Lỗi:|Fail:) 0/);
   const saved = page.url();
   const runId = new URL(saved).searchParams.get("run");
   expect(runId).toBeTruthy();
@@ -44,7 +44,7 @@ test("test cache system runs 42 real cases and restores grouped statistics", asy
   await page.reload();
   await expect(page.getByLabel("Bộ kiểm thử")).toHaveValue("test-cache-system");
   await expect(progress).toHaveAttribute("aria-valuenow", "42");
-  await expect(page.getByRole("status")).toContainText("Pass: 42 · Fail: 0");
+  await expect(page.getByRole("status")).toContainText(/42\/42 · (?:Đạt:|Pass:) 42 · (?:Lỗi:|Fail:) 0/);
   await expectGroupedResults(page);
   const group = page.getByRole("region", { name: "Nhóm: VPN không kết nối", exact: true });
   const paraphrase = group.getByText("Bạn ơi, VPN của mình không kết nối được. Nhờ bạn hướng dẫn với.", { exact: true });
@@ -97,7 +97,7 @@ test("partial cache groups show unrun requests and update correctly when resumed
   await expect(group.locator("dl").getByText("Chưa chạy", { exact: true }).locator("..")).toContainText("6");
   await expect(group.getByText("HIT: 0 · MISS: 1 · BYPASS: 0", { exact: true })).toBeVisible();
   await expect(page.getByRole("region", { name: "Nhóm: Máy in offline", exact: true })).toContainText("Chưa có kết quả nhận diện nhóm.");
-  await page.getByRole("button", { name: "Tiếp tục lần kiểm thử", exact: true }).click();
+  await page.getByRole("button", { name: /Tiếp tục lần chạy|Resume run/ }).click();
   await expect(page.getByRole("progressbar", { name: "Tiến độ kiểm thử" })).toHaveAttribute("aria-valuenow", "42", { timeout: 45_000 });
   await expectGroupedResults(page);
 });

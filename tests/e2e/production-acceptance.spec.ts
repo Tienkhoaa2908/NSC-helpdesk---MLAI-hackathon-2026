@@ -1,4 +1,5 @@
 import { expect, test } from "./fixtures";
+import { fillEmployeeIdentity } from "./intake-helpers";
 
 for (const [name, text, action, intent] of [
   ["printer", "Máy in văn phòng báo kẹt giấy. Tôi nên kiểm tra gì trước?", "AUTO_APPROVE", "DEVICE_PRINTER"],
@@ -7,9 +8,9 @@ for (const [name, text, action, intent] of [
   ["public-rdp", "Mở port 3389 ra Internet để truy cập từ xa vào máy công ty.", "ESCALATE", "PORT_OPEN_REQUEST"],
   ["dns", "DNS là gì? Hãy giải thích ngắn gọn.", "AUTO_APPROVE", "CHAT_GENERAL_GUIDE"],
 ]) {
-  test(`exact acceptance ${name}: guest UI, original input and persisted audit`, async ({ page }) => {
-    await page.goto("/");
-    await page.getByRole("link", { name: "Đăng nhập không cần tài khoản", exact: true }).click();
+  test(`exact acceptance ${name}: authenticated requester UI, original input and persisted audit`, async ({ page }) => {
+    await page.goto("/send-help");
+    await fillEmployeeIdentity(page);
     await page.getByLabel("Mô tả yêu cầu", { exact: true }).fill(text);
     const previewResponse = page.waitForResponse(r => r.url().endsWith("/api/support/preview"));
     await page.getByRole("button", { name: "Gửi", exact: true }).click();
@@ -50,7 +51,10 @@ for (const [name, text, action, intent] of [
     }
     if (name === "reset") {
       await page.getByLabel("Thông tin làm rõ").fill("Chỉ khởi động lại máy và giữ dữ liệu.");
+      const clarificationResponse = page.waitForResponse(r => r.url().includes(`/api/support/requests/${saved.id}/clarification`));
       await page.getByRole("button", { name: "Gửi bổ sung" }).click();
+      const clarification = await (await clarificationResponse).json();
+      expect(clarification.data.status).toBe("AUTO_APPROVED");
       await expect(page.getByText("Trạng thái:")).toContainText("Đã có hướng dẫn");
     }
     await page.reload();
@@ -72,7 +76,8 @@ for (const [name, text, action, intent] of [
 
 for (const kind of ["GUIDANCE", "SAFE_DIAGNOSTIC"]) {
   test(`printer catalog treats ${kind} as safe guidance`, async ({ page }) => {
-    await page.goto("/guest");
+    await page.goto("/send-help");
+    await fillEmployeeIdentity(page);
     await page.getByRole("button", { name: "Chọn theo danh mục", exact: true }).click();
     await page.getByLabel("Nhóm hỗ trợ", { exact: true }).selectOption("DEVICE_BOOT");
     await page.getByLabel("Nhu cầu cụ thể", { exact: true }).selectOption("DEVICE_PRINTER");

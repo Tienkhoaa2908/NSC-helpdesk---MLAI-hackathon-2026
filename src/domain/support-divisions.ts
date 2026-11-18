@@ -4,6 +4,10 @@ import { classifyCompanySupport } from "./company-support";
 export const supportDivisions = ["IT", "COMMERCIAL", "HR"] as const;
 export type SupportDivision = typeof supportDivisions[number];
 export const divisionLabels: Record<SupportDivision, string> = { IT: "Ban IT", COMMERCIAL: "Ban Commercial", HR: "Ban HR" };
+export const divisionLabelsEnglish: Record<SupportDivision, string> = { IT: "IT", COMMERCIAL: "Commercial", HR: "Human Resources" };
+export function divisionLabel(division: SupportDivision, locale: "vi" | "en"): string {
+  return locale === "en" ? divisionLabelsEnglish[division] : divisionLabels[division];
+}
 const hrGroups: ServiceGroup[] = ["PEOPLE_HR", "PAYROLL_BENEFITS", "WORKPLACE_FACILITIES", "CORPORATE_ADMIN", "LEARNING_DEVELOPMENT", "TRAVEL_EVENTS", "WORKPLACE_SAFETY"];
 const commercialGroups: ServiceGroup[] = ["FINANCE_ACCOUNTING", "PROCUREMENT", "LEGAL_COMPLIANCE", "BUSINESS_SALES", "MARKETING_COMMUNICATIONS", "CUSTOMER_OPERATIONS", "PRODUCT_PROJECTS", "DATA_ANALYTICS"];
 export function divisionForGroup(group: ServiceGroup): SupportDivision {

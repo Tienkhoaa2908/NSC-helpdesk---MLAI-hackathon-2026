@@ -16,6 +16,7 @@ import type { Db } from "mongodb";
 import * as identityAuth from "@/lib/identity-auth";
 import { requireEmployeeIdentity } from "@/lib/support-http";
 import { GET } from "@/app/api/support/requests/[id]/route";
+import { mockSupportReviewAuthorization } from "./support-api-auth";
 const create = (rawText: string, incidentSite?: string) => submitSupport({
   requesterMode: "guest", rawText, confirmed: true, idempotencyKey: crypto.randomUUID(),
   fields: incidentSite ? { incidentSite } : {},
@@ -41,29 +42,26 @@ it("a delayed incident poll cannot undo a newer handoff/reply, while same-versio
   expect(mergeTrackedRequest(current, { ...current, incident: { ...group, expired: true } })?.incident?.expired).toBe(true);
 });
 beforeEach(() => {
+  mockSupportReviewAuthorization();
   vi.stubEnv("AI_PROVIDER", "mock"); vi.stubEnv("MONGODB_URI", ""); vi.stubEnv("SUPPORT_SHARED_CACHE_TEST", "true");
   resetSupportTestStore(); resetSharedFaqForTest(); resetIncidentsForTest();
 });
 afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks(); vi.unstubAllEnvs(); });
 
-it("uses the department from the Mongo-backed session rather than the caller's department", async () => {
+it("binds the employee ID to the session and preserves the selected department", async () => {
   const employee = {
     id: "demoemployee", fullName: "Nhân Viên Giả Lập", department: "finance", status: "ACTIVE" as const,
     profileId: crypto.randomUUID(), profileVersion: 1, roles: [], applicationId: crypto.randomUUID(),
     createdAt: new Date().toISOString(),
   };
-  vi.spyOn(identityAuth, "requireIdentitySession").mockResolvedValue({
-    employee,
-    principal: {
-      status: "ACTIVE", googleSub: "google-sub", email: "employee@gmail.com", name: employee.fullName,
-      assurance: "verified", canReviewIds: false, employee,
-    },
-    assurance: "verified",
+  vi.spyOn(identityAuth, "identityPrincipalForRequest").mockResolvedValue({
+    status: "ACTIVE", id: employee.id, loginId: employee.id, email: "employee@gmail.com", name: employee.fullName,
+    assurance: "password", canReviewIds: false, employee,
   });
   const input = await requireEmployeeIdentity({ rawText: "VPN không kết nối", idempotencyKey: crypto.randomUUID(),
     fields: { employeeId: "demoemployee", department: "engineering" } },
     new Request("http://local", { headers: { cookie: "vng_identity=" + "a".repeat(64) } }));
-  expect(input.fields.department).toBe("finance");
+  expect(input.fields.department).toBe("engineering");
   expect(input.fields.employeeId).toBe("demoemployee");
 });
 

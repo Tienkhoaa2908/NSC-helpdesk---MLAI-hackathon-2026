@@ -1,7 +1,9 @@
 import { test, expect } from "./fixtures";
+import { fillEmployeeIdentity } from "./intake-helpers";
 
 test("sender must explicitly apply duration then regenerate preview, without auto approval", async ({ page }) => {
-  await page.goto("/guest");
+  await page.goto("/send-help");
+  await fillEmployeeIdentity(page);
   await page.getByLabel("Mô tả yêu cầu", { exact: true }).fill("Xin read-only repo demo/docs trên GitHub để kiểm tra hướng dẫn thử nghiệm.");
   await page.getByRole("button", { name: "Gửi", exact: true }).click();
   const proposal = page.getByRole("group", { name: "Thời hạn đề xuất" });
@@ -14,9 +16,12 @@ test("sender must explicitly apply duration then regenerate preview, without aut
   await expect(page.getByRole("group", { name: "Thời hạn đề xuất" })).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "Cần người phụ trách xem xét" })).toBeVisible();
 });
-test("authority API requires a session and cannot accept headers as an owner role", async ({ request }) => {
-  expect((await request.get("/api/identity/authority", { headers: { "X-Employee-ID": "demoit" } })).status()).toBe(401);
-  const response = await request.post("/api/identity/authority/decision", { data: { actor: "demoit", action: "approve" } });
+test("authority API requires a session and cannot accept headers as an owner role", async ({ anonymousRequest }) => {
+  expect((await anonymousRequest.get("/api/identity/authority", { headers: { "X-Employee-ID": "demoit" } })).status()).toBe(401);
+  const response = await anonymousRequest.post("/api/identity/authority/decision", {
+    headers: { Origin: "http://127.0.0.1:3227" },
+    data: { actor: "demoit", action: "approve" },
+  });
   expect(response.status()).toBe(401);
 });
 test("authority UI labels demo, shows Mongo failure without a success receipt and fits mobile", async ({ page }) => {
@@ -27,7 +32,7 @@ test("authority UI labels demo, shows Mongo failure without a success receipt an
   await page.route("**/api/identity/authority/request", (route) => route.fulfill({ status: 503, json: { success: false, error: { message: "MongoDB không khả dụng. Chưa lưu đơn." } } }));
   await page.goto("/identity/authority");
   await expect(page.getByRole("heading", { name: "DEMO-SANDBOX", exact: true })).toBeVisible();
-  await expect(page.getByText(/Google Sign-In xác minh tài khoản/)).toBeVisible();
+  await expect(page.getByText(/Phiên đăng nhập đã được xác minh/)).toBeVisible();
   await page.getByLabel("Thời hạn (giờ, tối đa 24)").fill("4");
   await page.getByLabel("Lý do", { exact: true }).fill("Thử nghiệm dữ liệu giả lập");
   await page.getByRole("button", { name: "Gửi đơn quyền demo" }).click();

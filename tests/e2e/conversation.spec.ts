@@ -1,11 +1,11 @@
 import { expect, requesterLink, test } from "./fixtures";
-import { employeeIdentity, fillEmployeeIdentity } from "./intake-helpers";
+import { employeeIdentity, fillEmployeeIdentity, withRequesterIdentity } from "./intake-helpers";
 
-test("a new risky statement cannot inherit a negation from the previous chat", async ({ page, request }) => {
-  const response = await request.post("/api/support/requests", { data: {
+test("a new risky statement cannot inherit a negation from the previous chat", async ({ page, request, requesterRequest }) => {
+  const response = await requesterRequest.post("/api/support/requests", { data: withRequesterIdentity({
     ...employeeIdentity, rawText: "Hướng dẫn sử dụng cloud, không", confirmed: true,
     idempotencyKey: crypto.randomUUID(),
-  } });
+  }) });
   expect(response.status()).toBe(201);
   const { data: row } = await response.json();
   expect(row.status).toBe("AUTO_APPROVED");

@@ -1,4 +1,9 @@
 import { defineConfig, devices } from "@playwright/test";
+import { randomBytes } from "node:crypto";
+
+// The matching test-server guard also requires the exact loopback host/port.
+const e2eIdentitySecret = process.env.SUPPORT_E2E_IDENTITY_SECRET ?? randomBytes(32).toString("hex");
+process.env.SUPPORT_E2E_IDENTITY_SECRET = e2eIdentitySecret;
 
 export default defineConfig({
   testDir: "tests/e2e",
@@ -11,6 +16,10 @@ export default defineConfig({
   use: {
     baseURL: "http://127.0.0.1:3227",
     trace: "retain-on-failure",
+    extraHTTPHeaders: {
+      "x-support-e2e-identity": e2eIdentitySecret,
+      "x-support-e2e-role": "admin",
+    },
   },
   projects: [
     { name: "chromium", use: { ...devices["Desktop Chrome"] } },
@@ -27,6 +36,8 @@ export default defineConfig({
       SUPPORT_STORAGE: "memory-demo",
       SUPPORT_ACCESS_MODE: "public-demo",
       SUPPORT_VERIFY_FAULTS: "true",
+      SUPPORT_E2E_PRODUCTION: "true",
+      SUPPORT_E2E_IDENTITY_SECRET: e2eIdentitySecret,
       MONGODB_URI: "",
       IDENTITY_MONGODB_URI: "",
       IDENTITY_MONGODB_DB: "",

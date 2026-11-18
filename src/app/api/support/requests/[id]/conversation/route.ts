@@ -6,6 +6,7 @@ import {
 } from "@/lib/support-http";
 import { continueConversation } from "@/services/conversation";
 import { requireRequesterTracking } from "@/lib/support-tracking";
+import { requestLocale } from "@/i18n/server";
 export async function POST(
   request: Request,
   context: { params: Promise<{ id: string }> },
@@ -17,6 +18,7 @@ export async function POST(
     return continueConversation(
       id,
       await supportBody(request),
+      { locale: requestLocale(request) },
     );
   });
 }

@@ -1,14 +1,15 @@
 import { test, expect } from "./fixtures";
+import { withRequesterIdentity } from "./intake-helpers";
 
-test("three division tabs receive only their routed requests, support keyboard switching and survive reload", async ({ page, request }, info) => {
+test("three division tabs receive only their routed requests, support keyboard switching and survive reload", async ({ page, requesterRequest }, info) => {
   const rows = [];
   for (const rawText of ["VPN không kết nối", "Tôi cần kiểm tra hóa đơn", "Tôi cần kiểm tra phiếu lương"]) {
-    const response = await request.post("/api/support/requests", { data: { requesterMode: "guest", rawText, confirmed: true, idempotencyKey: crypto.randomUUID() } });
+    const response = await requesterRequest.post("/api/support/requests", { data: withRequesterIdentity({ rawText, confirmed: true, idempotencyKey: crypto.randomUUID() }) });
     expect(response.ok()).toBe(true); rows.push((await response.json()).data);
   }
   expect(rows.map(row => row.decision.division)).toEqual(["IT", "COMMERCIAL", "HR"]);
   await page.goto("/review");
-  await expect(page.getByRole("tablist", { name: "Ban tiếp nhận" }).getByRole("tab")).toHaveCount(3);
+  await expect(page.getByRole("tablist", { name: "Nhóm tiếp nhận" }).getByRole("tab")).toHaveCount(3);
   await page.getByLabel("Gộp yêu cầu cùng vấn đề").uncheck();
   await page.getByLabel("Hiển thị", { exact: true }).selectOption("all");
   for (const [index, name] of ["Ban IT", "Ban Commercial", "Ban HR"].entries()) {
@@ -32,20 +33,20 @@ test("three division tabs receive only their routed requests, support keyboard s
 test("expansion Verify pack runs all thirty cases with persisted division and response checks", async ({ page, request }) => {
   await page.goto("/verify");
   await page.getByLabel("Bộ kiểm thử").selectOption("support-desk-expansion");
-  await page.getByRole("button", { name: "Chạy toàn bộ test (30)", exact: true }).click();
+  await page.getByRole("button", { name: /Chạy toàn bộ ca \(30\)|Run all cases \(30\)/ }).click();
   await expect(page.getByRole("progressbar", { name: "Tiến độ kiểm thử" })).toHaveAttribute("aria-valuenow", "30", { timeout: 45_000 });
-  await expect(page.getByRole("status")).toContainText("Pass: 30 · Fail: 0");
+  await expect(page.getByRole("status")).toContainText(/30\/30.*(?:Đạt:|Pass:)\s*30.*(?:Lỗi:|Fail:)\s*0/);
   const runId = new URL(page.url()).searchParams.get("run");
   const { data: run } = await (await request.get(`/api/support/verify-runs/${runId}`)).json();
   expect(run.results).toHaveLength(30);
   expect(run.results.every((row: { response?: { checks: string[] }; pass: boolean }) => row.pass && row.response?.checks.includes("division:pass"))).toBe(true);
   await page.reload();
   await expect(page.getByLabel("Bộ kiểm thử")).toHaveValue("support-desk-expansion");
-  await expect(page.getByRole("status")).toContainText("Pass: 30 · Fail: 0");
+  await expect(page.getByRole("status")).toContainText(/30\/30.*(?:Đạt:|Pass:)\s*30.*(?:Lỗi:|Fail:)\s*0/);
 });
 
-test("a delayed IT response cannot replace the selected HR queue", async ({ page, request }) => {
-  const response = await request.post("/api/support/requests", { data: { requesterMode: "guest", rawText: "Tôi cần kiểm tra phiếu lương", confirmed: true, idempotencyKey: crypto.randomUUID() } });
+test("a delayed IT response cannot replace the selected HR queue", async ({ page, requesterRequest }) => {
+  const response = await requesterRequest.post("/api/support/requests", { data: withRequesterIdentity({ rawText: "Tôi cần kiểm tra phiếu lương", confirmed: true, idempotencyKey: crypto.randomUUID() }) });
   const { data: row } = await response.json();
   let release!: () => void, started!: () => void;
   const held = new Promise<void>(resolve => { release = resolve; });

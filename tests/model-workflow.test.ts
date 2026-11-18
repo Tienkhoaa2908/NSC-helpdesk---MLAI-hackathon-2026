@@ -15,8 +15,10 @@ import { guidanceTemplate } from "@/domain/guidance";
 import { evaluatePolicy } from "@/domain/policy";
 import { POST } from "@/app/api/support/requests/route";
 import { supportRequestProof } from "./support-request-proof";
+import { mockSupportApiAuthorization } from "./support-api-auth";
 
 beforeEach(() => {
+  mockSupportApiAuthorization();
   vi.stubEnv("AI_PROVIDER", "mock");
   vi.stubEnv("MONGODB_URI", "");
   resetSupportTestStore();

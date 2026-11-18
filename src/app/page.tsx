@@ -1,32 +1,33 @@
+"use client";
 import { TransitionLink } from "@/components/route-transition";
-import { GuestEntryLink } from "@/components/guest-entry-link";
 import Image from "next/image";
 import { ArrowRight, Headphones, ClipboardList } from "lucide-react";
+import { localized, useLocale } from "@/i18n/locale";
 
 export default function Home() {
+  const { locale } = useLocale();
   return (
-    <main className="welcome role-welcome" aria-label="Chọn vai trò">
+    <main className="welcome role-welcome" aria-label={localized("Chọn vai trò", "Choose a role", locale)}>
       <section className="welcome-copy">
-        <h1>Bạn cần hỗ trợ<br />gì hôm nay?</h1>
+        <h1>{localized("Bạn cần hỗ trợ", "How can we help", locale)}<br />{localized("gì hôm nay?", "you today?", locale)}</h1>
         <div className="entry-links">
-          <TransitionLink transition="line" aria-label="Tôi cần hỗ trợ" className="entry-card entry-primary" href="/login">
+          <TransitionLink transition="line" aria-label={localized("Tôi cần hỗ trợ", "I need help", locale)} className="entry-card entry-primary" href="/login">
             <span className="entry-icon"><Headphones size={28} /></span>
-            <strong>Tôi cần hỗ trợ</strong>
+            <strong>{localized("Tôi cần hỗ trợ", "I need help", locale)}</strong>
             <ArrowRight size={24} aria-hidden="true" />
           </TransitionLink>
-          <TransitionLink transition="line" aria-label="Dành cho Admin" className="entry-card" href="/review">
+          <TransitionLink transition="line" aria-label={localized("Dành cho Admin", "For admins", locale)} className="entry-card" href="/login?next=%2Freview">
             <span className="entry-icon"><ClipboardList size={27} /></span>
-            <strong>Dành cho Admin</strong>
+            <strong>{localized("Dành cho Admin", "For admins", locale)}</strong>
             <ArrowRight size={24} aria-hidden="true" />
           </TransitionLink>
         </div>
-        <GuestEntryLink className="button secondary guest-entry">Đăng nhập không cần tài khoản</GuestEntryLink>
       </section>
       <div className="welcome-art">
         <span className="mascot-orbit" aria-hidden="true" />
-        <span className="hello-note" aria-hidden="true">Xin chào!</span>
+        <span className="hello-note" aria-hidden="true">{localized("Xin chào!", "Hello!", locale)}</span>
         <Image src="/illustrations/vng-support-mascot-navi-wave.png" width={1024} height={1024}
-          priority alt="Navi màu cam với mặt hình folder đang nháy mắt và giơ một tay chào" />
+          priority alt={localized("Navi màu cam với mặt hình folder đang nháy mắt và giơ một tay chào", "Orange Navi mascot with a folder-shaped face, winking and waving", locale)} />
       </div>
     </main>
   );

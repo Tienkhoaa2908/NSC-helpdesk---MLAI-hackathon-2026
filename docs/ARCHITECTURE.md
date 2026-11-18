@@ -8,7 +8,7 @@
 
 [Nguồn Mermaid](diagrams/ai-policy.mmd).
 
-- API kiểm tra origin, kích thước JSON, rate limit và ngữ cảnh identity/Verify phù hợp.
+- API kiểm tra origin, kích thước JSON, rate limit và ngữ cảnh phiên identity/Verify phù hợp.
 - Baseline giữ dữ kiện và rủi ro đã xác định; model không được xóa risk hoặc tự xác minh approval.
 - Thứ tự ưu tiên: security risk → authority → missing information → routine. Policy, approval, entitlement và capacity có contract riêng.
 - Khi mở port có rủi ro rõ, vẫn giữ thông tin được cung cấp như số cổng và quote; không tự suy diễn protocol hoặc nguồn/đích.
@@ -45,15 +45,15 @@ Preview chưa tạo ticket; kiểm tra TTL, fingerprint và policy trước xác
 
 Sentiment là thông tin quan sát, không tự cấp quyền, đặt ưu tiên, đóng ticket hoặc thay yêu cầu gặp người. Lựa chọn hiểu hướng dẫn không tự xác nhận sự cố thiết bị đã được giải quyết.
 
-Đây là phân tách hiển thị theo màn hình. Bản demo chủ ý giữ reviewer/API demo công khai; không tuyên bố đây là ranh giới bảo mật giữa người gửi và nhân viên.
+Giao diện tách theo vai trò và server kiểm tra phiên trước khi trả dữ liệu reviewer. API hàng đợi, chi tiết, sự kiện, lịch sử, tóm tắt và audit yêu cầu phiên Admin; việc ẩn liên kết trong UI không thay thế kiểm tra này.
 
 ## Identity và dữ liệu
 
-Identity dùng Google OIDC authorization-code flow với state, nonce và PKCE; mặc định chỉ nhận email `gmail.com` đã xác minh. Khi cấu hình domain Workspace, email và claim `hd` phải khớp. Session ứng dụng gắn với `sub` ổn định và chỉ lưu hash của session token. Google xác minh tài khoản/email, còn IT phải xác minh nhân sự/phạm vi trước khi cấp ID nội bộ. `IDENTITY_ADMIN_EMAILS` giới hạn thao tác duyệt đơn; email và `sub` không tự tạo quyền nhân viên. ID là mã nội bộ, không phải mật khẩu. Sổ quyền/quota DEMO-SANDBOX không tạo entitlement IAM thật. Luồng reviewer Support vẫn là `public-demo` theo lựa chọn sản phẩm và không được bảo vệ bởi Identity session.
+Người dùng đăng nhập bằng ID nhân viên và mật khẩu. Người đăng ký gửi họ tên cùng email; email trở thành ID khi tài khoản được cấp. Đơn lưu trong MongoDB và chỉ phiên Admin mới xem được. Admin credentials cấu hình phía server; danh sách đơn chỉ đọc, còn việc cấp tài khoản xảy ra qua liên kết một lần trong email. Liên kết thực hiện cấp ngay khi mở, hết hạn sau một giờ và có thể bị kích hoạt bởi bộ quét email tự động. Mật khẩu ngẫu nhiên năm chữ số chỉ dành cho bản demo; database lưu hash, không phải mật khẩu rõ. Tài khoản `guest01 / 12345` là tài khoản requester mẫu dùng dữ liệu synthetic. Đây không phải hệ thống IAM/Workspace của tổ chức.
 
-Yêu cầu đã xác nhận nhận tracking token HMAC được tạo từ secret riêng và request ID; MongoDB chỉ lưu hash token. Trình duyệt gửi thêm proof ngẫu nhiên khi tạo yêu cầu, và hệ thống lưu riêng hash proof này. Proof chỉ dùng ở endpoint khôi phục receipt khi kết quả gửi không rõ; các route theo dõi/tiếp diễn chỉ yêu cầu token. Public reviewer APIs vẫn hiển thị hồ sơ, nên token chỉ kiểm soát route dành cho người gửi chứ không tạo tính bí mật cho ticket.
+Yêu cầu đã xác nhận nhận tracking token HMAC được tạo từ secret riêng và request ID; MongoDB chỉ lưu hash token. Trình duyệt gửi thêm proof ngẫu nhiên khi tạo yêu cầu, và hệ thống lưu riêng hash proof này. Proof chỉ dùng ở endpoint khôi phục receipt khi kết quả gửi không rõ; các route theo dõi/tiếp diễn chỉ yêu cầu token. Reviewer APIs được bảo vệ bởi phiên Admin; tracking token chỉ cấp quyền cho các thao tác follow-up của hồ sơ tương ứng và không thay thế phiên reviewer.
 
-Support và identity có collection riêng, có thể dùng cùng database được cấu hình cho ứng dụng. Support có memory-demo khi được cấu hình rõ; identity không có memory/CSV fallback. Không sửa hoặc di chuyển dữ liệu Production từ workflow phát triển UI.
+Support và identity có collection riêng, có thể dùng cùng database được cấu hình cho ứng dụng. Support có memory-demo khi được cấu hình rõ; identity không có memory/CSV fallback. Không sửa hoặc di chuyển dữ liệu Production từ workflow phát triển UI. Dùng dữ liệu tổng hợp trên deployment demo; email đăng ký và nội dung hồ sơ có thể nhận diện người gửi.
 
 ## Bản đồ code
 

@@ -207,29 +207,32 @@ hợp lệ, quyền model và quota API; thay tên model không sửa được k
 
 ## Hệ thống ID nhân viên
 
-Identity dùng Google OIDC authorization-code flow, mặc định chỉ chấp nhận email Gmail đã xác minh, session ứng dụng và MongoDB transaction; không có đăng nhập bằng ID hay mật khẩu ứng dụng. Google xác minh tài khoản/email; IT phải kiểm tra nhân sự và scopes trước khi duyệt đơn. ID theo mẫu `têncuối + chữ cái đầu tên trước` là mã nội bộ, không phải thông tin đăng nhập. Xem [hướng dẫn cấu hình Google Sign-In](docs/IDENTITY-SETUP.md).
+Đăng nhập dùng ID nhân viên và mật khẩu. Người đăng ký gửi họ tên cùng email; email trở thành ID sau khi chủ hệ thống cấp tài khoản. Đơn chờ được lưu trong MongoDB và chỉ Admin đăng nhập mới xem được. Tài khoản demo không thay thế SSO, IAM hoặc xác minh nhân sự doanh nghiệp. Xem [hướng dẫn đăng nhập và cấp tài khoản](docs/IDENTITY-SETUP.md).
 
 ### Biến môi trường Identity
 
-- `GOOGLE_CLIENT_ID` và `GOOGLE_CLIENT_SECRET`: OAuth client loại Web application; chỉ lưu trong secret store.
-- `GOOGLE_REDIRECT_URI`: phải trùng URI đã đăng ký trong Google Cloud. Production dùng `https://nsclub-support-desk.vercel.app/api/identity/google/callback`.
-- `IDENTITY_ADMIN_EMAILS`: các email được phép duyệt đơn, cách nhau bằng dấu phẩy. Rỗng nghĩa là không có Identity Admin được cấp quyền.
-- `IDENTITY_MONGODB_URI`: kết nối Identity riêng; nếu rỗng, ứng dụng dùng `MONGODB_URI`. `IDENTITY_MONGODB_DB` mặc định `nsclub_support_desk`.
+- `IDENTITY_ADMIN_ID` và `IDENTITY_ADMIN_PASSWORD`: thông tin đăng nhập Admin; chỉ lưu ở server secret store. Dùng một mật khẩu dài, duy nhất.
+- `IDENTITY_ADMIN_EMAIL`: hộp thư nhận đơn và link xác nhận cấp tài khoản.
+- `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM`: cấu hình gửi email. Với Gmail, dùng `smtp.gmail.com`, port `465` hoặc `587`, và App Password sau khi bật 2-Step Verification. Không dùng mật khẩu Gmail chính.
+- `APP_BASE_URL`: origin HTTPS của website, dùng làm gốc cho liên kết email. Local có thể dùng `http://localhost:3000` trong môi trường phát triển.
+- `IDENTITY_MONGODB_URI`: Mongo Identity riêng tùy chọn; nếu rỗng, dùng `MONGODB_URI`. `IDENTITY_MONGODB_DB` mặc định `nsclub_support_desk`.
+- `MONGODB_URI` và `MONGODB_DB`: database Support; quyền ứng dụng phải giới hạn ở database cần dùng. Không dùng Atlas Admin.
 
-MongoDB cần replica set/sharded cluster hỗ trợ transaction. Tài khoản ứng dụng chỉ cần quyền trên database này để đọc/ghi collection `identity_*`, tạo index/collection và cài validator. Không dùng Atlas Admin. Identity không fallback sang memory/CSV; Mongo hoặc OAuth cấu hình sai sẽ trả lỗi thay vì giả báo thành công.
+Nếu Gmail SMTP thiếu App Password, Vercel không kết nối được SMTP, hoặc provider từ chối gửi, email không được xem là đã gửi và tài khoản không được báo là đã cấp. Vercel SMTP không dùng port 25; ứng dụng hỗ trợ `465` TLS hoặc `587` STARTTLS. Lưu secrets trong Vercel rồi deploy mới để áp dụng. Xem chi tiết tại [IDENTITY-SETUP](docs/IDENTITY-SETUP.md).
 
-### Cấp quyền và xử lý ID trùng
+### Gửi đơn và cấp tài khoản
 
-1. Nhân viên đăng nhập Google rồi gửi đơn với tên, job và phạm vi cần thiết. Không thu ngày sinh, mật khẩu, mã OTP hay giấy tờ tùy thân trong form.
-2. Identity Admin đăng nhập bằng email trong `IDENTITY_ADMIN_EMAILS`, kiểm tra nhân sự qua quy trình tin cậy bên ngoài ứng dụng, rà soát phạm vi rồi duyệt/từ chối.
-3. Khi duyệt, ứng dụng gắn ID nội bộ vào Google `sub` của người nộp đơn. Nếu ID bị trùng, đơn chuyển `ID_CONFLICT`; Admin phải xác minh và ghi lý do trước khi chọn hậu tố số.
-4. Nhân viên tiếp tục đăng nhập bằng chính tài khoản Google đã gắn với đơn. Đăng xuất thu hồi session ứng dụng; session hết hạn sau 8 giờ.
+1. Người dùng nhập họ tên và email. Không yêu cầu ngày sinh, mật khẩu hiện có, OTP hoặc giấy tờ tùy thân. Email tự khai chưa được xác minh độc lập trước lúc cấp.
+2. Chỉ Admin có thể đọc danh sách đơn; danh sách chỉ đọc và không có nút duyệt. API reviewer Support, tóm tắt, audit, sự kiện, chỉ số, lịch sử, danh sách và chi tiết hồ sơ cũng yêu cầu phiên Admin.
+3. Admin kiểm tra yêu cầu qua email nhận được rồi mở liên kết cấp tài khoản. Liên kết là token bearer, dùng một lần và hết hạn sau một giờ. Mở bằng `GET` cấp tài khoản ngay; phần mềm quét link có thể tự kích hoạt trước khi Admin bấm. Đây là lựa chọn của bản demo, không dùng với tài khoản hoặc dữ liệu tổ chức.
+4. Hệ thống dùng email người đăng ký làm ID, sinh mật khẩu ngẫu nhiên năm chữ số, lưu hash mật khẩu trong MongoDB và gửi thông tin tới email đăng ký. Mật khẩu này chỉ dùng trong demo; không tái sử dụng.
+5. Tài khoản mẫu công khai dành cho người gửi yêu cầu là `guest01 / 12345`. Không nhập dữ liệu nhân viên, ticket hoặc doanh nghiệp thật bằng tài khoản này.
 
-Các tài khoản roster cũ không có Google `sub` không tự liên kết được với phiên mới. Script roster/bootstrap có `--demo-id-only` là công cụ cho dữ liệu demo lịch sử, không chạy chúng trên database OIDC mới hoặc Production. Chuyển đổi tài khoản cũ cần migration riêng có đối chiếu chủ tài khoản; ứng dụng không tự import hay xóa dữ liệu cũ.
+Ứng dụng không xác minh Gmail là của nhân viên và không có SSO/Workspace, phân quyền tổ chức theo team hay quy trình khôi phục mật khẩu production. Danh sách mail và nội dung đơn là dữ liệu cá nhân; chỉ dùng mailbox test do bạn kiểm soát.
 
 ### Sổ quyền/quota DEMO-SANDBOX
 
-Đây là mô phỏng scope/quota; không tạo entitlement IAM/ITSM, không giữ chỗ cloud và không thực thi thao tác hạ tầng. Các script roster `--demo-id-only` và bootstrap cũ không còn là cách cấp người dùng cho Google Sign-In. Chỉ vận hành dữ liệu demo theo [contract DEMO-SANDBOX](docs/decisions/DEMO-AUTHORITY-CONTRACT.md); test transactional doubles không chứng minh Mongo transaction/restart thật.
+Đây là mô phỏng scope/quota; không tạo entitlement IAM/ITSM, không giữ chỗ cloud và không thực thi thao tác hạ tầng. Script roster/bootstrap cũ không phải luồng cấp người dùng hiện tại. Chỉ vận hành dữ liệu demo theo [contract DEMO-SANDBOX](docs/decisions/DEMO-AUTHORITY-CONTRACT.md); test doubles không chứng minh độ bền Mongo/restart thật.
 
 ### Token theo dõi yêu cầu
 
@@ -239,15 +242,15 @@ Mỗi request lưu `trackingTokenHash` và proof hash, không lưu raw token/pro
 node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"
 ```
 
-Không tái sử dụng Google client secret, đưa secret vào Git, terminal log được chia sẻ hoặc chat. Đổi secret sẽ làm các tracking link cũ mất hiệu lực. Nếu biến thiếu hoặc sai, việc gửi request Production trả 503. Các request cũ chưa có tracking hash vẫn xem được trong hàng đợi Admin public nhưng không mở được requester follow-up.
+Không tái sử dụng Admin/SMTP secret, đưa secret vào Git, terminal log được chia sẻ hoặc chat. Đổi `SUPPORT_TRACKING_SECRET` sẽ làm các tracking link cũ mất hiệu lực. Nếu tracking secret thiếu hoặc sai, việc gửi request Production trả 503. Request cũ chưa có tracking hash không mở được requester follow-up.
 
-Hàng đợi Support/reviewer vẫn là public demo theo quyết định sản phẩm; Google OIDC và `IDENTITY_ADMIN_EMAILS` không bảo vệ các API đó. Token tracking chỉ cho phép người gửi dùng route theo dõi/tiếp tục; nó không làm ticket riêng tư. Chỉ dùng dữ liệu tổng hợp trên website Production public.
+Các API reviewer Support, tóm tắt, audit, sự kiện, metrics, lịch sử, danh sách và chi tiết hồ sơ đều yêu cầu phiên Admin. Tracking token/proof chỉ cho phép người gửi dùng route theo dõi/tiếp tục và khôi phục receipt; chúng không cấp quyền reviewer. Tài khoản requester demo được chia sẻ công khai, nên chỉ dùng dữ liệu synthetic trên Production.
 
-Sau khi đổi Vercel environment variables, tạo deployment mới. Không deploy cho tới khi xác minh `SUPPORT_TRACKING_SECRET`, MongoDB và cấu hình OAuth; thiếu các biến này sẽ làm chức năng tương ứng không dùng được.
+Sau khi đổi biến môi trường trên Vercel, tạo deployment mới. Luồng gửi đơn/cấp tài khoản qua email chưa hoạt động cho tới khi cấu hình Admin, SMTP và MongoDB. Chỉ xác nhận email vận hành sau khi kiểm tra end-to-end bằng mailbox thử nghiệm do bạn kiểm soát.
 
 ## Kiểm tra bản trình diễn
 
-Support reviewer công khai theo lựa chọn của nhóm. Identity dùng Google Sign-In và IT duyệt thủ công. Màn hình người gửi không render sentiment, expected result hoặc audit thô; reviewer vẫn có các thông tin này. Phân tách màn hình không phải cơ chế xác thực bổ sung cho các API public-demo.
+Support reviewer và audit yêu cầu đăng nhập Admin. Tài khoản người gửi demo được chia sẻ công khai; chỉ dùng dữ liệu tổng hợp. Màn hình người gửi không hiển thị sentiment, expected result hoặc audit thô; Admin xem các trường này sau khi xác thực bằng phiên server. Đây là đăng nhập demo, không phải SSO hoặc IAM production.
 
 Trước buổi trình diễn, kiểm tra máy in, VPN, reset có làm rõ, yêu cầu mở port nguy hiểm, DNS, hỏi tiếp, handoff và tra cứu lại trên desktop/mobile. Kiểm tra bằng lời gọi thật khi được phép, đối chiếu SHA và lưu receipt; dọn đúng ID dữ liệu giả lập vừa tạo sau khi lưu bằng chứng. Không chạy Verify bằng dữ liệu nghiệp vụ hoặc xóa theo điều kiện rộng.
 
@@ -255,13 +258,13 @@ Dependency audit cần tách runtime và toolchain. Rà soát ngày 18/11/2026: 
 
 ## Tài khoản roster demo cũ
 
-`data/demo/identities.json` và các script `identity-demo-roster.mjs` / `identity-demo-rename.mjs` là tư liệu cho phiên bản đăng nhập ID-only trước đây. Chúng không tạo phiên Google OIDC và không được chạy trên database OIDC hiện tại hoặc Production. Giữ lại để tra cứu lịch sử; việc đối chiếu/chuyển tài khoản cũ cần một migration riêng có xác minh người sở hữu `sub`.
+`data/demo/identities.json` và các script `identity-demo-roster.mjs` / `identity-demo-rename.mjs` là tư liệu cho phiên bản roster cũ. Chúng không thay thế tài khoản được lưu trong MongoDB hiện tại; không chạy chúng trên database Identity hoặc Production.
 
 ## Vận hành cache và sự cố chung
 
 Support Desk dùng ba ban điều phối `IT`, `COMMERCIAL`, `HR`; `decision.division` do server xác định, không nhận từ browser/model. Query `division` lọc ở server trước tổng số/phân trang/gộp; hồ sơ cũ đọc theo service group. Không migration dữ liệu hoặc thay quyền identity. Index mới `division_queue` hỗ trợ hàng đợi. [Hợp đồng, bộ 30 ca và đánh giá điều hành](docs/SUPPORT-DESK-EXPANSION.md).
 
-Runtime API chỉ cho phép chế độ `public-demo` khi chạy production build; các giá trị khác bị chặn `ORGANIZATION_AUTH_REQUIRED` thay vì mặc nhiên bật truy cập không xác thực. Health báo `productionReady: false`; chưa có SSO/RBAC tổ chức thực tế. Không đưa dữ liệu công ty thật vào demo. Đánh giá go-live vẫn **Not ready** cho đến khi có xác thực, phân quyền từng ban, policy tổ chức và bằng chứng phục hồi/vận hành thật. Cấu hình Mongo/API key hoặc CI xanh không thay thế các điều kiện đó.
+Runtime API chỉ cho phép profile `public-demo` khi chạy production build; profile này cho phép luồng demo và tài khoản mẫu, còn reviewer APIs vẫn yêu cầu phiên Admin. Các giá trị khác bị chặn `ORGANIZATION_AUTH_REQUIRED`. Health báo `productionReady: false`; chưa có SSO/RBAC tổ chức thực tế. Không đưa dữ liệu công ty thật vào demo. Đánh giá go-live vẫn **Not ready** cho đến khi có xác thực tổ chức, phân quyền từng ban, policy tổ chức và bằng chứng phục hồi/vận hành thật. Cấu hình Mongo/API key hoặc CI xanh không thay thế các điều kiện đó.
 
 Verify nghiệp vụ có bucket 90 request/phút/client sau khi server kiểm tra đúng fixture/run; request nội bộ giữ cùng client để không dùng chung bucket loopback giữa các lượt chạy. Intake thông thường vẫn 30/phút và mutation 15/phút. Bucket ingress 90/phút chặn body không hợp lệ; bộ nhớ limiter có giới hạn. Đây là limiter theo process của demo, không phải kiểm soát abuse phân tán.
 
@@ -280,4 +283,4 @@ POST `/api/review/:id/summary` yêu cầu quyền reviewer demo và version hi�
 
 Cache Mongo trong `v3_support_reviewer_summaries`, TTL 24 giờ. Khóa gồm request ID, nội dung đã redact, phiên bản prompt, provider/model; thay nội dung làm mất hiệu lực, đổi trạng thái mà không đổi nội dung dùng lại được. Mỗi lần đọc kiểm tra version và hạn dùng; không cache lỗi. Chỉ chế độ support memory-demo dùng cache bộ nhớ local. Mongo cache lỗi được coi là miss; kết quả hợp lệ vừa sinh vẫn hiển thị, không ghi fallback Production vào bộ nhớ. Single-flight chỉ trong cùng process; nhiều instance đồng thời có thể gọi trùng trước khi cache được lưu.
 
-Khi kiểm thử Production, lưu ID ticket và bản ghi summary thuộc đúng ticket đó trong manifest; sau khi lưu bằng chứng, chỉ dọn các ID thử do lượt kiểm tra tạo. Không xóa cache/ticket theo điều kiện rộng. Google Sign-In và reviewer public có phạm vi riêng; chỉ nhập dữ liệu tổng hợp.
+Khi kiểm thử Production, lưu ID ticket và bản ghi summary thuộc đúng ticket đó trong manifest; sau khi lưu bằng chứng, chỉ dọn các ID thử do lượt kiểm tra tạo. Không xóa cache/ticket theo điều kiện rộng. Reviewer cần Admin session; tài khoản requester mẫu là công khai, chỉ nhập dữ liệu tổng hợp.

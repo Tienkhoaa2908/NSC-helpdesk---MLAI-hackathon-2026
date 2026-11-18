@@ -5,7 +5,7 @@ import Image from "next/image";
 import { useEffect, useState } from "react";
 import type { SupportRequest } from "@/domain/contracts";
 import { allFields } from "@/domain/catalog";
-import { displayId, statusLabels, optionName } from "@/domain/presentation";
+import { displayId, statusLabel, optionName } from "@/domain/presentation";
 import { requesterApi } from "@/lib/requester-api";
 import { Alert, Button, Card, Textarea } from "./ui";
 import { SupportResult } from "./support-result";
@@ -14,7 +14,9 @@ import { AssistanceHistory, RequestProgress } from "./support-history";
 import { AiPending, ContentSkeleton } from "./loading-feedback";
 import { reviewerMessages } from "@/domain/reviewer-messages";
 import { mergeTrackedRequest } from "@/domain/tracking-state";
+import { localized, localizedError, useLocale } from "@/i18n/locale";
 export function RequestDetail({ id }: { id: string }) {
+  const { locale } = useLocale();
   const [request, setRequest] = useState<SupportRequest | null>(null),
     [error, setError] = useState("");
   const [trackingToken, setTrackingToken] = useState("");
@@ -26,7 +28,7 @@ export function RequestDetail({ id }: { id: string }) {
     [copied, setCopied] = useState(false);
   async function refresh() {
     if (!trackingToken) {
-      setError("Cần liên kết theo dõi đầy đủ để mở yêu cầu.");
+      setError(localized("Cần liên kết theo dõi đầy đủ để mở yêu cầu.", "The full tracking link is required to open this request.", locale));
       return;
     }
     try {
@@ -35,7 +37,7 @@ export function RequestDetail({ id }: { id: string }) {
       );
       setError("");
     } catch {
-      setError("Không thể tải yêu cầu. Thử tải lại.");
+      setError(localized("Không thể tải yêu cầu. Thử tải lại.", "Could not load the request. Please try again.", locale));
     }
   }
   useEffect(() => {
@@ -45,7 +47,7 @@ export function RequestDetail({ id }: { id: string }) {
     const token = new URLSearchParams(window.location.hash.slice(1)).get("token") ?? "";
     setTrackingToken(/^[a-f0-9]{64}$/i.test(token) ? token : "");
     if (!/^[a-f0-9]{64}$/i.test(token)) {
-      setError("Liên kết theo dõi thiếu mã truy cập. Hãy mở liên kết đầy đủ đã nhận sau khi gửi.");
+      setError(localized("Liên kết theo dõi thiếu mã truy cập. Hãy mở liên kết đầy đủ đã nhận sau khi gửi.", "The tracking link is missing its access token. Open the complete link you received after submitting.", locale));
       return () => { current = false; };
     }
     void requesterApi<SupportRequest>(`/api/support/track/${id}`, token)
@@ -53,12 +55,12 @@ export function RequestDetail({ id }: { id: string }) {
         if (current) setRequest(result);
       })
       .catch(() => {
-        if (current) setError("Không thể tải yêu cầu. Thử tải lại.");
+        if (current) setError(localized("Không thể tải yêu cầu. Thử tải lại.", "Could not load the request. Please try again.", locale));
       });
     return () => {
       current = false;
     };
-  }, [id]);
+  }, [id, locale]);
   const canSync =
     request !== null && !!trackingToken && !pending &&
     !["COMPLETED", "STOPPED"].includes(request.status);
@@ -110,11 +112,7 @@ export function RequestDetail({ id }: { id: string }) {
       setFollowup("");
       setFields({});
     } catch (error) {
-      setError(
-        error instanceof Error
-          ? error.message
-          : "Không thể cập nhật. Thông tin bạn vừa nhập vẫn được giữ lại.",
-      );
+      setError(localizedError(error, locale, "Không thể cập nhật. Thông tin bạn vừa nhập vẫn được giữ lại.", "Could not update the request. Your information is still available."));
     } finally {
       setPending(false);
     }
@@ -128,13 +126,13 @@ export function RequestDetail({ id }: { id: string }) {
   const canGuide = request?.status === "AUTO_APPROVED" && !!latest;
   const currentNote =
     request?.status === "REJECTED"
-      ? "Yêu cầu đã bị từ chối. Xem lý do bên dưới hoặc tạo yêu cầu mới nếu tình huống thay đổi."
+      ? localized("Yêu cầu đã bị từ chối. Xem lý do bên dưới hoặc tạo yêu cầu mới nếu tình huống thay đổi.", "The request was rejected. Review the reason below or submit a new request if the situation changes.", locale)
       : request?.status === "STOPPED"
-        ? "Yêu cầu đã dừng. Các hướng dẫn trước đây chỉ còn trong lịch sử."
+        ? localized("Yêu cầu đã dừng. Các hướng dẫn trước đây chỉ còn trong lịch sử.", "This request is no longer being processed. Earlier guidance remains in its history.", locale)
         : request?.status === "COMPLETED"
-          ? "Yêu cầu đã hoàn tất. Cảm ơn bạn đã cập nhật kết quả."
+          ? localized("Yêu cầu đã hoàn tất. Cảm ơn bạn đã cập nhật kết quả.", "This request is complete. Thank you for sharing the outcome.", locale)
           : request?.status === "APPROVED_BY_HUMAN"
-            ? "Nhân viên đã duyệt; đang chờ hoàn tất xử lý mô phỏng."
+            ? localized("Nhân viên đã duyệt; đang chờ hoàn tất xử lý mô phỏng.", "A staff member approved this request; the simulated workflow is pending completion.", locale)
             : "";
   return (
     <main
@@ -144,28 +142,28 @@ export function RequestDetail({ id }: { id: string }) {
       }
     >
       <div>
-        <p className="eyebrow">THEO DÕI HỖ TRỢ</p>
-        <h1>Yêu cầu {displayId(id)}</h1>
+        <p className="eyebrow">{localized("THEO DÕI HỖ TRỢ", "REQUEST TRACKING", locale)}</p>
+        <h1>{localized("Yêu cầu", "Request", locale)} {displayId(id)}</h1>
       </div>
       {error && <Alert tone="error">{error}</Alert>}
-      {!request && !error && <ContentSkeleton label="Đang tải yêu cầu…" />}
+      {!request && !error && <ContentSkeleton label="Đang tải yêu cầu…" labelEn="Loading request…" />}
       {request && (
         <>
           <IncidentUpdates incident={request.incident} />
           <Card className="request-status" data-guide="sender-result">
             <p role="status">
-              Trạng thái: <strong>{statusLabels[request.status]}</strong>
+              {localized("Trạng thái:", "Status:", locale)} <strong>{statusLabel(request.status, locale)}</strong>
             </p>
             <p className="text-sm text-slate-600">
-              Cập nhật lúc {new Date(request.updatedAt).toLocaleString("vi-VN")}
+              {localized("Cập nhật lúc", "Updated", locale)} {new Intl.DateTimeFormat(locale === "vi" ? "vi-VN" : "en-US", { dateStyle: "medium", timeStyle: "short" }).format(new Date(request.updatedAt))}
             </p>
             <p>
               {currentNote ||
                 (request.status === "ESCALATED"
-                  ? "Nhân viên hỗ trợ sẽ xem xét yêu cầu. Dùng liên kết này để theo dõi cập nhật."
+                  ? localized("Nhân viên hỗ trợ sẽ xem xét yêu cầu. Dùng liên kết này để theo dõi cập nhật.", "Support staff will review this request. Use this link to check for updates.", locale)
                   : request.status === "NEEDS_INFORMATION"
-                    ? "Điền các thông tin bạn biết bên dưới để chúng tôi hỗ trợ đúng hơn."
-                    : "Làm theo hướng dẫn rồi cho chúng tôi biết kết quả.")}
+                    ? localized("Điền các thông tin bạn biết bên dưới để chúng tôi hỗ trợ đúng hơn.", "Share the information you know below so we can help more accurately.", locale)
+                    : localized("Làm theo hướng dẫn rồi cho chúng tôi biết kết quả.", "Follow the guidance and let us know the result.", locale))}
             </p>
             {request.status === "COMPLETED" && (
               <Image
@@ -173,7 +171,7 @@ export function RequestDetail({ id }: { id: string }) {
                 src="/illustrations/vng-support-mascot-navi-wave.png"
                 width={100}
                 height={100}
-                alt="Navi nháy mắt cười vui vẻ và giơ một tay chào"
+                alt={localized("Navi nháy mắt cười vui vẻ và giơ một tay chào", "Navi winking and waving", locale)}
               />
             )}
             <Button
@@ -183,35 +181,33 @@ export function RequestDetail({ id }: { id: string }) {
                   .writeText(window.location.href)
                   .then(() => setCopied(true))
                   .catch(() =>
-                    setError(
-                      "Không thể sao chép. Bạn có thể sao chép địa chỉ trang trên trình duyệt.",
-                    ),
+                    setError(localized("Không thể sao chép. Bạn có thể sao chép địa chỉ trang trên trình duyệt.", "Could not copy the link. You can copy the page address from your browser.", locale)),
                   );
               }}
             >
-              {copied ? "Đã sao chép liên kết" : "Sao chép liên kết theo dõi"}
+              {copied ? localized("Đã sao chép liên kết", "Link copied", locale) : localized("Sao chép liên kết theo dõi", "Copy tracking link", locale)}
             </Button>
             <details>
-              <summary>Mã yêu cầu</summary>
+              <summary>{localized("Mã yêu cầu", "Request ID", locale)}</summary>
               <p>{displayId(id)}</p>
             </details>
           </Card>
           <Card>
-            <h2>Vấn đề bạn đã gửi</h2>
-            {request.input.requesterMode === "guest" && request.input.guestDepartment && <p>Phòng ban giả lập (phiên khách): {optionName(request.input.guestDepartment)}</p>}
+            <h2>{localized("Vấn đề bạn đã gửi", "Your request", locale)}</h2>
+            {request.input.requesterMode === "guest" && request.input.guestDepartment && <p>{localized("Phòng ban demo (yêu cầu cũ):", "Demo department (legacy request):", locale)} {optionName(request.input.guestDepartment, locale)}</p>}
             <blockquote className="original-question">
               {request.originalQuestion ||
                 request.input.rawText ||
-                "Yêu cầu theo danh mục"}
+                localized("Yêu cầu theo danh mục", "Categorized request", locale)}
             </blockquote>
           </Card>
           {reviewerMessages(request.events, request.sharedReplies).length > 0 && (
             <Card>
-              <section aria-label="Tin nhắn từ nhân viên" aria-live="polite" aria-relevant="additions">
-                <h2>Phản hồi của nhân viên</h2>
+              <section aria-label={localized("Tin nhắn từ nhân viên", "Messages from staff", locale)} aria-live="polite" aria-relevant="additions">
+                <h2>{localized("Phản hồi của nhân viên", "Staff responses", locale)}</h2>
                 <ol className="reviewer-messages">
                   {reviewerMessages(request.events, request.sharedReplies).map(message => <li key={message.id}>
-                    <div><strong>Nhân viên hỗ trợ</strong><time dateTime={message.timestamp}>{new Date(message.timestamp).toLocaleString("vi-VN")}</time></div>
+                    <div><strong>{localized("Nhân viên hỗ trợ", "Support staff", locale)}</strong><time dateTime={message.timestamp}>{new Intl.DateTimeFormat(locale === "vi" ? "vi-VN" : "en-US", { dateStyle: "medium", timeStyle: "short" }).format(new Date(message.timestamp))}</time></div>
                     <p>{message.text}</p>
                   </li>)}
                 </ol>
@@ -228,19 +224,18 @@ export function RequestDetail({ id }: { id: string }) {
               />
             )}
           {active && latest && <AssistanceHistory items={[latest]} />}
-          {pending && <AiPending message="Đang xử lý phản hồi và cập nhật yêu cầu…" />}
+          {pending && <AiPending message="Đang xử lý phản hồi và cập nhật yêu cầu…" messageEn="Processing your response and updating the request…" />}
           {request.knowledgeCandidate && (
             <Card>
-              <h2>Gợi ý tri thức đã gửi rà soát</h2>
+              <h2>{localized("Gợi ý tri thức đã gửi rà soát", "Knowledge suggestion submitted for review", locale)}</h2>
               <p className="text-sm text-slate-600">
-                Người phụ trách sẽ kiểm tra và biên tập trước khi hướng dẫn có
-                thể được đưa vào kho tri thức.
+                {localized("Người phụ trách sẽ kiểm tra và biên tập trước khi hướng dẫn có thể được đưa vào kho tri thức.", "A reviewer will check and edit the suggestion before it can be added to the knowledge base.", locale)}
               </p>
             </Card>
           )}
           {request.stepExplanations?.map((item, index) => (
             <Card key={index}>
-              <h2>Giải thích bước {item.step + 1}</h2>
+              <h2>{localized("Giải thích bước", "Explanation for step", locale)} {item.step + 1}</h2>
               <p>{item.text}</p>
             </Card>
           ))}
@@ -248,8 +243,7 @@ export function RequestDetail({ id }: { id: string }) {
             <Card className="followup-card">
               {request.feedback.at(-1)?.choice === "COMMENT" && (
                 <p role="status">
-                  Đã ghi nhận phản hồi. Yêu cầu vẫn mở; hãy xác nhận kết quả
-                  hoặc chọn chuyển cho nhân viên nếu cần.
+                  {localized("Đã ghi nhận phản hồi. Yêu cầu vẫn mở; hãy xác nhận kết quả hoặc chọn chuyển cho nhân viên nếu cần.", "Your feedback was recorded. The request remains open; confirm the outcome or ask staff to review it.", locale)}
                 </p>
               )}
               <form
@@ -260,18 +254,17 @@ export function RequestDetail({ id }: { id: string }) {
               >
                 <fieldset disabled={pending} className="space-y-4">
                   <div>
-                    <h2>Hỏi tiếp về phản hồi này</h2>
+                    <h2>{localized("Hỏi tiếp về phản hồi này", "Ask a follow-up about this response", locale)}</h2>
                     <p className="text-sm text-slate-600">
-                      Cho biết bước bạn đang vướng hoặc hỏi thêm về hướng dẫn.
-                      Bạn có thể yêu cầu nhân viên hỗ trợ bất cứ lúc nào.
+                      {localized("Cho biết bước bạn đang vướng hoặc hỏi thêm về hướng dẫn. Bạn có thể yêu cầu nhân viên hỗ trợ bất cứ lúc nào.", "Tell us which step is unclear or ask about the guidance. You can request staff assistance at any time.", locale)}
                     </p>
                   </div>
                   <label>
-                    Phản hồi về hướng dẫn
+                    {localized("Phản hồi về hướng dẫn", "Follow-up question", locale)}
                     <Textarea
-                      aria-label="Hỏi tiếp"
+                      aria-label={localized("Hỏi tiếp", "Ask a follow-up", locale)}
                       data-guide="sender-followup"
-                      placeholder="Ví dụ: Tôi đã vào được rồi; hoặc bước tiếp theo là gì?"
+                      placeholder={localized("Ví dụ: Tôi đã vào được rồi; hoặc bước tiếp theo là gì?", "For example: I can sign in now. What should I do next?", locale)}
                       value={followup}
                       onChange={(event) => setFollowup(event.target.value)}
                       required
@@ -280,7 +273,7 @@ export function RequestDetail({ id }: { id: string }) {
                     />
                   </label>
                   <Button type="submit" data-guide="sender-followup-send">
-                    Gửi câu hỏi
+                    {localized("Gửi câu hỏi", "Send question", locale)}
                   </Button>
                   {latest?.answer && (
                     <Button
@@ -290,7 +283,7 @@ export function RequestDetail({ id }: { id: string }) {
                         void update("feedback", { choice: "RESOLVED" })
                       }
                     >
-                      Tôi đã hiểu
+                      {localized("Tôi đã hiểu", "I understand", locale)}
                     </Button>
                   )}
                 </fieldset>
@@ -313,7 +306,7 @@ export function RequestDetail({ id }: { id: string }) {
                         void update("feedback", { choice: "RESOLVED" })
                       }
                     >
-                      A. Tôi đã làm được
+                      {localized("A. Tôi đã làm được", "A. I completed it", locale)}
                     </Button>
                     <Button
                       variant="secondary"
@@ -321,12 +314,12 @@ export function RequestDetail({ id }: { id: string }) {
                         void update("feedback", { choice: "STILL_BROKEN" })
                       }
                     >
-                      B. Vẫn còn lỗi
+                      {localized("B. Vẫn còn lỗi", "B. The issue remains", locale)}
                     </Button>
                   </div>
                   <div className="explain-controls">
                     <label>
-                      Bước cần giải thích
+                      {localized("Bước cần giải thích", "Step to explain", locale)}
                       <select
                         value={step}
                         onChange={(event) =>
@@ -335,7 +328,7 @@ export function RequestDetail({ id }: { id: string }) {
                       >
                         {latest!.stepByStepInstructions.map((_, index) => (
                           <option key={index} value={index}>
-                            Bước {index + 1}
+                            {localized("Bước", "Step", locale)} {index + 1}
                           </option>
                         ))}
                       </select>
@@ -346,7 +339,7 @@ export function RequestDetail({ id }: { id: string }) {
                         void update("feedback", { choice: "EXPLAIN", step })
                       }
                     >
-                      C. Giải thích bước này
+                      {localized("C. Giải thích bước này", "C. Explain this step", locale)}
                     </Button>
                   </div>
                 </>
@@ -359,18 +352,17 @@ export function RequestDetail({ id }: { id: string }) {
                     onClick={() => void update("feedback", { choice: "ADMIN" })}
                   >
                     {canGuide
-                      ? "D. Chuyển cho nhân viên hỗ trợ"
-                      : "Tôi vẫn cần hỗ trợ — Chuyển cho nhân viên"}
+                      ? localized("D. Chuyển cho nhân viên hỗ trợ", "D. Ask support staff to review", locale)
+                      : localized("Tôi vẫn cần hỗ trợ — Chuyển cho nhân viên", "I still need help — ask support staff to review", locale)}
                   </Button>
                 )}
             </fieldset>
           )}
           {request.status === "NEEDS_INFORMATION" && (
             <Card>
-              <h2>Bổ sung thông tin</h2>
+              <h2>{localized("Bổ sung thông tin", "Add information", locale)}</h2>
               <p>
-                Trả lời những mục bạn biết. Bạn có thể điền ô bên dưới mà không
-                cần viết lại mô tả.
+                {localized("Trả lời những mục bạn biết. Bạn có thể điền ô bên dưới mà không cần viết lại mô tả.", "Answer the fields you know. You can provide the details below without rewriting your description.", locale)}
               </p>
               <form
                 onSubmit={(event) => {
@@ -408,9 +400,9 @@ export function RequestDetail({ id }: { id: string }) {
                       />
                     ))}
                   <label>
-                    Thông tin làm rõ (không bắt buộc)
+                    {localized("Thông tin làm rõ (không bắt buộc)", "Additional details (optional)", locale)}
                     <Textarea
-                      aria-label="Thông tin làm rõ"
+                      aria-label={localized("Thông tin làm rõ", "Additional details", locale)}
                       data-guide="sender-followup"
                       value={clarification}
                       onChange={(event) => setClarification(event.target.value)}
@@ -418,7 +410,7 @@ export function RequestDetail({ id }: { id: string }) {
                     />
                   </label>
                   <Button type="submit" data-guide="sender-followup-send">
-                    Gửi bổ sung
+                    {localized("Gửi bổ sung", "Send details", locale)}
                   </Button>
                 </fieldset>
               </form>
@@ -426,7 +418,7 @@ export function RequestDetail({ id }: { id: string }) {
           )}
           <details className="panel">
             <summary data-guide="sender-history">
-              Lịch sử yêu cầu và hướng dẫn
+              {localized("Lịch sử yêu cầu và hướng dẫn", "Request and guidance history", locale)}
             </summary>
             {request.decision && request.canonical && currentNote && (
               <SupportResult
@@ -444,13 +436,9 @@ export function RequestDetail({ id }: { id: string }) {
           {!active && (
             <Link
               className="button primary"
-              href={
-                request.input.requesterMode === "guest"
-                  ? "/guest"
-                  : "/send-help"
-              }
+              href="/send-help"
             >
-              Gửi yêu cầu mới
+              {localized("Gửi yêu cầu mới", "Submit another request", locale)}
             </Link>
           )}
         </>
@@ -460,7 +448,7 @@ export function RequestDetail({ id }: { id: string }) {
         disabled={pending}
         onClick={() => void refresh()}
       >
-        Tải lại yêu cầu
+        {localized("Tải lại yêu cầu", "Reload request", locale)}
       </Button>
     </main>
   );

@@ -288,7 +288,7 @@ export async function completeAnalysis(
   if (cacheAllowed && input.mode === "freeform" && guidanceCacheContext(input.rawText)) {
     const baseline = extractIntake({ ...input, fields: {} }, markers);
     const decision = evaluatePolicy(baseline, verifyApproval);
-    const assistance = await readGuidanceAnswer(input, baseline, decision);
+    const assistance = await readGuidanceAnswer(input, baseline, decision, options.locale ?? "vi");
     if (assistance) return { canonical: baseline, decision, assistance,
       sentiment: supportRequestSentimentFallback(input.rawText) };
   }
@@ -299,7 +299,7 @@ export async function completeAnalysis(
       const assistance = await sharedFaqAnswer(input, baseline, decision, {
         ...guidanceTemplate(baseline), source: "deterministic", timestamp: new Date().toISOString(),
         generationReason: "REVIEWED_TEMPLATE_SUFFICIENT",
-      }, "read");
+      }, "read", undefined, options.locale ?? "vi");
       if (assistance.source === "cache") return { canonical: baseline, decision, assistance,
         sentiment: supportRequestSentimentFallback(input.rawText) };
     }
@@ -317,7 +317,7 @@ export async function completeAnalysis(
       assistance = result.canonical.conversation
         ? await createConversationAnswer(result.canonical, options)
         : cacheAllowed
-          ? await withGuidanceAnswerCache(input, result.canonical, result.decision, generateGuide)
+          ? await withGuidanceAnswerCache(input, result.canonical, result.decision, generateGuide, options.locale ?? "vi")
           : await generateGuide();
       if (reviewedGuide && !assistance.fallbackReason)
         assistance.generationReason = "REVIEWED_TEMPLATE_SUFFICIENT";
@@ -327,7 +327,8 @@ export async function completeAnalysis(
     }
   }
   if (cacheAllowed && assistance && input.mode === "freeform")
-    assistance = await sharedFaqAnswer(input, result.canonical, result.decision, assistance);
+    assistance = await sharedFaqAnswer(input, result.canonical, result.decision, assistance,
+      "write", undefined, options.locale ?? "vi");
   return { ...result, assistance };
 }
 export async function previewSupport(value: unknown, options: ModelOptions = {}) {
@@ -349,6 +350,7 @@ export async function previewSupport(value: unknown, options: ModelOptions = {})
   const preview: SupportPreview = {
     id: randomUUID(),
     fingerprint: fingerprintOf(safe.input),
+    locale: options.locale ?? "vi",
     expiresAt: new Date(Date.now() + 10 * 60_000),
     ...analysis,
     sentiment,
@@ -483,8 +485,9 @@ export async function submitSupport(
       throw new SupportError("NOT_FOUND", "Không tìm thấy yêu cầu.", 404);
     return waitForDecision(winner);
   }
-  const result =
-    cached ?? (await completeAnalysis(input, safe.markers, options));
+  const result = cached && (cached.locale ?? "vi") === (options.locale ?? "vi")
+    ? cached
+    : await completeAnalysis(input, safe.markers, options);
   return finishAnalysis(request, result);
 }
 

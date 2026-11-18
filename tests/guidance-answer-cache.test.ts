@@ -13,12 +13,13 @@ import { withGuidanceAnswerCache } from "@/lib/guidance-answer-cache";
 import { evaluatePolicy } from "@/domain/policy";
 import { submitSupport } from "@/services/support";
 import { continueConversation } from "@/services/conversation";
+import type { ModelOptions } from "@/lib/support-model";
 
 const original = "VPN không kết nối trên Windows";
 const paraphrase = "Bạn ơi, trên Windows VPN của mình không kết nối được, giúp mình với!";
 const input = (text: string) => prepareInput({ requesterMode: "guest", rawText: text,
   idempotencyKey: crypto.randomUUID() });
-const analyze = async (text: string, options = {}) => {
+const analyze = async (text: string, options: ModelOptions = {}) => {
   const safe = input(text);
   return completeAnalysis(safe.input, safe.markers, options);
 };
@@ -77,6 +78,23 @@ it("reuses the actual model answer and selected fixes for a paraphrase with zero
   expect(result.next.assistance?.contextEvidence).toBeUndefined();
   expect(result.next.canonical.evidence.some(row => row.quote.includes(paraphrase))).toBe(true);
   expect(result.next.decision.safeEvidence.some(quote => quote.includes(paraphrase))).toBe(true);
+});
+
+it("adds the selected language to guidance prompts and keeps guidance cache locales separate", async () => {
+  const result = await analyze(original, { locale: "en" });
+  expect(result.assistance?.source).toBe("openai");
+  const body = JSON.parse(String(http.mock.calls.at(-1)?.[1]?.body));
+  const instructions = body.messages.map((message: { content?: unknown }) =>
+    typeof message.content === "string" ? message.content : "").join("\n");
+  expect(instructions).toContain("prose in English");
+
+  resetAnswerCacheForTest();
+  const safe = input(original), canonical = extractIntake(safe.input), decision = evaluatePolicy(canonical);
+  const template = guidance.guidanceTemplate(canonical);
+  const generate = vi.fn(async () => ({ ...template, source: "openai" as const, timestamp: new Date().toISOString() }));
+  await withGuidanceAnswerCache(safe.input, canonical, decision, generate, "en");
+  await withGuidanceAnswerCache(safe.input, canonical, decision, generate, "vi");
+  expect(generate).toHaveBeenCalledTimes(2);
 });
 
 it("serves a similar generic FAQ from its saved answer without a second extraction call", async () => {

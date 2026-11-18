@@ -25,20 +25,22 @@ import type { RequestStatus, SupportRequest } from "@/domain/contracts";
 import { canReview, type ReviewAction } from "@/domain/transitions";
 import {
   displayId,
-  statusLabels,
   optionName,
   intentName,
+  statusLabel,
+  serviceGroupName,
 } from "@/domain/presentation";
-import { catalog, labelForField } from "@/domain/catalog";
+import { labelForField } from "@/domain/catalog";
 import { Badge, Button, Textarea } from "./ui";
 import { SentimentPreview } from "./sentiment-preview";
 import { SupportResult } from "./support-result";
 import { AssistanceHistory, AuditTimeline } from "./support-history";
+import { useLocale, localized, localizedError } from "@/i18n/locale";
 
 const tabs = [
-  { id: "evidence", label: "Thông tin & bằng chứng", icon: FileText },
-  { id: "assistance", label: "Hướng dẫn đã gửi", icon: CircleHelp },
-  { id: "history", label: "Lịch sử xử lý", icon: Clock3 },
+  { id: "evidence", label: ["Thông tin & bằng chứng", "Details and evidence"], icon: FileText },
+  { id: "assistance", label: ["Hướng dẫn đã gửi", "Guidance sent"], icon: CircleHelp },
+  { id: "history", label: ["Lịch sử xử lý", "Activity history"], icon: Clock3 },
 ] as const;
 type Tab = (typeof tabs)[number]["id"];
 const labels: Record<ReviewAction, string> = {
@@ -50,36 +52,46 @@ const labels: Record<ReviewAction, string> = {
   OVERRIDE: "Điều chỉnh quyết định",
   FULFILL: "Hoàn tất mô phỏng",
 };
+const actionLabels: Record<ReviewAction, string> = {
+  SEND_MESSAGE: "Send a message",
+  APPROVE: "Approve request",
+  REJECT: "Reject",
+  REQUEST_INFORMATION: "Ask for information",
+  STOP: "Stop processing",
+  OVERRIDE: "Override decision",
+  FULFILL: "Complete simulated workflow",
+};
 
 // Presentation of existing guards only. The API remains the authority for transitions.
 function blockedReason(
   request: SupportRequest,
   action: ReviewAction,
   target: RequestStatus,
+  locale: "vi" | "en",
 ) {
   if (!canReview(request.status, action))
-    return "Thao tác không áp dụng cho trạng thái hiện tại.";
+    return localized("Thao tác không áp dụng cho trạng thái hiện tại.", "This action is not available for the current status.", locale);
   if (action === "APPROVE") return "";
   const approval =
     action === "FULFILL" ||
     (action === "OVERRIDE" && target === "APPROVED_BY_HUMAN");
   if (approval && request.decision?.bucket === "SECURITY_RISK")
-    return "Yêu cầu có rủi ro bảo mật. Chọn hỏi thêm, từ chối hoặc dừng xử lý.";
+    return localized("Yêu cầu có rủi ro bảo mật. Chọn hỏi thêm, từ chối hoặc dừng xử lý.", "This request has a security risk. Ask for more information, reject it, or stop processing.", locale);
   if (approval && request.decision?.ruleIds.includes("FAIL-003"))
-    return "Chưa thể duyệt vì bằng chứng hoặc phạm vi AI trích xuất chưa được xác minh. Cần bổ sung thông tin để kiểm tra lại.";
+    return localized("Chưa thể duyệt vì bằng chứng hoặc phạm vi AI trích xuất chưa được xác minh. Cần bổ sung thông tin để kiểm tra lại.", "The extracted evidence or scope has not been verified. Request more information before approval.", locale);
   if (
     action === "FULFILL" &&
     (request.status === "NEEDS_INFORMATION" ||
       request.decision?.action === "NEEDS_INFORMATION" ||
       request.decision?.missingFields.length)
   )
-    return "Cần bổ sung đủ thông tin trước khi duyệt hoặc hoàn tất.";
+    return localized("Cần bổ sung đủ thông tin trước khi duyệt hoặc hoàn tất.", "More information is required before approval or completion.", locale);
   if (
     action === "FULFILL" &&
     request.status === "AUTO_APPROVED" &&
     request.decision?.handlingMode !== "SIMULATED_WORKFLOW"
   )
-    return "Hướng dẫn cần phản hồi của người dùng để hoàn tất.";
+    return localized("Hướng dẫn cần phản hồi của người dùng để hoàn tất.", "The requester must respond to the guidance before it can be completed.", locale);
   return "";
 }
 
@@ -102,6 +114,8 @@ export function ReviewDetail({
   onAct: (action: ReviewAction) => Promise<boolean>;
   onReload: () => Promise<void>;
 }) {
+  const { locale } = useLocale();
+  const t = (vi: string, en: string) => localized(vi, en, locale);
   const [tab, setTab] = useState<Tab>("evidence");
   const [savedAction, setSavedAction] = useState<ReviewAction | null>(null);
   const [recordOpen, setRecordOpen] = useState(false);
@@ -116,7 +130,7 @@ export function ReviewDetail({
   }, [request.id, request.version]);
   const decision = request.decision;
   const canonical = request.canonical;
-  const approveBlock = blockedReason(request, "APPROVE", target);
+  const approveBlock = blockedReason(request, "APPROVE", target, locale);
   async function askForInformation() {
     if (drafting) return;
     const current = ++draftSequence.current;
@@ -126,7 +140,7 @@ export function ReviewDetail({
       if (current !== draftSequence.current) return;
       setReason(draft.text); setInformation(draft);
     } catch (cause) {
-      if (current === draftSequence.current) setDraftError((cause as Error).message);
+      if (current === draftSequence.current) setDraftError(localizedError(cause, locale, "Không thể soạn câu hỏi bổ sung.", "Could not draft a follow-up question."));
     } finally { if (current === draftSequence.current) setDrafting(false); }
   }
   async function act(action: ReviewAction) {
@@ -152,7 +166,7 @@ export function ReviewDetail({
     action: ReviewAction,
     variant: "primary" | "secondary" | "danger" = "secondary",
   ) {
-    const block = blockedReason(request, action, target);
+    const block = blockedReason(request, action, target, locale);
     const composeInformation = action === "REQUEST_INFORMATION" && !information;
     const needsReason = action !== "APPROVE" && !composeInformation;
     const reasonReady = reason.trim().length >= (action === "SEND_MESSAGE" ? 1 : 8);
@@ -175,14 +189,14 @@ export function ReviewDetail({
           block ||
           (needsReason && !reasonReady
             ? action === "SEND_MESSAGE"
-              ? "Nhập tin nhắn trước khi gửi."
-              : "Nhập lý do tối thiểu 8 ký tự để thực hiện."
-            : labels[action])
+              ? t("Nhập tin nhắn trước khi gửi.", "Enter a message before sending.")
+              : t("Nhập lý do tối thiểu 8 ký tự để thực hiện.", "Enter a reason of at least 8 characters.")
+            : localized(labels[action], actionLabels[action], locale))
         }
         onClick={() => void (composeInformation ? askForInformation() : act(action))}
       >
         <Icon size={16} />
-        {action === "REQUEST_INFORMATION" && information ? "Gửi yêu cầu bổ sung" : labels[action]}
+        {action === "REQUEST_INFORMATION" && information ? t("Gửi yêu cầu bổ sung", "Send information request") : localized(labels[action], actionLabels[action], locale)}
       </Button>
     );
   }
@@ -191,15 +205,15 @@ export function ReviewDetail({
       <header className="it-detail-heading">
         <Link href="/review" className="it-back">
           <ArrowLeft size={16} />
-          <span>← Danh sách yêu cầu</span>
+          <span>← {t("Danh sách yêu cầu", "Request list")}</span>
         </Link>
         <div className="it-detail-title">
           <div>
             <h1>{displayId(request.id)}</h1>
             <p>
               {canonical
-                ? catalog[canonical.serviceGroup].label
-                : "Yêu cầu hỗ trợ"}
+                ? serviceGroupName(canonical.serviceGroup, locale)
+                : t("Yêu cầu hỗ trợ", "Support request")}
             </p>
           </div>
           <div role="status" className="it-current-status">
@@ -212,11 +226,11 @@ export function ReviewDetail({
                     : "neutral"
               }
             >
-              {statusLabels[request.status]}
+              {statusLabel(request.status, locale)}
             </Badge>
             {savedAction && <small>{savedAction === "SEND_MESSAGE"
-              ? "Đã gửi tin nhắn vào hồ sơ người gửi. Trạng thái yêu cầu được giữ nguyên."
-              : "Đã lưu quyết định và gửi tin nhắn vào hồ sơ người gửi"}</small>}
+              ? t("Đã gửi tin nhắn vào hồ sơ người gửi. Trạng thái yêu cầu được giữ nguyên.", "Message added to the request. Its status is unchanged.")
+              : t("Đã lưu quyết định và gửi tin nhắn vào hồ sơ người gửi", "Decision saved and message added to the request")}</small>}
           </div>
         </div>
       </header>
@@ -224,17 +238,17 @@ export function ReviewDetail({
         <div className="it-request-content">
           <section className="it-surface it-intake" aria-labelledby="it-intake-heading">
             <div className="it-section-heading">
-              <h2 id="it-intake-heading" data-guide="reviewer-evidence">Yêu cầu nguyên văn</h2>
-              <small>Đã che thông tin nhạy cảm</small>
+              <h2 id="it-intake-heading" data-guide="reviewer-evidence">{t("Nội dung yêu cầu", "Request text")}</h2>
+              <small>{t("Thông tin nhạy cảm đã được che", "Sensitive information is redacted")}</small>
             </div>
-            <p className="it-request-text whitespace-pre-wrap">{request.originalQuestion || request.input.rawText || "Người gửi chọn yêu cầu theo danh mục."}</p>
-            {!request.originalQuestion && !request.input.rawText && <dl className="it-request-fields">{Object.entries(request.input.fields).filter(([key]) => !["employeeId", "department"].includes(key)).map(([key, value]) => <div key={key}><dt>{labelForField(key)}</dt><dd>{optionName(value)}</dd></div>)}</dl>}
+            <p className="it-request-text whitespace-pre-wrap">{request.originalQuestion || request.input.rawText || t("Người gửi chọn yêu cầu theo danh mục.", "The requester selected a categorized request.")}</p>
+          {!request.originalQuestion && !request.input.rawText && <dl className="it-request-fields">{Object.entries(request.input.fields).filter(([key]) => !["employeeId", "department"].includes(key)).map(([key, value]) => <div key={key}><dt>{labelForField(key, locale)}</dt><dd>{optionName(value, locale)}</dd></div>)}</dl>}
           </section>
           <ReviewSummary key={request.id} id={request.id} version={request.version} />
-          {!!request.sharedReplies?.length && <section className="it-surface it-intake" aria-label="Phản hồi chung">
-            <h2>Phản hồi chung</h2>
+          {!!request.sharedReplies?.length && <section className="it-surface it-intake" aria-label={t("Phản hồi chung", "Shared response")}>
+            <h2>{t("Phản hồi chung", "Shared response")}</h2>
             <ol className="reviewer-messages">{request.sharedReplies.map(reply => <li key={reply.id}>
-              <time dateTime={reply.timestamp}>{new Date(reply.timestamp).toLocaleString("vi-VN")}</time>
+              <time dateTime={reply.timestamp}>{new Intl.DateTimeFormat(locale === "vi" ? "vi-VN" : "en-US", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Ho_Chi_Minh" }).format(new Date(reply.timestamp))}</time>
               <p className="whitespace-pre-wrap">{reply.text}</p>
             </li>)}</ol>
           </section>}
@@ -243,35 +257,35 @@ export function ReviewDetail({
         <aside
           className="it-action-panel it-surface"
           id="review-actions"
-          aria-label="Thao tác xử lý"
+          aria-label={t("Thao tác xử lý", "Review actions")}
         >
           <fieldset disabled={pending}>
-            <legend>Thao tác xử lý</legend>
+            <legend>{t("Thao tác xử lý", "Review actions")}</legend>
             {approveBlock && (
               <div className="it-block-notice">
                 <ShieldAlert size={17} />
-                <span>{approveBlock}{canReview(request.status, "SEND_MESSAGE") && " Bạn vẫn có thể gửi tin nhắn cho người gửi bên dưới."}</span>
+                <span>{approveBlock}{canReview(request.status, "SEND_MESSAGE") && t(" Bạn vẫn có thể gửi tin nhắn cho người gửi bên dưới.", " You can still send the requester a message below.")}</span>
               </div>
             )}
             <label className="it-reason">
-              Tin nhắn cho người gửi
+              {t("Tin nhắn cho người gửi", "Message to requester")}
               <Textarea
                 disabled={drafting}
                 rows={reason.length > 300 ? 8 : 3}
                 maxLength={REVIEW_MESSAGE_MAX_LENGTH}
                 value={reason}
                 data-guide="reviewer-reason"
-                placeholder="Chọn gợi ý hoặc nhập tin nhắn…"
+                placeholder={t("Chọn gợi ý hoặc nhập tin nhắn…", "Choose a suggestion or write a message…")}
                 onChange={(event) => setReason(event.target.value)}
               />
             </label>
-            {drafting && <p role="status">Đang soạn tin nhắn hỏi thông tin còn thiếu…</p>}
+            {drafting && <p role="status">{t("Đang soạn tin nhắn hỏi thông tin còn thiếu…", "Drafting a message to request missing information…")}</p>}
             {draftError && <p role="alert">{draftError}</p>}
-            {information && <p role="status" className="it-field-hint">{information.source === "openai" || information.source === "gemini" ? `Bản nháp từ ${information.model || "AI"}` : information.source === "mock" ? "Bản nháp mô phỏng" : "Mẫu hỏi bổ sung dự phòng"}. Bạn có thể sửa trước khi gửi.</p>}
+            {information && <p role="status" className="it-field-hint">{information.source === "openai" || information.source === "gemini" ? t(`Bản nháp từ ${information.model || "AI"}`, `Drafted by ${information.model || "AI"}`) : information.source === "mock" ? t("Bản nháp mô phỏng", "Simulated draft") : t("Mẫu hỏi bổ sung dự phòng", "Fallback information request")}. {t("Bạn có thể sửa trước khi gửi.", "You can edit it before sending.")}</p>}
             <div data-guide="reviewer-actions">
               <div className="it-primary-actions">
                 {actionButton("SEND_MESSAGE", "primary")}
-                <p className="it-field-hint">Tin nhắn hiện trên trang theo dõi của người gửi; gửi tin nhắn không thay đổi trạng thái yêu cầu.</p>
+                <p className="it-field-hint">{t("Tin nhắn hiện trên trang theo dõi của người gửi; gửi tin nhắn không thay đổi trạng thái yêu cầu.", "The requester can see this message on the tracking page. Sending a message does not change the request status.")}</p>
                 {actionButton("APPROVE")}
                 {actionButton("REQUEST_INFORMATION")}
               </div>
@@ -286,7 +300,7 @@ export function ReviewDetail({
               </div>
               <div className="it-override">
                 <label>
-                  Trạng thái sau điều chỉnh
+                  {t("Trạng thái sau điều chỉnh", "Status after override")}
                   <select
                     disabled={drafting}
                     value={target}
@@ -295,23 +309,23 @@ export function ReviewDetail({
                     }
                   >
                     <option value="NEEDS_INFORMATION">
-                      Cần bổ sung thông tin
+                      {t("Cần bổ sung thông tin", "More information needed")}
                     </option>
-                    <option value="REJECTED">Từ chối</option>
-                    <option value="APPROVED_BY_HUMAN">Đã duyệt</option>
+                    <option value="REJECTED">{t("Từ chối", "Rejected")}</option>
+                    <option value="APPROVED_BY_HUMAN">{t("Đã duyệt", "Approved")}</option>
                   </select>
                 </label>
                 {actionButton("OVERRIDE")}
-                {blockedReason(request, "OVERRIDE", target) && (
+                {blockedReason(request, "OVERRIDE", target, locale) && (
                   <p className="it-field-hint">
-                    {blockedReason(request, "OVERRIDE", target)}
+                    {blockedReason(request, "OVERRIDE", target, locale)}
                   </p>
                 )}
               </div>
             </div>
           </fieldset>
           <Button variant="quiet" data-guide="reviewer-history" aria-expanded={recordOpen} aria-controls="review-full-record" onClick={() => setRecordOpen(value => !value)}>
-            {recordOpen ? "Ẩn hồ sơ chi tiết" : "Xem lịch sử & bằng chứng"}
+            {recordOpen ? t("Ẩn hồ sơ chi tiết", "Hide request record") : t("Xem lịch sử & bằng chứng", "View history and evidence")}
           </Button>
           <Button
             className="it-reload"
@@ -320,11 +334,11 @@ export function ReviewDetail({
             onClick={() => void onReload()}
           >
             <RefreshCw size={14} />
-            Tải lại hồ sơ
+            {t("Tải lại hồ sơ", "Reload request")}
           </Button>
         </aside>
-        <section id="review-full-record" hidden={!recordOpen} className="it-record it-surface" aria-label="Hồ sơ xử lý">
-          <div role="tablist" aria-label="Thông tin hồ sơ" className="it-tabs">
+        <section id="review-full-record" hidden={!recordOpen} className="it-record it-surface" aria-label={t("Hồ sơ xử lý", "Request record")}>
+          <div role="tablist" aria-label={t("Thông tin hồ sơ", "Request details")} className="it-tabs">
             {tabs.map((item, index) => (
               <button
                 key={item.id}
@@ -337,7 +351,7 @@ export function ReviewDetail({
                 onKeyDown={(event) => selectTab(event, index)}
               >
                 <item.icon size={16} />
-                <span>{item.label}</span>
+                <span>{localized(item.label[0], item.label[1], locale)}</span>
                 {item.id === "history" && (
                   <small>{request.events.length}</small>
                 )}
@@ -352,23 +366,21 @@ export function ReviewDetail({
             tabIndex={0}
             className="it-tab-content"
           >
-            <h2>Thông tin đối chiếu</h2>
+            <h2>{t("Thông tin đối chiếu", "Review details")}</h2>
             <IncidentUpdates incident={request.incident} />
             {request.supportNeed && <p className="it-field-hint">{request.supportNeed.note} Lượt báo còn vướng: {request.supportNeed.reportedFailedRounds}. Không tự tăng ưu tiên.</p>}
             <dl className="it-request-fields">
-              {request.input.requesterMode === "guest" && request.input.guestDepartment && <div><dt>Phòng ban giả lập (phiên khách)</dt><dd>{optionName(request.input.guestDepartment)} · Không xác minh danh tính</dd></div>}
+              {request.input.requesterMode === "guest" && request.input.guestDepartment && <div><dt>{t("Phòng ban giả lập (yêu cầu cũ)", "Demo department (legacy request)")}</dt><dd>{optionName(request.input.guestDepartment, locale)} · {t("Không xác minh danh tính", "Identity not verified")}</dd></div>}
               {Object.entries(request.input.fields).map(([key, value]) => (
                 <div key={key}>
-                  <dt>{labelForField(key)}</dt>
-                  <dd>{optionName(value)}</dd>
+                  <dt>{labelForField(key, locale)}</dt>
+                  <dd>{optionName(value, locale)}</dd>
                 </div>
               ))}
               <div>
-                <dt>Tiếp nhận lúc</dt>
+                <dt>{t("Tiếp nhận lúc", "Received")}</dt>
                 <dd>
-                  {new Date(request.createdAt).toLocaleString("vi-VN", {
-                    timeZone: "Asia/Ho_Chi_Minh",
-                  })}
+                  {new Intl.DateTimeFormat(locale === "vi" ? "vi-VN" : "en-US", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Ho_Chi_Minh" }).format(new Date(request.createdAt))}
                 </dd>
               </div>
             </dl>
@@ -376,14 +388,14 @@ export function ReviewDetail({
             {request.knowledgeCandidate && (
               <section
                 className="it-knowledge-candidate"
-                aria-label="Gợi ý tri thức chờ rà soát"
+                aria-label={t("Gợi ý tri thức chờ rà soát", "Knowledge suggestion pending review")}
               >
-                <h3>Gợi ý tri thức · chờ rà soát</h3>
+                <h3>{t("Gợi ý tri thức · chờ rà soát", "Knowledge suggestion · pending review")}</h3>
                 <p>
-                  <strong>Vấn đề:</strong> {request.knowledgeCandidate.symptom}
+                  <strong>{t("Vấn đề:", "Issue:")}</strong> {request.knowledgeCandidate.symptom}
                 </p>
                 <p>
-                  <strong>Phản hồi:</strong>{" "}
+                  <strong>{t("Phản hồi:", "Feedback:")}</strong>{" "}
                   {request.knowledgeCandidate.employeeFeedback}
                 </p>
                 <p>{request.knowledgeCandidate.answerSummary}</p>
@@ -395,9 +407,7 @@ export function ReviewDetail({
                   </ol>
                 )}
                 <p className="it-field-hint">
-                  Đề xuất này chưa được thêm vào kho tri thức. Người phụ trách
-                  cần kiểm tra nguồn và biên tập thành revision được duyệt theo
-                  hướng dẫn quản trị knowledge.
+                  {t("Đề xuất này chưa được thêm vào kho tri thức. Người phụ trách cần kiểm tra nguồn và biên tập thành phiên bản được duyệt theo hướng dẫn quản trị tri thức.", "This suggestion has not been added to the knowledge base. A reviewer must verify its source and prepare an approved revision under the knowledge governance process.")}
                 </p>
               </section>
             )}
@@ -405,64 +415,63 @@ export function ReviewDetail({
               <>
                 <dl className="it-evidence-grid">
                   <div>
-                    <dt>Nhu cầu đã hiểu</dt>
-                    <dd>{intentName(canonical.intentLabel)}</dd>
+                    <dt>{t("Nhu cầu đã hiểu", "Interpreted request")}</dt>
+                    <dd>{intentName(canonical.intentLabel, locale)}</dd>
                   </div>
                   <div>
-                    <dt>Nhóm tiếp nhận</dt>
-                    <dd>{divisionLabels[requestDivision(request)]}</dd>
+                    <dt>{t("Nhóm tiếp nhận", "Assigned team")}</dt>
+                    <dd>{localized(divisionLabels[requestDivision(request)], requestDivision(request) === "IT" ? "IT" : requestDivision(request) === "HR" ? "Human Resources" : "Commercial", locale)}</dd>
                   </div>
                   <div>
-                    <dt>Quy tắc áp dụng</dt>
-                    <dd>{decision.ruleIds.join(", ") || "Chưa có"}</dd>
+                    <dt>{t("Quy tắc áp dụng", "Applied rules")}</dt>
+                    <dd>{decision.ruleIds.join(", ") || t("Chưa có", "None")}</dd>
                   </div>
                   <div>
-                    <dt>Thông tin còn thiếu</dt>
+                    <dt>{t("Thông tin còn thiếu", "Missing information")}</dt>
                     <dd>
-                      {decision.missingFields.map(labelForField).join(", ") ||
-                        "Không"}
+                      {decision.missingFields.map((field) => labelForField(field, locale)).join(", ") || t("Không", "None")}
                     </dd>
                   </div>
                   <div>
-                    <dt>Mức rủi ro / nhóm</dt>
+                    <dt>{t("Mức rủi ro / nhóm", "Risk level / bucket")}</dt>
                     <dd>
                       {decision.riskLevel} / {decision.bucket}
                     </dd>
                   </div>
                   <div>
-                    <dt>Dấu hiệu rủi ro</dt>
+                    <dt>{t("Dấu hiệu rủi ro", "Risk signals")}</dt>
                     <dd>
-                      {canonical.riskSignals.join(", ") || "Không phát hiện"}
+                      {canonical.riskSignals.join(", ") || t("Không phát hiện", "None detected")}
                     </dd>
                   </div>
                 </dl>
                 {canonical.evidence.length > 0 && (
                   <div className="it-evidence-quotes">
-                    <h3>Bằng chứng từ yêu cầu</h3>
+                    <h3>{t("Bằng chứng từ yêu cầu", "Evidence from request")}</h3>
                     {canonical.evidence.map((item, index) => (
                       <blockquote key={index}>
-                        <strong>{labelForField(item.field)}</strong>
+                        <strong>{labelForField(item.field, locale)}</strong>
                         <p>{item.quote}</p>
                       </blockquote>
                     ))}
                   </div>
                 )}
                 <p className="it-policy-version">
-                  Phiên bản chính sách: {decision.policyVersion}
+                  {t("Phiên bản chính sách:", "Policy version:")} {decision.policyVersion}
                 </p>
               </>
             ) : (
               <p>
-                Chưa có kết quả đánh giá. Tải lại hồ sơ để kiểm tra cập nhật.
+                {t("Chưa có kết quả đánh giá. Tải lại hồ sơ để kiểm tra cập nhật.", "No evaluation result is available. Reload the request to check for updates.")}
               </p>
             )}
-            <section className="space-y-4" aria-label="Chẩn đoán nội bộ">
-              <h3>Phân tích dành cho nhân viên hỗ trợ</h3>
+            <section className="space-y-4" aria-label={t("Chẩn đoán nội bộ", "Internal analysis")}>
+              <h3>{t("Phân tích dành cho nhân viên hỗ trợ", "Support staff analysis")}</h3>
               {request.intakeSentiment ? (
                 <SentimentPreview assessment={request.intakeSentiment} />
               ) : (
                 <p className="text-sm text-slate-600">
-                  Hồ sơ này chưa lưu phân tích cảm xúc khi tiếp nhận.
+                  {t("Hồ sơ này chưa lưu phân tích cảm xúc khi tiếp nhận.", "No sentiment assessment was saved for this request.")}
                 </p>
               )}
               {request.feedback
@@ -470,17 +479,16 @@ export function ReviewDetail({
                 .map((item, index) => (
                   <div key={`${item.timestamp}-${index}`}>
                     <p className="text-sm text-slate-600">
-                      Phản hồi lúc{" "}
-                      {new Date(item.timestamp).toLocaleString("vi-VN")}
+                      {t("Phản hồi lúc", "Feedback received")} {new Intl.DateTimeFormat(locale === "vi" ? "vi-VN" : "en-US", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Ho_Chi_Minh" }).format(new Date(item.timestamp))}
                     </p>
                     <SentimentPreview assessment={item.sentimentAssessment!} />
                   </div>
                 ))}
             </section>
             <details className="it-reference">
-              <summary>Mã đối chiếu kỹ thuật</summary>
+              <summary>{t("Mã đối chiếu kỹ thuật", "Technical reference")}</summary>
               <p>
-                {displayId(request.id)} · phiên bản {request.version}
+                {displayId(request.id)} · {t("phiên bản", "version")} {request.version}
               </p>
             </details>
           </div>
@@ -492,14 +500,14 @@ export function ReviewDetail({
             tabIndex={0}
             className="it-tab-content"
           >
-            <h2>Hướng dẫn đã gửi</h2>
+            <h2>{t("Hướng dẫn đã gửi", "Guidance sent")}</h2>
             {!request.assistance.length && (
-              <p>Chưa gửi hướng dẫn tự thực hiện cho yêu cầu này.</p>
+              <p>{t("Chưa gửi hướng dẫn tự thực hiện cho yêu cầu này.", "No self-service guidance has been sent for this request.")}</p>
             )}
             <AssistanceHistory items={request.assistance} audience="reviewer" />
             {request.stepExplanations?.map((item, index) => (
               <div className="it-step-explanation" key={index}>
-                <h3>Giải thích bước {item.step + 1}</h3>
+                <h3>{t("Giải thích bước", "Step explanation")} {item.step + 1}</h3>
                 <p>{item.text}</p>
               </div>
             ))}
@@ -513,7 +521,7 @@ export function ReviewDetail({
             className="it-tab-content"
           >
             <div id="request-audit">
-              <h2>Lịch sử xử lý</h2>
+              <h2>{t("Lịch sử xử lý", "Activity history")}</h2>
               <AuditTimeline events={request.events} />
             </div>
           </div>

@@ -181,6 +181,14 @@ li {
 .site-header nav button {
   font: inherit;
 }
+.site-header .header-actions {
+  margin-left: auto;
+  width: auto;
+}
+.site-header .locale-toggle {
+  min-width: 54px;
+  padding-inline: 11px;
+}
 .site-header nav a:hover,
 .site-header nav a[aria-current="page"] {
   background: #fff0e9;

@@ -19,7 +19,9 @@ import { GET as events } from "@/app/api/support/events/route";
 import { GET as metrics } from "@/app/api/support/metrics/route";
 import { allFields, fieldLabels, catalog } from "@/domain/catalog";
 import { intentLabels } from "@/domain/presentation";
+import { mockSupportApiAuthorization } from "./support-api-auth";
 beforeEach(() => {
+  mockSupportApiAuthorization();
   vi.stubEnv("MONGODB_URI", "");
   vi.stubEnv("AI_PROVIDER", "mock");
   resetSupportTestStore();
@@ -210,7 +212,7 @@ it("summary includes clarification, but pending review only counts escalation; u
   expect(rows).toHaveLength(2);
   expect(rows[0]).not.toHaveProperty("events");
   expect(rows[0]).not.toHaveProperty("input");
-  expect((await (await metrics()).json()).data.pendingReview).toBe(1);
+  expect((await (await metrics(new Request("http://localhost/api/support/metrics"))).json()).data.pendingReview).toBe(1);
   expect(
     (
       await events(

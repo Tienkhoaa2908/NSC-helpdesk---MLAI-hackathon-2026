@@ -6,7 +6,11 @@ import { browserApi } from "@/lib/browser-api";
 import { Alert, Button, Card, Input } from "@/components/ui";
 import { AuditTimeline } from "@/components/support-history";
 import { StaffWorkspace } from "@/components/staff-workspace";
+import { useLocale, localized, localizedError } from "@/i18n/locale";
 export default function AuditPage() {
+  const { locale } = useLocale();
+  const t = useCallback((vi: string, en: string) => localized(vi, en, locale), [locale]);
+  const number = new Intl.NumberFormat(locale === "vi" ? "vi-VN" : "en-US");
   const sequence = useRef(0),
     [events, setEvents] = useState<AuditEvent[]>([]),
     [query, setQuery] = useState(""),
@@ -56,12 +60,12 @@ export default function AuditPage() {
         }
       } catch (e) {
         if (current === sequence.current)
-          setError(e instanceof Error ? e.message : "Không tải được lịch sử.");
+          setError(localizedError(e, locale, "Không tải được lịch sử.", "Could not load activity history."));
       } finally {
         if (current === sequence.current) setPending(false);
       }
     },
-    [query, employeeId, origin],
+    [query, employeeId, origin, locale],
   );
   useEffect(() => {
     const tracker = sequence;
@@ -81,33 +85,31 @@ export default function AuditPage() {
   useEffect(() => {
     void browserApi<typeof metrics>("/api/support/metrics")
       .then(setMetrics)
-      .catch(() => setMetricsError("Không tải được số liệu."));
-  }, []);
+      .catch(() => setMetricsError(t("Không tải được số liệu.", "Could not load metrics.")));
+  }, [t]);
   return (
     <StaffWorkspace active="audit">
       <main className="it-content space-y-6">
         <header className="it-page-heading">
           <div>
-            <p className="eyebrow">LỊCH SỬ XỬ LÝ</p>
-            <h1>Mỗi quyết định, một dấu vết.</h1>
+            <p className="eyebrow">{t("LỊCH SỬ XỬ LÝ", "ACTIVITY HISTORY")}</p>
+            <h1>{t("Mỗi quyết định, một dấu vết.", "Every decision leaves a trace.")}</h1>
           </div>
         </header>
         <p>
-          Tìm bằng mã nhân viên, nội dung hoặc mã yêu cầu. Các trang tiếp theo giữ lại khả năng
-          tìm hồ sơ cũ; case Verify có bộ lọc riêng.
+          {t("Tìm bằng mã nhân viên, nội dung hoặc mã yêu cầu. Các trang tiếp theo vẫn có thể tra cứu hồ sơ cũ; case Verify có bộ lọc riêng.", "Search by employee ID, request text, or request ID. Later pages remain searchable; Verify cases have a separate filter.")}
         </p>
         {metrics && (
           <Card>
-            <dl className="audit-metrics" aria-label="Tổng quan hồ sơ demo">
+            <dl className="audit-metrics" aria-label={t("Tổng quan hồ sơ demo", "Demo request overview")}>
               {[
-                ["Tổng hồ sơ", metrics.total], ["Đã tự giải quyết", metrics.resolvedFeedback],
-                ["Chuyển người", metrics.handoffs], ["Lỗi trợ lý", metrics.modelFailures],
-                ["Chờ xử lý", metrics.pendingReview],
-              ].map(([label, count]) => <div key={label}><dt>{label}</dt><dd>{count}</dd></div>)}
+                [t("Tổng hồ sơ", "Total requests"), metrics.total], [t("Đã tự giải quyết", "Resolved by requester"), metrics.resolvedFeedback],
+                [t("Chuyển người", "Escalated"), metrics.handoffs], [t("Lỗi trợ lý", "Assistant failures"), metrics.modelFailures],
+                [t("Chờ xử lý", "Pending review"), metrics.pendingReview],
+              ].map(([label, count]) => <div key={label}><dt>{label}</dt><dd>{number.format(Number(count))}</dd></div>)}
             </dl>
             <p className="text-sm">
-              Tổng số dữ liệu demo đã lưu, gồm Verify; không phải kết quả đo trên
-              người dùng thật.
+              {t("Tổng số dữ liệu demo đã lưu, gồm Verify; không phải số liệu đo trên người dùng thật.", "Total saved demo data, including Verify; these are not measurements from real users.")}
             </p>
           </Card>
         )}
@@ -119,51 +121,51 @@ export default function AuditPage() {
           className="audit-filters"
         >
           <label>
-            Nội dung hoặc mã yêu cầu
+            {t("Nội dung hoặc mã yêu cầu", "Request text or ID")}
             <Input
               maxLength={200}
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Ví dụ: VPN hoặc HT-AB12CD34"
+              placeholder={t("Ví dụ: VPN hoặc HT-AB12CD34", "For example: VPN or HT-AB12CD34")}
             />
           </label>
           <label>
-            Mã nhân viên
+            {t("Mã nhân viên", "Employee ID")}
             <Input
               maxLength={32}
               value={employeeId}
               onChange={(e) => setEmployeeId(e.target.value)}
-              placeholder="Nhập mã nhân viên"
+              placeholder={t("Nhập mã nhân viên", "Enter an employee ID")}
             />
           </label>
           <label>
-            Nguồn dữ liệu
+            {t("Nguồn dữ liệu", "Data source")}
             <select value={origin} onChange={(e) => setOrigin(e.target.value)}>
-              <option value="support">Người dùng gửi</option>
+              <option value="support">{t("Người gửi yêu cầu", "Requester")}</option>
               <option value="verify">Case Verify</option>
-              <option value="all">Tất cả</option>
+              <option value="all">{t("Tất cả", "All")}</option>
             </select>
           </label>
-          <Button disabled={pending}>Lọc / tải lại</Button>
+          <Button disabled={pending}>{t("Lọc / tải lại", "Filter / reload")}</Button>
         </form>
         {metricsError && <Alert tone="error">{metricsError}</Alert>}
         {error && <Alert tone="error">{error}</Alert>}
         <Card aria-busy={pending}>
           <p role="status">
-            {pending ? "Đang tải lịch sử…" : `${events.length}/${total} sự kiện`}
+            {pending ? t("Đang tải lịch sử…", "Loading history…") : t(`${number.format(events.length)}/${number.format(total)} sự kiện`, `${number.format(events.length)}/${number.format(total)} events`)}
           </p>
           {pending && !events.length && <div aria-hidden="true"><ContentSkeleton compact /></div>}
           {events.length ? (
             <div
               className="it-contained-scroll"
               role="region"
-              aria-label="Danh sách sự kiện xử lý"
+              aria-label={t("Danh sách sự kiện xử lý", "Activity events")}
               tabIndex={0}
             >
               <AuditTimeline events={events} />
             </div>
           ) : (
-            !pending && !error && <p>Chưa có sự kiện phù hợp.</p>
+            !pending && !error && <p>{t("Chưa có sự kiện phù hợp.", "No matching events.")}</p>
           )}
           {cursor && (
             <Button
@@ -171,7 +173,7 @@ export default function AuditPage() {
               variant="secondary"
               onClick={() => void load(cursor)}
             >
-              Tải thêm lịch sử
+              {t("Tải thêm lịch sử", "Load more history")}
             </Button>
           )}
         </Card>

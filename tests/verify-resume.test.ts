@@ -6,14 +6,15 @@ import { POST, GET as list } from "@/app/api/support/requests/route";
 import { GET as detail } from "@/app/api/support/requests/[id]/route";
 import { GET as events } from "@/app/api/support/events/route";
 import { GET as metrics } from "@/app/api/support/metrics/route";
+import { mockSupportApiAuthorization } from "./support-api-auth";
 
-beforeEach(() => { vi.stubEnv("MONGODB_URI", ""); vi.stubEnv("AI_PROVIDER", "mock"); vi.stubEnv("AI_TEST_MAX_ATTEMPTS", "0"); resetSupportTestStore(); });
+beforeEach(() => { mockSupportApiAuthorization(); vi.stubEnv("MONGODB_URI", ""); vi.stubEnv("AI_PROVIDER", "mock"); vi.stubEnv("AI_TEST_MAX_ATTEMPTS", "0"); resetSupportTestStore(); });
 afterEach(() => vi.unstubAllEnvs());
 const api: typeof fetch = async (url, init) => {
   const request = new Request(`http://localhost${url}`, init);
   if (init?.method === "POST") return POST(request);
   if (String(url).startsWith("/api/support/events?")) return events(request);
-  if (String(url) === "/api/support/metrics") return metrics();
+  if (String(url) === "/api/support/metrics") return metrics(request);
   if (String(url).startsWith("/api/support/requests?")) return list(request);
   return detail(request, { params: Promise.resolve({ id: String(url).split("/").at(-1)! }) });
 };

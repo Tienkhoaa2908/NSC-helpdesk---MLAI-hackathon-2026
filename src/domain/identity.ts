@@ -67,7 +67,7 @@ export type EmployeeAccount = {
   googleSub?: string; email?: string;
   id: string; fullName: string; status: "ACTIVE" | "DISABLED"; profileId: string; profileVersion: number;
   roles: Array<"identity-admin">; createdAt: string; applicationId: string;
-  // Legacy delivery metadata; not used by ID-only login and never returned publicly.
+  // Legacy delivery metadata; not used by password login and never returned publicly.
   verifiedChannel?: { destination: string; verifiedBy: string; verifiedAt: string };
 };
 export const decisionSchema = z.object({

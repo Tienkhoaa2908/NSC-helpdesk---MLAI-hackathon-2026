@@ -2,12 +2,12 @@
 import { incidentTopic } from "@/domain/shared-support";
 import { companyServiceGroups, isCompanyService } from "@/domain/company-support";
 import { useEffect, useState } from "react";
-import { GuestRequestHistory } from "./guest-request-history";
-import { rememberGuestRequest, rememberPendingGuestRequest, removePendingGuestRequest } from "@/lib/guest-request-history";
+import { rememberPendingGuestRequest, removePendingGuestRequest } from "@/lib/guest-request-history";
 import { identityApi } from "@/components/identity-ui";
 import { useRouter } from "next/navigation";
 import {
   catalog,
+  fieldOptions,
   allFields,
   commonFields,
   labelForField,
@@ -17,8 +17,7 @@ import {
   employeeIdentityError,
   isEmployeeIdentityField,
 } from "@/domain/employee-identity";
-import { EmployeeIdentityFields } from "@/components/employee-identity-fields";
-import { intentName, optionName } from "@/domain/presentation";
+import { intentName, optionName, serviceGroupName } from "@/domain/presentation";
 import { extractIntake } from "@/domain/text";
 import { missingFacts } from "@/domain/policy";
 import type { DurationProposal } from "@/domain/access-defaults";
@@ -38,8 +37,8 @@ import { Alert, Button, Card, Spinner, Textarea } from "@/components/ui";
 import { SupportResult } from "@/components/support-result";
 import { SupportField } from "@/components/support-field";
 import { AssistanceHistory } from "@/components/support-history";
-import { AiPending } from "@/components/loading-feedback";
-import { ensureGuestSession, startGuestSession } from "@/lib/guest-demo-session";
+import { AiPending, ContentSkeleton } from "@/components/loading-feedback";
+import { localized, localizedError, useLocale } from "@/i18n/locale";
 type Preview = {
   durationProposal?: DurationProposal | null;
   input: SupportInput;
@@ -47,14 +46,14 @@ type Preview = {
   decision: Decision;
   assistance: Assistance | null;
 };
-const kinds: Record<RequestKind, string> = {
-  GUIDANCE: "Hỏi cách thực hiện",
-  SAFE_DIAGNOSTIC: "Tìm nguyên nhân lỗi",
-  ROUTINE_WORKFLOW: "Yêu cầu thông thường",
-  ACCESS_REQUEST: "Xin quyền truy cập",
-  CONFIGURATION_CHANGE: "Thay đổi cấu hình",
-  INCIDENT: "Báo sự cố",
-  OTHER: "Tôi chưa rõ",
+const kinds: Record<RequestKind, [string, string]> = {
+  GUIDANCE: ["Hỏi cách thực hiện", "How-to guidance"],
+  SAFE_DIAGNOSTIC: ["Tìm nguyên nhân lỗi", "Troubleshoot an issue"],
+  ROUTINE_WORKFLOW: ["Yêu cầu thông thường", "Routine request"],
+  ACCESS_REQUEST: ["Xin quyền truy cập", "Access request"],
+  CONFIGURATION_CHANGE: ["Thay đổi cấu hình", "Configuration change"],
+  INCIDENT: ["Báo sự cố", "Report an incident"],
+  OTHER: ["Tôi chưa rõ", "Not sure"],
 };
 const familiar: ServiceGroup[] = [
   "DEVICE_BOOT",
@@ -62,22 +61,28 @@ const familiar: ServiceGroup[] = [
   "ACCOUNT_ACCESS",
   "SOFTWARE_LICENSE",
 ];
-export function SupportWorkspace({ guest = false }: { guest?: boolean }) {
+export function SupportWorkspace() {
+  const { locale } = useLocale();
   const router = useRouter();
   const [account, setAccount] = useState<{ id: string } | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
   useEffect(() => {
-    if (guest) return;
     let active = true;
     void identityApi<{ status: "ACTIVE" | "PENDING" | "ADMIN"; id?: string; department?: string }>("session").then((session) => {
       if (active && session.status === "ACTIVE" && session.id) {
         setAccount({ id: session.id });
         setInput((current) => ({ ...current, fields: { ...current.fields, employeeId: session.id!, ...(session.department ? { department: session.department } : {}) } }));
+      } else if (active) {
+        router.replace("/login?next=%2Fsend-help");
       }
-    }).catch(() => { /* Public judge demo remains available without an account. */ });
+    }).catch(() => {
+      if (active) router.replace("/login?next=%2Fsend-help");
+    }).finally(() => {
+      if (active) setAuthLoading(false);
+    });
     return () => { active = false; };
-  }, [guest]);
+  }, [router]);
   const [input, setInput] = useState<SupportInput>({
-    ...(guest ? { requesterMode: "guest" as const } : {}),
     mode: "freeform",
     serviceGroup: "OTHER",
     rawText: "",
@@ -89,18 +94,6 @@ export function SupportWorkspace({ guest = false }: { guest?: boolean }) {
     [trackingProof, setTrackingProof] = useState(""),
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
-  useEffect(() => {
-    if (guest) {
-      const url = new URL(window.location.href);
-      const newSession = url.searchParams.get("newSession") === "1";
-      if (newSession) {
-        url.searchParams.delete("newSession");
-        window.history.replaceState(window.history.state, "", url.pathname + url.search + url.hash);
-      }
-      const guestDepartment = newSession ? startGuestSession() : ensureGuestSession();
-      setInput(current => ({ ...current, guestDepartment }));
-    }
-  }, [guest]);
   function edit(next: Partial<SupportInput>) {
     setInput((current) => ({ ...current, ...next, previewId: undefined }));
     setPreview(null);
@@ -109,9 +102,9 @@ export function SupportWorkspace({ guest = false }: { guest?: boolean }) {
   }
   async function analyze() {
     if (busy) return;
-    const identityError = guest ? "" : employeeIdentityError(input.fields);
+    const identityError = employeeIdentityError(input.fields);
     if (identityError) {
-      setError(identityError);
+      setError(localizedError(new Error(identityError), locale, identityError, "Enter a valid employee ID and complete the required fields."));
       return;
     }
     if (
@@ -120,7 +113,7 @@ export function SupportWorkspace({ guest = false }: { guest?: boolean }) {
         ([field, value]) => !isEmployeeIdentityField(field) && value.trim(),
       )
     ) {
-      setError("Nhập mô tả yêu cầu hoặc chọn một nhu cầu cụ thể trong danh mục.");
+      setError(localized("Nhập mô tả yêu cầu hoặc chọn một nhu cầu cụ thể trong danh mục.", "Describe your request or choose a specific need from the list.", locale));
       return;
     }
     setBusy(true);
@@ -137,11 +130,7 @@ export function SupportWorkspace({ guest = false }: { guest?: boolean }) {
       setPreview(value);
       setTrackingProof(trackingProof);
     } catch (error) {
-      setError(
-        error instanceof Error
-          ? error.message
-          : "Chưa thể kiểm tra thông tin. Thử lại.",
-      );
+      setError(localizedError(error, locale, "Chưa thể kiểm tra thông tin. Thử lại.", "We couldn't review the request. Please try again."));
     } finally {
       setBusy(false);
     }
@@ -149,7 +138,7 @@ export function SupportWorkspace({ guest = false }: { guest?: boolean }) {
   async function submit() {
     if (!preview || busy) return;
     if (!trackingProof) {
-      setError("Không thể xác nhận biên nhận cho yêu cầu này. Hãy tải lại preview trước khi gửi.");
+      setError(localized("Không thể xác nhận biên nhận cho yêu cầu này. Hãy tải lại preview trước khi gửi.", "The request receipt could not be confirmed. Reload the preview before submitting.", locale));
       return;
     }
     setBusy(true);
@@ -160,15 +149,10 @@ export function SupportWorkspace({ guest = false }: { guest?: boolean }) {
         ...preview.input,
         confirmed: true,
       }, { "x-tracking-proof": trackingProof });
-      if (guest && rememberGuestRequest(receipt.id, receipt.trackingToken))
-        removePendingGuestRequest(receipt.id);
+      removePendingGuestRequest(preview.input.idempotencyKey);
       router.push(`/requests/${receipt.id}#token=${receipt.trackingToken}`);
     } catch (error) {
-      setError(
-        error instanceof Error
-          ? error.message
-          : "Chưa gửi được. Nội dung của bạn vẫn được giữ lại.",
-      );
+      setError(localizedError(error, locale, "Chưa gửi được. Nội dung của bạn vẫn được giữ lại.", "The request was not submitted. Your content is still available."));
       setBusy(false);
     }
   }
@@ -204,24 +188,23 @@ export function SupportWorkspace({ guest = false }: { guest?: boolean }) {
       />
     );
   }
+  if (authLoading || !account) return <main className="page page-narrow"><ContentSkeleton label="Đang kiểm tra phiên đăng nhập…" labelEn="Checking your sign-in session…" /></main>;
   return (
-    <main className="page page-narrow page-enter" data-guide-stage={guest ? undefined : preview ? "sender-preview" : "sender-form"}>
-      <h1>Tôi cần hỗ trợ</h1>
-      {account && <Alert>Tài khoản nhân viên đang hoạt động · ID {account.id}. <button type="button" className="identity-text-link" onClick={async () => { try { await identityApi("logout", {}); setAccount(null); edit({ fields: { ...input.fields, employeeId: "" } }); } catch (cause) { setError((cause as Error).message); } }}>Đăng xuất</button></Alert>}
+    <main className="page page-narrow page-enter" data-guide-stage={preview ? "sender-preview" : "sender-form"}>
+      <h1>{localized("Tôi cần hỗ trợ", "How can we help?", locale)}</h1>
+      {account && <Alert>{localized("Tài khoản nhân viên đang hoạt động · ID", "Employee account active · ID", locale)} {account.id}. <button type="button" className="identity-text-link" onClick={async () => { try { await identityApi("logout", {}); setAccount(null); edit({ fields: { ...input.fields, employeeId: "" } }); } catch (cause) { setError(localizedError(cause, locale, "Không thể đăng xuất. Hãy thử lại.", "Could not sign out. Please try again.")); } }}>{localized("Đăng xuất", "Sign out", locale)}</button></Alert>}
       <p className="page-description">
-        Bạn cứ mô tả vấn đề bằng lời của mình. Chúng tôi sẽ giúp bạn tìm hướng
-        xử lý phù hợp.
+        {localized("Bạn cứ mô tả vấn đề bằng lời của mình. Chúng tôi sẽ giúp bạn tìm hướng xử lý phù hợp.", "Describe the issue in your own words. We’ll help you find an appropriate next step.", locale)}
       </p>
-      <ol className="flow-steps" aria-label="Các bước gửi yêu cầu">
-        <li aria-current={!preview ? "step" : undefined}>1. Mô tả</li>
+      <ol className="flow-steps" aria-label={localized("Các bước gửi yêu cầu", "Request steps", locale)}>
+        <li aria-current={!preview ? "step" : undefined}>{localized("1. Mô tả", "1. Describe", locale)}</li>
         <li aria-current={preview ? "step" : undefined}>
-          2. Kiểm tra thông tin
+          {localized("2. Kiểm tra thông tin", "2. Review", locale)}
         </li>
-        <li>3. Nhận hỗ trợ</li>
+        <li>{localized("3. Nhận hỗ trợ", "3. Get support", locale)}</li>
       </ol>
-      {guest && !preview && <GuestRequestHistory />}
       <Card>
-        <div className="support-actions" role="group" aria-label="Kiểu yêu cầu" data-guide="sender-mode">
+        <div className="support-actions" role="group" aria-label={localized("Kiểu yêu cầu", "Request type", locale)} data-guide="sender-mode">
           {(["freeform", "structured"] as const).map((mode) => (
             <Button
               key={mode}
@@ -238,7 +221,7 @@ export function SupportWorkspace({ guest = false }: { guest?: boolean }) {
                   });
               }}
             >
-              {mode === "freeform" ? "Mô tả vấn đề" : "Chọn theo danh mục"}
+              {mode === "freeform" ? localized("Mô tả vấn đề", "Describe the issue", locale) : localized("Chọn theo danh mục", "Choose a category", locale)}
             </Button>
           ))}
         </div>
@@ -255,15 +238,26 @@ export function SupportWorkspace({ guest = false }: { guest?: boolean }) {
             className="intake-fields space-y-5"
             hidden={!!preview}
           >
-            {!guest && <EmployeeIdentityFields
-              lockedId={account?.id}
-              fields={input.fields}
-              onChange={(fields) => edit({ fields })}
-            />}
             <label>
-              Nhóm hỗ trợ
+              {localized("Phòng ban", "Department", locale)}
               <select
-                aria-label="Nhóm hỗ trợ"
+                aria-label={localized("Phòng ban", "Department", locale)}
+                data-guide="sender-department"
+                value={input.fields.department ?? ""}
+                onChange={(event) => edit({ fields: { ...input.fields, department: event.target.value } })}
+                required
+              >
+                <option value="">{localized("Chọn phòng ban", "Select a department", locale)}</option>
+                {fieldOptions.department.map((department) => (
+                  <option key={department} value={department}>{optionName(department, locale)}</option>
+                ))}
+              </select>
+              <span className="field-hint">{localized("Bắt buộc trước khi gửi yêu cầu.", "Required before submitting a request.", locale)}</span>
+            </label>
+            <label>
+              {localized("Nhóm hỗ trợ", "Support area", locale)}
+              <select
+                aria-label={localized("Nhóm hỗ trợ", "Support area", locale)}
                 data-guide="sender-group"
                 value={input.serviceGroup}
                 onChange={(event) =>
@@ -274,39 +268,39 @@ export function SupportWorkspace({ guest = false }: { guest?: boolean }) {
                   })
                 }
               >
-                <option value="OTHER">Tôi chưa biết nhóm nào</option>
-                <optgroup label="Công việc & dịch vụ nhân viên">
-                  {companyServiceGroups.map(group => <option key={group} value={group}>{catalog[group].label}</option>)}
+                <option value="OTHER">{localized("Tôi chưa biết nhóm nào", "I'm not sure which area", locale)}</option>
+                <optgroup label={localized("Công việc & dịch vụ nhân viên", "Employee services", locale)}>
+                  {companyServiceGroups.map(group => <option key={group} value={group}>{serviceGroupName(group, locale)}</option>)}
                 </optgroup>
-                <optgroup label="Vấn đề thường gặp">
+                <optgroup label={localized("Vấn đề thường gặp", "Common issues", locale)}>
                   {familiar.map((group) => (
                     <option key={group} value={group}>
-                      {catalog[group].label}
+                      {serviceGroupName(group, locale)}
                     </option>
                   ))}
                 </optgroup>
-                <optgroup label="Công nghệ chuyên sâu">
+                <optgroup label={localized("Công nghệ chuyên sâu", "Advanced technology", locale)}>
                   {serviceGroups
                     .filter(
                       (group) => group !== "OTHER" && !familiar.includes(group) && !isCompanyService(group),
                     )
                     .map((group) => (
                       <option key={group} value={group}>
-                        {catalog[group].label}
+                        {serviceGroupName(group, locale)}
                       </option>
                     ))}
                 </optgroup>
               </select>
               <span className="field-hint">
-                Không bắt buộc. Hệ thống sẽ giúp bạn xác định nhóm phù hợp.
+                {localized("Không bắt buộc. Hệ thống sẽ giúp bạn xác định nhóm phù hợp.", "Optional. The system can help identify the right area.", locale)}
               </span>
             </label>
             {input.mode === "structured" && (
               <>
                 <label>
-                  Nhu cầu cụ thể
+                  {localized("Nhu cầu cụ thể", "Specific need", locale)}
                   <select
-                    aria-label="Nhu cầu cụ thể"
+                    aria-label={localized("Nhu cầu cụ thể", "Specific need", locale)}
                     data-guide="sender-intent"
                     value={input.fields.intentLabel ?? ""}
                     onChange={(event) =>
@@ -318,10 +312,10 @@ export function SupportWorkspace({ guest = false }: { guest?: boolean }) {
                       })
                     }
                   >
-                    <option value="">Chọn nhu cầu</option>
+                    <option value="">{localized("Chọn nhu cầu", "Select a need", locale)}</option>
                     {catalog[input.serviceGroup].labels.map((label) => (
                       <option key={label} value={label}>
-                        {intentName(label)}
+                        {intentName(label, locale)}
                       </option>
                     ))}
                   </select>
@@ -332,11 +326,11 @@ export function SupportWorkspace({ guest = false }: { guest?: boolean }) {
                   </div>
                 )}
                 <details>
-                  <summary>Thông tin khác bạn đã biết (không bắt buộc)</summary>
+                  <summary>{localized("Thông tin khác bạn đã biết (không bắt buộc)", "Other details you know (optional)", locale)}</summary>
                   <label>
-                    Loại yêu cầu
+                    {localized("Loại yêu cầu", "Request type", locale)}
                     <select
-                      aria-label="Loại yêu cầu"
+                      aria-label={localized("Loại yêu cầu", "Request type", locale)}
                       value={input.requestKind ?? ""}
                       onChange={(event) =>
                         edit({
@@ -345,10 +339,10 @@ export function SupportWorkspace({ guest = false }: { guest?: boolean }) {
                         })
                       }
                     >
-                      <option value="">Để hệ thống nhận diện</option>
+                      <option value="">{localized("Để hệ thống nhận diện", "Let the system identify it", locale)}</option>
                       {requestKinds.map((kind) => (
                         <option key={kind} value={kind}>
-                          {kinds[kind]}
+                          {localized(kinds[kind][0], kinds[kind][1], locale)}
                         </option>
                       ))}
                     </select>
@@ -360,73 +354,72 @@ export function SupportWorkspace({ guest = false }: { guest?: boolean }) {
               </>
             )}
             <label>
-              Mô tả yêu cầu{" "}
-              {input.mode === "structured" ? "(không bắt buộc)" : ""}
+              {localized("Mô tả yêu cầu", "Request description", locale)}{" "}
+              {input.mode === "structured" ? localized("(không bắt buộc)", "(optional)", locale) : ""}
               <Textarea
-                aria-label="Mô tả yêu cầu"
+                aria-label={localized("Mô tả yêu cầu", "Request description", locale)}
                 data-guide="sender-description"
                 rows={5}
                 required={input.mode === "freeform"}
                 maxLength={6000}
                 value={input.rawText}
                 onChange={(event) => edit({ rawText: event.target.value })}
-                placeholder="Ví dụ: VPN không kết nối, tôi nên kiểm tra gì?"
+                placeholder={localized("Ví dụ: VPN không kết nối, tôi nên kiểm tra gì?", "For example: My VPN won't connect. What should I check?", locale)}
               />
               <span className="field-hint">
-                Nêu điều bạn muốn làm và lỗi đang gặp. Không gửi mật khẩu hoặc
-                mã xác minh.
+                {localized("Nêu điều bạn muốn làm và lỗi đang gặp. Không gửi mật khẩu hoặc mã xác minh.", "Describe what you are trying to do and the issue. Do not include passwords or verification codes.", locale)}
               </span>
             </label>
-            {incidentTopic(input.rawText) && <label>Khu vực sự cố (để nhận cập nhật chung)
-              <input aria-label="Khu vực sự cố" value={input.fields.incidentSite || ""} maxLength={40} pattern="[A-Za-z0-9][A-Za-z0-9_-]+" placeholder="Mã khu vực, ví dụ DEMO-HQ" onChange={event => edit({ fields: { ...input.fields, incidentSite: event.target.value } })} />
-              <span className="field-hint">Dùng cùng mã khu vực với đồng nghiệp. Bỏ trống nếu chưa biết; yêu cầu vẫn được tiếp nhận riêng. Không nhập tên người hoặc địa chỉ.</span>
+            {incidentTopic(input.rawText) && <label>{localized("Khu vực sự cố (để nhận cập nhật chung)", "Incident location (for shared updates)", locale)}
+              <input aria-label={localized("Khu vực sự cố", "Incident location", locale)} value={input.fields.incidentSite || ""} maxLength={40} pattern="[A-Za-z0-9][A-Za-z0-9_-]+" placeholder={localized("Mã khu vực, ví dụ DEMO-HQ", "Location code, e.g. DEMO-HQ", locale)} onChange={event => edit({ fields: { ...input.fields, incidentSite: event.target.value } })} />
+              <span className="field-hint">{localized("Dùng cùng mã khu vực với đồng nghiệp. Bỏ trống nếu chưa biết; yêu cầu vẫn được tiếp nhận riêng. Không nhập tên người hoặc địa chỉ.", "Use the same location code as colleagues. Leave blank if unknown; your request is still handled separately. Do not enter a person's name or address.", locale)}</span>
             </label>}
           </fieldset>
           {error && <Alert tone="error">{error}</Alert>}
           {busy && !preview && <AiPending />}
           {preview && (
-            <section className="support-preview" aria-label="Kiểm tra dữ kiện">
+            <section className="support-preview" aria-label={localized("Kiểm tra dữ kiện", "Review request details", locale)}>
               <p className="eyebrow">
                 {isConversation
-                  ? "TRỢ LÝ TRẢ LỜI TRỰC TIẾP"
-                  : "CHƯA GỬI YÊU CẦU"}
+                  ? localized("TRỢ LÝ TRẢ LỜI TRỰC TIẾP", "DIRECT ASSISTANT RESPONSE", locale)
+                  : localized("CHƯA GỬI YÊU CẦU", "REQUEST NOT SUBMITTED", locale)}
               </p>
               <h2 data-guide="sender-preview">
-                {isConversation ? "Câu hỏi của bạn" : "Mình đã hiểu như sau"}
+                {isConversation ? localized("Câu hỏi của bạn", "Your question", locale) : localized("Mình đã hiểu như sau", "Here is what I understood", locale)}
               </h2>
               <p>
                 {!isConversation && (
                   <>
-                    {catalog[preview.canonical.serviceGroup].label} ·{" "}
-                    {intentName(preview.canonical.intentLabel)}
+                    {serviceGroupName(preview.canonical.serviceGroup, locale)} ·{" "}
+                    {intentName(preview.canonical.intentLabel, locale)}
                   </>
                 )}
               </p>
               <blockquote className="original-question">
-                {preview.input.rawText || "Yêu cầu theo danh mục"}
+                {preview.input.rawText || localized("Yêu cầu theo danh mục", "Categorized request", locale)}
               </blockquote>
               <dl className="fact-list">
                 {Object.entries(preview.canonical.entities)
                   .filter(([key]) => key !== "intentLabel")
                   .map(([key, value]) => (
                     <div key={key}>
-                      <dt>{labelForField(key)}</dt>
-                      <dd>{optionName(value)}</dd>
+                      <dt>{labelForField(key, locale)}</dt>
+                      <dd>{optionName(value, locale)}</dd>
                     </div>
                   ))}
               </dl>
               <p>
                 {isConversation
-                  ? "Bạn đã nhận câu trả lời. Lưu cuộc trò chuyện để mở khung Hỏi tiếp ngay bên dưới phản hồi và tiếp tục theo ngữ cảnh."
-                  : "Bản xem trước chưa tạo hồ sơ. Kiểm tra thông tin rồi xác nhận gửi bên dưới."}
+                  ? localized("Bạn đã nhận câu trả lời. Lưu cuộc trò chuyện để mở khung Hỏi tiếp ngay bên dưới phản hồi và tiếp tục theo ngữ cảnh.", "You have received an answer. Save the conversation to ask a follow-up below and continue with this context.", locale)
+                  : localized("Bản xem trước chưa tạo hồ sơ. Kiểm tra thông tin rồi xác nhận gửi bên dưới.", "The preview has not created a request. Check the details, then confirm submission below.", locale)}
               </p>
               {!isConversation && <SupportResult {...preview} />}
-              {preview.durationProposal && <div className="identity-card" role="group" aria-label="Thời hạn đề xuất">
+              {preview.durationProposal && <div className="identity-card" role="group" aria-label={localized("Thời hạn đề xuất", "Proposed duration", locale)}>
                 <p>{preview.durationProposal.label}</p>
-                <p>Chỉ áp dụng cho quyền thông thường. Đây chưa phải quyết định cấp quyền và không tự gia hạn.</p>
+                <p>{localized("Chỉ áp dụng cho quyền thông thường. Đây chưa phải quyết định cấp quyền và không tự gia hạn.", "Applies to standard access only. This is not an access decision and does not renew automatically.", locale)}</p>
                 <Button type="button" variant="secondary" disabled={busy} onClick={() => edit({
                   fields: { ...input.fields, duration: preview.durationProposal!.value }, confirmed: false,
-                })}>Dùng {preview.durationProposal.hours} giờ và kiểm tra lại</Button>
+                })}>{localized(`Dùng ${preview.durationProposal.hours} giờ và kiểm tra lại`, `Use ${preview.durationProposal.hours} hours and review again`, locale)}</Button>
               </div>}
               {preview.assistance && (
                 <AssistanceHistory items={[preview.assistance]} />
@@ -437,7 +430,7 @@ export function SupportWorkspace({ guest = false }: { guest?: boolean }) {
                 disabled={busy}
                 onClick={() => edit({ confirmed: false })}
               >
-                {isConversation ? "Hỏi câu khác" : "Quay lại sửa"}
+                {isConversation ? localized("Hỏi câu khác", "Ask another question", locale) : localized("Quay lại sửa", "Go back and edit", locale)}
               </Button>
             </section>
           )}
@@ -445,16 +438,16 @@ export function SupportWorkspace({ guest = false }: { guest?: boolean }) {
             {busy ? (
               <>
                 <Spinner />
-                Đang xử lý…
+                {localized("Đang xử lý…", "Processing…", locale)}
               </>
             ) : preview ? (
               isConversation ? (
-                "Lưu và tiếp tục trò chuyện"
+                localized("Lưu và tiếp tục trò chuyện", "Save and continue the conversation", locale)
               ) : (
-                "Xác nhận và gửi yêu cầu"
+                localized("Xác nhận và gửi yêu cầu", "Confirm and submit request", locale)
               )
             ) : (
-              "Gửi"
+              localized("Gửi", "Submit", locale)
             )}
           </Button>
         </form>

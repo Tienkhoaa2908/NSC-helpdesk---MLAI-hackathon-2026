@@ -14,13 +14,14 @@ import { redact } from "@/domain/redaction";
 import { extractIntake } from "@/domain/text";
 import { analyzeSupportSentiment } from "@/lib/feedback-model";
 import { feedbackSupport } from "./review";
+import type { ModelOptions } from "@/lib/support-model";
 const schema = z
   .object({
     version: z.number().int().nonnegative(),
     question: z.string().trim().min(2).max(2000),
   })
   .strict();
-export async function continueConversation(id: string, value: unknown) {
+export async function continueConversation(id: string, value: unknown, options: ModelOptions = {}) {
   const input = schema.parse(value);
   const current = await getSupportRequest(id);
   if (!current)
@@ -43,7 +44,7 @@ export async function continueConversation(id: string, value: unknown) {
     baseline.intentLabel !== "GENERAL_HOW_TO" &&
     guidanceRules.some(rule => rule.labels.some(label => label === baseline.intentLabel));
   if (!risky && repeatedAffect(current, safeReply)) return current;
-  const assessment = risky ? undefined : await analyzeSupportSentiment(safeReply, "post-answer");
+  const assessment = risky ? undefined : await analyzeSupportSentiment(safeReply, "post-answer", options);
   const sentiment = assessment?.sentiment ?? "neutral";
   const choice = risky ? null : explicitFeedbackChoice(safeReply);
   if (choice)
@@ -51,7 +52,7 @@ export async function continueConversation(id: string, value: unknown) {
       version: input.version,
       choice,
       replyText: safeReply,
-    }, assessment);
+    }, assessment, options);
   const supportNeed = assessSupportNeed(current, safeReply, assessment);
   const handoff = !risky && !newTopic && interactionHandoffDecision(current, supportNeed);
   if (handoff) return updateSupportRequest(id, input.version, request => {
@@ -76,6 +77,7 @@ export async function continueConversation(id: string, value: unknown) {
       id,
       { version: input.version, choice: "STILL_BROKEN", replyText: safeReply },
       assessment,
+      options,
     );
   const safe = prepareInput({
     ...current.input,
@@ -87,7 +89,7 @@ export async function continueConversation(id: string, value: unknown) {
       : input.question,
     fields: employeeIdentityOnly(current.input.fields),
   });
-  const result = await completeAnalysis(safe.input, safe.markers);
+  const result = await completeAnalysis(safe.input, safe.markers, options);
   return updateSupportRequest(id, input.version, (request) => {
     request.supportNeed = assessSupportNeed(
       newTopic ? { ...request, canonical: result.canonical } : request,

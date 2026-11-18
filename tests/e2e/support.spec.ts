@@ -17,20 +17,21 @@ async function submit(page: Page, text: string) {
   await expect(page).toHaveURL(/\/requests\/[a-f0-9-]+#token=[a-f0-9]{64}$/);
   await expect(page.getByText("Trạng thái:")).toBeVisible();
 }
-test("role entry opens login, public demo and staff workspace", async ({
+test("role entry opens sign-in and protected requester and Admin workspaces", async ({
   page,
 }, info) => {
   await page.goto("/");
   await page.getByRole("link", { name: "Tôi cần hỗ trợ", exact: true }).click();
-  await page.getByText("Hướng dẫn & tùy chọn", { exact: true }).click();
-  await page.getByRole("link", { name: "Trải nghiệm demo", exact: true }).click();
-  await expect(
-    page.getByRole("heading", { name: "Tôi cần hỗ trợ" }),
-  ).toBeVisible();
+  await expect(page).toHaveURL(/\/login$/);
+  await expect(page.getByLabel("ID nhân viên hoặc email")).toBeVisible();
+  await page.goto("/send-help");
+  await expect(page.getByRole("heading", { name: "Tôi cần hỗ trợ" })).toBeVisible();
   await page.goto("/");
   await page
     .getByRole("link", { name: "Dành cho Admin", exact: true })
     .click();
+  await expect(page).toHaveURL(/\/login\?next=%2Freview$/);
+  await page.goto("/review");
   await expect(
     page.getByRole("heading", { name: "Tiếp nhận hỗ trợ" }),
   ).toBeVisible();
@@ -163,9 +164,10 @@ test("changing the service group clears the old request kind", async ({ page }) 
 test("reviewer rejection requires a reason and records audit", async ({
   page,
   request,
+  requesterRequest,
 }, info) => {
   const text = `Grant production admin - demo ${crypto.randomUUID().slice(0, 8)}`;
-  const response = await request.post("/api/support/requests", {
+  const response = await requesterRequest.post("/api/support/requests", {
     data: {
       ...employeeIdentity,
       rawText: text,
@@ -197,7 +199,7 @@ test("reviewer rejection requires a reason and records audit", async ({
     await request.get(`/api/support/requests/${data.id}`)
   ).json();
   expect(detail.data.status).toBe("REJECTED");
-  expect(detail.data.events.at(-1).actor).toBe("public-demo-reviewer");
+  expect(detail.data.events.at(-1).actor).toBe("identity-admin:e2e-admin");
   await page.reload();
   await expect(page.locator(".it-current-status")).toContainText("Yêu cầu đã bị từ chối");
   await page.getByRole("link", { name: "← Danh sách yêu cầu" }).click();
@@ -214,7 +216,7 @@ test("reviewer rejection requires a reason and records audit", async ({
     .fill(data.id);
   await page.getByRole("button", { name: "Lọc / tải lại" }).click();
   await expect(
-    page.getByText("REJECT · public-demo-reviewer", { exact: true }),
+    page.getByText("REJECT · identity-admin:e2e-admin", { exact: true }),
   ).toBeVisible();
 });
 test("Verify preserves original labels, reports unverified access and accepts new judge input", async ({
@@ -240,10 +242,10 @@ test("Verify preserves original labels, reports unverified access and accepts ne
   });
   await page.goto("/verify");
   await page
-    .getByRole("button", { name: "Chạy toàn bộ test (5)", exact: true })
+    .getByRole("button", { name: /Chạy toàn bộ ca \(5\)|Run all cases \(5\)/ })
     .click();
   await expect(page.getByRole("status")).toContainText(
-    "5/5 · Pass: 5 · Fail: 0",
+    /5\/5 · (?:Đạt:|Pass:) 5 · (?:Lỗi:|Fail:) 0/,
   );
   const savedUrl = page.url();
   expect(savedUrl).toContain("?run=");
@@ -253,17 +255,17 @@ test("Verify preserves original labels, reports unverified access and accepts ne
   await expect(actualDecisions.filter({ hasText: "ESCALATE" })).toHaveCount(2);
   await page.reload();
   await expect(page.getByRole("status")).toContainText(
-    "5/5 · Pass: 5 · Fail: 0",
+    /5\/5 · (?:Đạt:|Pass:) 5 · (?:Lỗi:|Fail:) 0/,
   );
   await expect(page.getByRole("table")).toBeVisible();
   await expect(page.getByLabel("Bộ kiểm thử").locator("option")).toHaveCount(5);
-  await expect(page.getByLabel("Bộ kiểm thử").locator("option[value='test-cache-system']")).toHaveText("test cache system");
+  await expect(page.getByLabel("Bộ kiểm thử").locator("option[value='test-cache-system']")).toContainText("42");
   await page.getByLabel("Bộ kiểm thử").selectOption("submission-4");
   await page
-    .getByRole("button", { name: "Chạy toàn bộ test (4)", exact: true })
+    .getByRole("button", { name: /Chạy toàn bộ ca \(4\)|Run all cases \(4\)/ })
     .click();
   await expect(page.getByRole("status")).toContainText(
-    "4/4 · Pass: 3 · Fail: 1",
+    /4\/4 · (?:Đạt:|Pass:) 3 · (?:Lỗi:|Fail:) 1/,
   );
   const fourCaseDecisions = page
     .getByRole("table")
@@ -284,30 +286,31 @@ test("Verify preserves original labels, reports unverified access and accepts ne
   await expect(accessRow.getByRole("cell").nth(2)).toHaveText("ESCALATE");
   await expect(accessRow.getByRole("cell").nth(3)).toHaveText("FAIL");
   await expect(accessRow.getByRole("cell").nth(5)).toContainText("AUTH-ENTITLEMENT-001");
-  await expect(page.getByText("Expected: NEEDS_INFORMATION · MISSING_INFO")).toBeVisible();
+  await expect(page.getByText(/Kỳ vọng: NEEDS_INFORMATION · MISSING_INFO/)).toBeVisible();
   await expect(
-    page.getByRole("link", { name: "Mở request / audit" }),
+    page.getByRole("link", { name: /Mở hồ sơ \/ nhật ký|Open request \/ audit/ }),
   ).toHaveCount(4);
 
   await page.getByLabel("Bộ kiểm thử").selectOption("judge-15");
   await page
-    .getByRole("button", { name: "Chạy toàn bộ test (15)", exact: true })
+    .getByRole("button", { name: /Chạy toàn bộ ca \(15\)|Run all cases \(15\)/ })
     .click();
-  await expect(page.getByRole("button", { name: "Chạy toàn bộ test (15)", exact: true })).toBeEnabled({ timeout: 15_000 });
+  await expect(page.getByRole("button", { name: /Chạy toàn bộ ca \(15\)|Run all cases \(15\)/ })).toBeEnabled({ timeout: 15_000 });
   if (rateLimited) {
     await expect(page.getByRole("alert").filter({ hasText: /một phút/ })).toBeVisible();
     // This is the actual server rate window, not a timing retry for assertions.
     await page.waitForTimeout(61_000);
-    await page.getByRole("button", { name: "Tiếp tục lần kiểm thử", exact: true }).click();
+    await page.getByRole("button", { name: /Tiếp tục lần chạy|Resume run/ }).click();
   }
   await expect(page.getByRole("status")).toContainText(
-    "15/15 · Pass: 15 · Fail: 0",
+    /15\/15 · (?:Đạt:|Pass:) 15 · (?:Lỗi:|Fail:) 0/,
   );
   await page
-    .getByLabel("Yêu cầu tự do")
+    .getByLabel("Nội dung yêu cầu")
     .fill("Please help me restart my personal laptop after saving my work");
   await fillEmployeeIdentity(page);
-  await page.getByRole("button", { name: "Đánh giá input mới" }).click();
+  await page.getByLabel("Mã nhân viên", { exact: true }).fill(employeeIdentity.fields.employeeId);
+  await page.getByRole("button", { name: /Đánh giá yêu cầu|Evaluate request/ }).click();
   await expect(
     page.getByRole("link", { name: "Xem hướng dẫn / chuyển admin" }),
   ).toBeVisible();
@@ -315,9 +318,10 @@ test("Verify preserves original labels, reports unverified access and accepts ne
 test("manual approval preserves the security assessment and redaction", async ({
   page,
   request,
+  requesterRequest,
 }) => {
   const secret = "SYNTHETIC" + "_E2E_991";
-  const response = await request.post("/api/support/requests", {
+  const response = await requesterRequest.post("/api/support/requests", {
     data: {
       ...employeeIdentity,
       rawText: `Open RDP public 3389; password=${secret}`,

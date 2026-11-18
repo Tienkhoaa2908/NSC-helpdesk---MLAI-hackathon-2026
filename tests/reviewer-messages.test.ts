@@ -7,8 +7,10 @@ import { getSupportRequest, resetSupportTestStore } from "@/lib/support-reposito
 import * as model from "@/lib/support-model";
 import { submitSupport } from "@/services/support";
 import { feedbackSupport, reviewSupport } from "@/services/review";
+import { mockSupportApiAuthorization } from "./support-api-auth";
 
 beforeEach(() => {
+  mockSupportApiAuthorization();
   vi.stubEnv("AI_PROVIDER", "mock");
   vi.stubEnv("MONGODB_URI", "");
   resetSupportTestStore();

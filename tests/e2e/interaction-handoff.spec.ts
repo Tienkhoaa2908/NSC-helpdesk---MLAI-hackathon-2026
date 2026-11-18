@@ -1,11 +1,12 @@
 import { test, expect, requesterLink } from "./fixtures";
+import { withRequesterIdentity } from "./intake-helpers";
 
 for (const { emotion, handoff } of [
   { emotion: "tôi không cảm thấy bực mình", handoff: false },
   { emotion: "chờ quá lâu", handoff: true },
 ]) {
-  test(`two failed rounds respect the current emotion: ${emotion}`, async ({ page, request }) => {
-    const response = await request.post("/api/support/requests", { data: { requesterMode: "guest", rawText: "VPN không kết nối", confirmed: true, idempotencyKey: crypto.randomUUID() } });
+  test(`two failed rounds respect the current emotion: ${emotion}`, async ({ page, request, requesterRequest }) => {
+    const response = await requesterRequest.post("/api/support/requests", { data: withRequesterIdentity({ rawText: "VPN không kết nối", confirmed: true, idempotencyKey: crypto.randomUUID() }) });
     expect(response.status()).toBe(201);
     const row = (await response.json()).data;
     await page.goto(requesterLink(row));
@@ -30,8 +31,8 @@ for (const { emotion, handoff } of [
   });
 }
 
-test("role play alone keeps guidance, failed interactions with frustration reach the reviewer", async ({ page, request }) => {
-  const response = await request.post("/api/support/requests", { data: { requesterMode: "guest", rawText: "VPN không kết nối", confirmed: true, idempotencyKey: crypto.randomUUID() } });
+test("role play alone keeps guidance, failed interactions with frustration reach the reviewer", async ({ page, request, requesterRequest }) => {
+  const response = await requesterRequest.post("/api/support/requests", { data: withRequesterIdentity({ rawText: "VPN không kết nối", confirmed: true, idempotencyKey: crypto.randomUUID() }) });
   expect(response.status()).toBe(201);
   const row = (await response.json()).data;
   await page.goto(requesterLink(row));
@@ -53,8 +54,8 @@ test("role play alone keeps guidance, failed interactions with frustration reach
   await expect(page.locator(".review-draft-option")).toHaveCount(2);
 });
 
-test("summary hides model/cache caption while retaining the actual summary", async ({ page, request }) => {
-  const response = await request.post("/api/support/requests", { data: { requesterMode: "guest", rawText: "VPN không kết nối", confirmed: true, idempotencyKey: crypto.randomUUID() } });
+test("summary hides model/cache caption while retaining the actual summary", async ({ page, requesterRequest }) => {
+  const response = await requesterRequest.post("/api/support/requests", { data: withRequesterIdentity({ rawText: "VPN không kết nối", confirmed: true, idempotencyKey: crypto.randomUUID() }) });
   const row = (await response.json()).data;
   await page.route(`**/api/review/${row.id}/summary`, route => route.fulfill({ json: { success: true,
     data: { version: row.version, summary: "Người gửi không kết nối được VPN.", source: "openai", model: "gpt-6-luna", cache: "hit" } } }));

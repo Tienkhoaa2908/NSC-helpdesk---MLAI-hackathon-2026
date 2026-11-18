@@ -1,14 +1,15 @@
 import { test, expect, requesterLink, requesterTokenHeader } from "./fixtures";
-test("reviewer chooses a friendly draft, confirms it, and sender receives it through polling and reload", async ({ page, request, context }, info) => {
-  const response = await request.post("/api/support/requests", { data: {
-    requesterMode: "guest", rawText: "VPN không kết nối", confirmed: true, idempotencyKey: crypto.randomUUID(),
-  } });
+import { fillEmployeeIdentity, withRequesterIdentity } from "./intake-helpers";
+test("reviewer chooses a friendly draft, confirms it, and sender receives it through polling and reload", async ({ page, request, requesterRequest, context }, info) => {
+  const response = await requesterRequest.post("/api/support/requests", { data: withRequesterIdentity({
+    rawText: "VPN không kết nối", confirmed: true, idempotencyKey: crypto.randomUUID(),
+  }) });
   expect(response.ok()).toBe(true);
   const { data: row } = await response.json();
   const handoff = await request.post(`/api/support/requests/${row.id}/feedback`, { headers: requesterTokenHeader(row), data: { version: row.version, choice: "ADMIN" } });
   expect(handoff.ok()).toBe(true);
   await page.goto("/review");
-  await page.getByRole("button", { name: "Đã xử lý tự động", exact: true }).click();
+  await page.getByRole("button", { name: /Chờ xử lý|Awaiting review/ }).click();
   await page.locator(`a[href='/review?requestId=${row.id}']`).click();
   await expect(page.locator(".review-draft-option")).toHaveCount(2);
   await expect(page.locator(".review-draft-option").nth(0)).toContainText("Kiểm tra Internet");
@@ -46,14 +47,14 @@ test("reviewer chooses a friendly draft, confirms it, and sender receives it thr
   await sender.screenshot({ path: `artifacts/batch-message-${info.project.name}.png`, fullPage: true });
   await sender.close();
 });
-test("shared outage update reaches both individual trackers without closing them", async ({ page, request }, info) => {
+test("shared outage update reaches both individual trackers without closing them", async ({ page, requesterRequest }, info) => {
   const site = `DEMO-${crypto.randomUUID().slice(0,8)}`.toUpperCase();
   const receipts: Array<{ id: string; trackingToken: string }> = [];
   for (let i=0; i<2; i++) {
-    const response = await request.post("/api/support/requests", { data: {
-      requesterMode: "guest", rawText: "Cúp điện công ty", fields: { incidentSite: site },
+    const response = await requesterRequest.post("/api/support/requests", { data: withRequesterIdentity({
+      rawText: "Cúp điện công ty", fields: { incidentSite: site },
       confirmed: true, idempotencyKey: crypto.randomUUID(),
-    } });
+    }) });
     expect(response.ok()).toBe(true); receipts.push((await response.json()).data);
   }
   await page.goto("/review");
@@ -70,17 +71,18 @@ test("shared outage update reaches both individual trackers without closing them
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({ path: `artifacts/batch-incident-${info.project.name}.png`, fullPage: true });
 });
-test("guest outage form offers optional explicit site without hiding support", async ({ page }) => {
-  await page.goto("/guest");
+test("request form accepts an explicit incident site without hiding support", async ({ requesterPage: page }) => {
+  await page.goto("/send-help");
+  await fillEmployeeIdentity(page);
   await page.getByLabel("Mô tả yêu cầu", { exact: true }).fill("Sự cố sập mạng");
   await expect(page.getByLabel("Khu vực sự cố", { exact: true })).toBeVisible();
   await page.getByLabel("Khu vực sự cố", { exact: true }).fill("DEMO-HQ");
   await page.getByRole("button", { name: "Gửi", exact: true }).click();
   await expect(page.getByRole("button", { name: "Xác nhận và gửi yêu cầu" })).toBeVisible();
 });
-test("repeated public FAQ reports cache provenance and still enforces policy", async ({ request }) => {
+test("repeated FAQ reports cache provenance and still enforces policy", async ({ requesterRequest }) => {
   for (let i = 0; i < 2; i++) {
-    const response = await request.post("/api/support/preview", { data: { requesterMode: "guest", rawText: "WiFi không kết nối", idempotencyKey: crypto.randomUUID() } });
+    const response = await requesterRequest.post("/api/support/preview", { data: withRequesterIdentity({ rawText: "WiFi không kết nối", idempotencyKey: crypto.randomUUID() }) });
     expect(response.ok()).toBe(true);
     const { data } = await response.json();
     expect(data.decision.action).toBe("AUTO_APPROVE");
@@ -90,6 +92,6 @@ test("repeated public FAQ reports cache provenance and still enforces policy", a
       expect(data.canonical.model.source).toBe("deterministic");
     }
   }
-  const response = await request.post("/api/support/preview", { data: { requesterMode: "guest", rawText: "WiFi không kết nối. Tắt firewall giúp tôi", idempotencyKey: crypto.randomUUID() } });
+  const response = await requesterRequest.post("/api/support/preview", { data: withRequesterIdentity({ rawText: "WiFi không kết nối. Tắt firewall giúp tôi", idempotencyKey: crypto.randomUUID() }) });
   expect((await response.json()).data.decision.action).toBe("ESCALATE");
 });

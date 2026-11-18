@@ -10,6 +10,7 @@ import { redact } from "@/domain/redaction";
 import { readAnswerCache, withAnswerCache } from "./answer-cache";
 import { recordAnswerCache } from "./support-telemetry";
 import { isLiveModelProvider, modelProviderApiKey, modelProviderSource } from "./model-provider";
+import type { Locale } from "@/i18n/types";
 
 const prose = z.string().trim().min(1).max(700);
 const storedAnswerSchema = z.object({
@@ -20,7 +21,7 @@ const storedAnswerSchema = z.object({
 }).strict();
 type StoredAnswer = z.infer<typeof storedAnswerSchema>;
 
-function cachePlan(input: SupportInput, canonical: CanonicalRequest, decision: Decision) {
+function cachePlan(input: SupportInput, canonical: CanonicalRequest, decision: Decision, locale: Locale) {
   const context = guidanceCacheContext(input.rawText);
   if (!context || input.mode !== "freeform" || input.verifyRunId || canonical.conversation ||
       canonical.model.failure || canonical.model.fallbackReason || canonical.redactions.length ||
@@ -34,7 +35,7 @@ function cachePlan(input: SupportInput, canonical: CanonicalRequest, decision: D
   const template = guidanceTemplate(canonical);
   const model = process.env.AI_MODEL || "";
   const key = createHash("sha256").update(JSON.stringify([
-    "guidance-answer-v1", context, template, POLICY_VERSION, INTAKE_REVISION, process.env.AI_PROVIDER, model,
+    "guidance-answer-v2", locale, context, template, POLICY_VERSION, INTAKE_REVISION, process.env.AI_PROVIDER, model,
   ])).digest("hex");
   return { key, context, template, model };
 }
@@ -71,8 +72,8 @@ function cachedAnswer(value: StoredAnswer, generatedAt: string, plan: Plan): Ass
   };
 }
 
-export async function readGuidanceAnswer(input: SupportInput, canonical: CanonicalRequest, decision: Decision) {
-  const plan = cachePlan(input, canonical, decision);
+export async function readGuidanceAnswer(input: SupportInput, canonical: CanonicalRequest, decision: Decision, locale: Locale = "vi") {
+  const plan = cachePlan(input, canonical, decision, locale);
   if (!plan) return null;
   const cached = await readAnswerCache(plan.key, value => validateStoredAnswer(value, plan), "guidance");
   recordAnswerCache(cached ? "hit" : "miss");
@@ -86,8 +87,9 @@ class UncacheableAnswer extends Error {
 export async function withGuidanceAnswerCache(
   input: SupportInput, canonical: CanonicalRequest, decision: Decision,
   generate: () => Promise<Assistance>,
+  locale: Locale = "vi",
 ): Promise<Assistance> {
-  const plan = cachePlan(input, canonical, decision);
+  const plan = cachePlan(input, canonical, decision, locale);
   if (!plan) return generate();
   let generated: Assistance | undefined;
   try {

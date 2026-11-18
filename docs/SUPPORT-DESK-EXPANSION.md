@@ -1,6 +1,6 @@
 # Support Desk: IT, Commercial và HR
 
-> Tài liệu ghi lại đề xuất và giới hạn trong giai đoạn mở rộng; các mô tả đăng nhập ID-only là bối cảnh của bản cũ. Bản hiện tại dùng Google Sign-In cho Identity nhưng vẫn giữ Support reviewer public demo. Xem [Identity setup](IDENTITY-SETUP.md) và [Privacy Inventory](PRIVACY-INVENTORY.md) để biết ranh giới hiện tại.
+> Tài liệu ghi lại đề xuất, giới hạn và đánh giá theo các mốc lịch sử. Bản hiện tại dùng ID/mật khẩu; API reviewer, audit và kiểm thử yêu cầu phiên Admin. Tài khoản mẫu `guest01 / 12345` chỉ gửi yêu cầu synthetic. Đây vẫn là demo, không phải IAM của tổ chức. Xem [Identity setup](IDENTITY-SETUP.md) và [Privacy Inventory](PRIVACY-INVENTORY.md) để biết ranh giới hiện tại.
 
 ## Hợp đồng
 
@@ -19,7 +19,7 @@ Bộ **Support Desk expansion** trong Kiểm thử dùng dữ liệu giả lập
 
 Regression development 128 giữ nguyên kỳ vọng của policy v5.20: 128/128 action đúng, 126/128 khớp cả action, bucket và rule. Hai ca `e128-authority-15/16` vẫn `ESCALATE / BEYOND_AUTHORITY`, nhưng đã có owner nghiệp vụ nên dùng `COMPANY-TRAVEL_EVENTS-REVIEW` và `COMPANY-FINANCE_ACCOUNTING-REVIEW` thay cho rule owner chưa xác định `AUTH-005`. Ghi nhận chênh lệch rule; không sửa dataset để biến thành 128 exact PASS. Đây là mock/synthetic, không phải accuracy của Luna thật.
 
-## Đánh giá điều hành trước sửa
+## Đánh giá điều hành trước sửa (ghi nhận lịch sử)
 
 Kết luận: **Not ready** cho dữ liệu doanh nghiệp thật. CI xanh chứng minh regression local tương đương, không chứng minh readiness production.
 

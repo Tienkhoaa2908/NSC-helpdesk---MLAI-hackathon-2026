@@ -4,6 +4,7 @@ import { normalize } from "@/domain/text";
 import { knowledgeSeed } from "@/domain/knowledge";
 import { POLICY_VERSION } from "@/domain/policy-source";
 import type { ConversationContext } from "@/domain/conversation";
+import type { Locale } from "@/i18n/types";
 import { supportDatabase } from "./support-repository";
 import { isLiveModelProvider, modelProvider, modelProviderApiKey } from "./model-provider";
 type CacheScope = "conversation" | "guidance";
@@ -21,7 +22,7 @@ type Row = z.infer<typeof schema>;
 const memory = new Map<string, Row>();
 const pending = new Map<string, Promise<Row>>();
 // Only closed, public questions. Personal names, numbers, account details and follow-ups never enter shared cache.
-export function answerCacheKey(context: ConversationContext, model: string) {
+export function answerCacheKey(context: ConversationContext, model: string, locale: Locale = "vi") {
   const text = normalize(context.question);
   const publicQuestion =
     /^(?:xin chao|chao ban|hello|hi|ban ten gi|ban la ai|what is your name|who are you|ban co the xu ly cac request gi|ban co the ho tro gi|what can you do|lam sao khoi phuc tai khoan google|how can i recover my gmail account)[?!. ]*$/;
@@ -29,8 +30,9 @@ export function answerCacheKey(context: ConversationContext, model: string) {
   return createHash("sha256")
     .update(
       JSON.stringify([
-        "answer-v5-evidence-workflow-response-style",
+        "answer-v6-evidence-workflow-response-style",
         text,
+        locale,
         context.label,
         modelProvider(),
         model,

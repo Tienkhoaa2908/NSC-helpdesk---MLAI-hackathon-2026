@@ -10,6 +10,7 @@ import { POST as clarification } from "@/app/api/support/requests/[id]/clarifica
 import { POST as feedback } from "@/app/api/support/requests/[id]/feedback/route";
 import { getSupportRequest, getSupportRequestTrackingHash, getSupportRequestTrackingProofHash, resetSupportTestStore, updateSupportRequest } from "@/lib/support-repository";
 import { submitSupport } from "@/services/support";
+import { mockSupportApiAuthorization } from "./support-api-auth";
 
 const secret = "1".repeat(64);
 const wrongToken = "2".repeat(64);
@@ -24,6 +25,7 @@ const read = (url: string, token?: string) => new Request(url, {
 });
 
 beforeEach(() => {
+  mockSupportApiAuthorization();
   vi.stubEnv("NODE_ENV", "test");
   vi.stubEnv("SUPPORT_ACCESS_MODE", "public-demo");
   vi.stubEnv("SUPPORT_TRACKING_SECRET", secret);

@@ -1,6 +1,6 @@
 # Inventory riêng tư và quyền truy cập
 
-Phạm vi: Support intake → extraction boundary → request/preview → audit → UI.
+Phạm vi: đăng ký tài khoản → Support intake → extraction boundary → request/preview → audit → UI.
 Kiểm thử dùng synthetic, mock/memory; không phải chứng nhận anonymization hay
 kiểm toán bảo mật production. Dữ liệu gõ ban đầu vẫn nằm trong trình duyệt.
 
@@ -11,7 +11,7 @@ kiểm toán bảo mật production. Dữ liệu gõ ban đầu vẫn nằm tron
 | Email | Địa chỉ ASCII có @ và domain nhiều nhãn, gồm dấu + | Unicode email, obfuscation “at/dot”, ảnh, tên hiển thị chưa được bảo đảm. |
 | Họ tên | Không hứa nhận diện tự do | Tên giả lập trong test vẫn giữ nguyên; phải ẩn danh trước nhập. |
 | Địa chỉ | Không hứa nhận diện tự do | Địa chỉ giả lập trong test vẫn giữ nguyên; phải ẩn danh trước nhập. |
-| Employee ID | Che khi nhãn employee ID/mã nhân viên + `:`/`=` nằm trong nội dung; metadata `fields.employeeId` loại khỏi model facts | ID tự khai trong guest/demo chỉ liên kết, không xác thực. Employee ID trong phiên Google OIDC được đối chiếu với account/profile đã được duyệt. Metadata có thể liên kết người dùng, không ẩn danh; ID không nhãn chưa được che. |
+| Employee ID | Che khi nhãn employee ID/mã nhân viên + `:`/`=` nằm trong nội dung; metadata `fields.employeeId` loại khỏi model facts | Tài khoản đã cấp dùng email làm employee ID. Metadata có thể nhận diện/liên kết người dùng, không ẩn danh; email/ID không nhãn trong nội dung chưa được che. Tài khoản demo chung không xác minh danh tính. |
 | Secret/key | PEM, token prefixes, Bearer/JWT, labelled password/client_secret/access_token…, connection credentials | Pattern-based; encoding, ảnh, secret không nhãn hoặc bị làm rối có thể lọt. |
 | OTP | Nhãn OTP/verification code, 4–10 số, JSON quote, số cách bằng khoảng trắng/gạch ngang | Dạng khác hoặc không nhãn chưa bảo đảm; không log/gửi OTP thật để thử. |
 | Unicode | NFKC, tổ hợp dấu và ký tự zero-width theo regex trong code | Không cam kết mọi homograph/encoding/biến thể nhận diện. |
@@ -42,23 +42,34 @@ nhãn nguồn. Nội dung, evidence và explanation sentiment vẫn đi qua reda
 validation trước persistence. Feedback lưu assessment đã kiểm tra cùng nguồn
 model/fallback khi có; dữ liệu lịch sử thiếu trường này không được backfill.
 
-- Reviewer Support là **public demo**, không xác thực thành viên/team. Bộ lọc
-  hàng đợi chỉ để tìm hồ sơ. Nhãn này được hiển thị trong reviewer cả mobile.
-- Employee sign-in dùng Google OIDC; server kiểm tra chữ ký/issuer/audience/
-  thời hạn/nonce, `sub`, `email_verified` và domain email `gmail.com`. Google
-  xác minh tài khoản/email, không xác nhận quan hệ lao động. IT xác minh thủ công
-  trước khi gán ID/profile.
-  Email trong `IDENTITY_ADMIN_EMAILS` mới được duyệt đơn cấp ID.
-- Support reviewer vẫn là **public demo** theo lựa chọn sản phẩm; Identity session
-  không bảo vệ hàng đợi Support. Tracking token và proof chỉ được lưu dạng hash,
-  nhưng token không tạo ticket confidentiality trước API reviewer công khai.
-- Identity Mongo có transaction/index/session controls nhưng chưa có integration
-  evidence trên replica set thật trong lượt này. Support smoke standalone không
-  chứng minh transaction của identity.
-- Bản demo giới hạn Identity vào domain email `gmail.com`, nhưng không ràng buộc
-  Workspace tenant hoặc phân quyền theo team; Gmail tiêu dùng không chứng minh
-  nhân sự. Identity Admin được cấu hình theo email allowlist, còn Support
-  reviewer vẫn public. Retention, deletion, consent custody, recovery và IAM/HR thật cần được
-  quyết định trước khi dùng dữ liệu/tài khoản tổ chức.
-- Không dùng production/private data cho demo công khai. Muốn thử người thật,
-  vẫn dùng ticket synthetic và thu consent theo [protocol](INDEPENDENT-EVALUATION-PROTOCOL.md).
+- API reviewer Support yêu cầu phiên Admin cho hàng đợi, hồ sơ, sự kiện, lịch sử,
+  summary và audit. Ẩn nút trong UI không thay kiểm tra quyền phía server.
+- Đơn xin cấp tài khoản thu họ tên và email do người dùng nhập; email trở thành
+  ID đăng nhập sau khi được cấp. Email chưa được xác minh độc lập trước khi Admin
+  cấp tài khoản. Chỉ phiên Admin mới xem danh sách đơn; không render danh sách
+  email cho người dùng công khai.
+- Tài khoản Admin lấy ID/mật khẩu từ biến môi trường server. Không lưu mật khẩu
+  Admin trong Mongo hay gửi qua email. Tài khoản requester demo `guest01 / 12345`
+  là thông tin đăng nhập dùng chung, không xác minh người sử dụng; chỉ dùng dữ liệu
+  synthetic qua tài khoản này.
+- Hệ thống sinh mật khẩu ngẫu nhiên năm chữ số cho tài khoản demo và chỉ lưu hash
+  trong MongoDB. Mật khẩu gửi qua email có thể đọc được bởi người kiểm soát hộp
+  thư và hạ tầng mail; không dùng mật khẩu này ngoài demo hoặc dùng lại mật khẩu
+  cá nhân. Độ dài này không đạt chuẩn mật khẩu production.
+- Liên kết cấp tài khoản trong email là bearer token dùng một lần, hết hạn sau
+  một giờ. Mở liên kết qua `GET` cấp tài khoản ngay theo quyết định UX hiện tại.
+  Bộ lọc/phần mềm quét link email có thể tự kích hoạt liên kết trước khi Admin
+  bấm. Đây là rủi ro đã chấp nhận cho demo; không dùng quy trình này cho tài khoản
+  tổ chức. Giữ token khỏi log, chat và nơi lưu trữ công khai.
+- Tracking token và recovery proof của Support chỉ được lưu dạng hash. Token
+  giới hạn route theo dõi/tiếp diễn của người gửi; phiên Admin riêng bảo vệ API
+  reviewer. Token theo dõi không thay thế xác thực Admin.
+- Kiểm thử hiện dùng dữ liệu synthetic và mock/spies; chưa có bằng chứng kiểm thử
+  email giao thật, rate limit Mongo trên Production, hoặc phục hồi/restart database
+  Identity thật. Không coi bài test local là chứng nhận bảo mật.
+- Đây là đăng nhập demo bằng ID/mật khẩu, không tích hợp SSO/Workspace, xác minh
+  việc làm, phân quyền theo nhóm, quy trình khôi phục mật khẩu hoặc IAM/HR doanh
+  nghiệp. Đơn xin cấp tài khoản và email là dữ liệu cá nhân; dùng hộp thư test do
+  bạn kiểm soát và không nhập ticket hoặc dữ liệu doanh nghiệp thật. Quy trình
+  retention, xóa tài khoản và xử lý yêu cầu dữ liệu cần được xác định trước khi
+  dùng ngoài demo.

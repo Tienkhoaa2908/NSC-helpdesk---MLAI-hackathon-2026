@@ -1,4 +1,5 @@
 import { expect, test } from "./fixtures";
+import { fillEmployeeIdentity } from "./intake-helpers";
 
 test("provider diagnostics stay out of sender preview without blocking edit or submit", async ({
   page,
@@ -16,7 +17,8 @@ test("provider diagnostics stay out of sender preview without blocking edit or s
     body.data.assistance.fallbackReason = "MODEL_EVIDENCE_INVALID";
     await route.fulfill({ response, json: body });
   });
-  await page.goto("/guest");
+  await page.goto("/send-help");
+  await fillEmployeeIdentity(page);
   await page
     .getByLabel("Mô tả yêu cầu", { exact: true })
     .fill("VPN không kết nối");

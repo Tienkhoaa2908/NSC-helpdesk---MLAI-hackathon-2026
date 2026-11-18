@@ -1,6 +1,6 @@
 import jsQR from "jsqr";
 import { expect, requesterLink, test } from "./fixtures";
-import { employeeIdentity } from "./intake-helpers";
+import { employeeIdentity, withRequesterIdentity } from "./intake-helpers";
 
 test("QR decodes to the role picker and URL can be copied from any page", async ({ page, context }, info) => {
   await page.goto("/review?requestId=00000000-0000-4000-8000-000000000000#private-detail");
@@ -31,11 +31,11 @@ test("QR decodes to the role picker and URL can be copied from any page", async 
   await expect(scanned.getByRole("link", { name: "Dành cho Admin", exact: true })).toBeVisible();
 });
 
-test("pages and QR dialog fit narrow phones and landscape without horizontal scrolling", async ({ page, request }) => {
+test("pages and QR dialog fit narrow phones and landscape without horizontal scrolling", async ({ page, requesterRequest }) => {
   test.setTimeout(120_000);
-  const response = await request.post("/api/support/requests", { data: {
+  const response = await requesterRequest.post("/api/support/requests", { data: withRequesterIdentity({
     ...employeeIdentity, rawText: "VPN không kết nối", mode: "freeform", serviceGroup: "NETWORK_VPN", confirmed: true, idempotencyKey: crypto.randomUUID(),
-  } });
+  }) });
   expect(response.ok()).toBe(true);
   const { data: row } = await response.json();
   const routes = ["/", "/login", "/identity/new", "/send-help", "/workspace", "/track", "/review", `/review?requestId=${row.id}`, requesterLink(row), "/audit", "/verify"];

@@ -6,6 +6,7 @@ import {
 } from "@/lib/support-http";
 import { feedbackSupport } from "@/services/review";
 import { requireRequesterTracking } from "@/lib/support-tracking";
+import { requestLocale } from "@/i18n/server";
 export async function POST(
   request: Request,
   context: { params: Promise<{ id: string }> },
@@ -17,6 +18,8 @@ export async function POST(
     return feedbackSupport(
       id,
       await supportBody(request),
+      undefined,
+      { locale: requestLocale(request) },
     );
   });
 }

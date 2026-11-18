@@ -14,12 +14,12 @@ test("saved Verify loading locks pack and new run until the requested result arr
   await expect(page.getByRole("status")).toContainText("Đang tải kết quả đã lưu");
   await expect(page.getByRole("progressbar", { name: "Tiến độ kiểm thử" })).not.toHaveAttribute("aria-valuenow");
   await expect(page.getByLabel("Bộ kiểm thử")).toBeDisabled();
-  await expect(page.getByRole("button", { name: /Chạy toàn bộ test/ })).toBeDisabled();
+  await expect(page.getByRole("button", { name: /Chạy toàn bộ ca|Run all cases/ })).toBeDisabled();
   release();
   await expect(page.getByLabel("Bộ kiểm thử")).toBeEnabled();
   await expect(page.getByLabel("Bộ kiểm thử")).toHaveValue("de-a-v3");
-  await expect(page.getByRole("button", { name: "Tiếp tục lần kiểm thử" })).toBeEnabled();
-  await expect(page.getByRole("link", { name: "Liên kết kết quả đã lưu" })).toHaveAttribute("href", `/verify?run=${run.id}`);
+  await expect(page.getByRole("button", { name: /Tiếp tục lần chạy|Resume run/ })).toBeEnabled();
+  await expect(page.getByRole("link", { name: /Mở kết quả đã lưu|Open saved results/ })).toHaveAttribute("href", `/verify?run=${run.id}`);
 });
 
 test("Verify progress follows actual responses, retains partial results on error and resumes with reduced motion", async ({ page }, info) => {
@@ -37,7 +37,7 @@ test("Verify progress follows actual responses, retains partial results on error
     } else await route.continue();
   });
   await page.goto("/verify");
-  await page.getByRole("button", { name: "Chạy toàn bộ test (5)" }).click();
+  await page.getByRole("button", { name: /Chạy toàn bộ ca \(5\)|Run all cases \(5\)/ }).click();
   const progress = page.getByRole("progressbar", { name: "Tiến độ kiểm thử" });
   await expect(progress).toHaveAttribute("aria-valuenow", "0");
   await expect(progress).toHaveAttribute("aria-valuemax", "5");
@@ -49,9 +49,9 @@ test("Verify progress follows actual responses, retains partial results on error
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({ path: `artifacts/verify-progress-${info.project.name}.png`, fullPage: true });
   releaseSecond();
-  await expect(page.getByRole("button", { name: "Tiếp tục lần kiểm thử" })).toBeEnabled();
+  await expect(page.getByRole("button", { name: /Tiếp tục lần chạy|Resume run/ })).toBeEnabled();
   await expect(progress).toHaveAttribute("aria-valuenow", "1");
-  await page.getByRole("button", { name: "Tiếp tục lần kiểm thử" }).click();
+  await page.getByRole("button", { name: /Tiếp tục lần chạy|Resume run/ }).click();
   await expect(page.getByText("Đã nhận đủ kết quả", { exact: true })).toBeVisible();
   await expect(progress).toHaveAttribute("aria-valuenow", "5");
   expect(calls).toBe(6);

@@ -1,11 +1,12 @@
 import { test, expect, requesterLink, requesterTokenHeader } from "./fixtures";
 import type { SupportRequest } from "../../src/domain/contracts";
+import { withRequesterIdentity } from "./intake-helpers";
 
 for (const source of ["draft", "manual"] as const) {
-  test(`reviewer sends a ${source} message without approving and sender receives it`, async ({ page, request, context }, info) => {
-    const created = await request.post("/api/support/requests", { data: {
-      requesterMode: "guest", rawText: "Need database access", confirmed: true, idempotencyKey: crypto.randomUUID(),
-    } });
+  test(`reviewer sends a ${source} message without approving and sender receives it`, async ({ page, request, requesterRequest, context }, info) => {
+    const created = await requesterRequest.post("/api/support/requests", { data: withRequesterIdentity({
+      rawText: "Need database access", confirmed: true, idempotencyKey: crypto.randomUUID(),
+    }) });
     expect(created.ok()).toBe(true);
     const original = (await created.json()).data as SupportRequest & { trackingToken: string };
     const handoff = await request.post(`/api/support/requests/${original.id}/feedback`, {
@@ -63,10 +64,10 @@ for (const source of ["draft", "manual"] as const) {
   });
 }
 
-test("failed sends preserve the draft, and retry sends it only once", async ({ page, request }) => {
-  const created = await request.post("/api/support/requests", { data: {
-    requesterMode: "guest", rawText: "VPN không kết nối", confirmed: true, idempotencyKey: crypto.randomUUID(),
-  } });
+test("failed sends preserve the draft, and retry sends it only once", async ({ page, request, requesterRequest }) => {
+  const created = await requesterRequest.post("/api/support/requests", { data: withRequesterIdentity({
+    rawText: "VPN không kết nối", confirmed: true, idempotencyKey: crypto.randomUUID(),
+  }) });
   expect(created.ok()).toBe(true);
   const row = (await created.json()).data as SupportRequest & { trackingToken: string };
   await page.goto(`/review?requestId=${row.id}`);

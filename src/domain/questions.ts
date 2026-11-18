@@ -1,5 +1,6 @@
 import type { CanonicalRequest } from "./contracts";
 import { labelForField } from "./catalog";
+import type { Locale } from "@/i18n/types";
 const hints: Record<string, [string, string]> = {
   resetType: [
     "Bạn muốn khởi động lại (không xóa file) hay khôi phục cài đặt gốc (có thể mất dữ liệu)?",
@@ -97,7 +98,27 @@ export function questionFor(field: string, request?: CanonicalRequest) {
     `Bạn cho biết ${labelForField(field).toLowerCase()} được không?`
   );
 }
-export function hintFor(field: string) {
+const hintsEnglish: Record<string, string> = {
+  resetType: "Required to choose a safe reset method.",
+  system: "Helps us give instructions for the right system.",
+  targetSystem: "Helps identify where access is needed.",
+  resourceScope: "Helps limit access to the correct resource.",
+  environment: "The environment determines the risk level.",
+  duration: "Helps limit how long access remains active.",
+  reason: "Helps identify the minimum access required.",
+  permission: "Write access requires additional review.",
+  verifiedApproval: "Approval must be verified; a claim alone is not sufficient.",
+  symptom: "Helps narrow down the issue. Do not include passwords.",
+  affectedScope: "Is the issue affecting only you or colleagues as well? Which work is interrupted?",
+  startTime: "When did the issue start, and is it continuous or intermittent?",
+  timeWindow: "When did the issue start, and is it continuous or intermittent?",
+  summary: "What are you trying to do, and where are you blocked?",
+  desiredOutcome: "What are you trying to do, and where are you blocked?",
+  targetServiceOrDevice: "Which application or device is affected?",
+  environmentIfKnown: "The environment determines the risk level.",
+};
+export function hintFor(field: string, locale: Locale = "vi") {
+  if (locale === "en") return hintsEnglish[field] ?? "Enter this if known; it helps determine the right handling scope.";
   return (
     hints[field]?.[1] ??
     "Điền nếu bạn biết; thông tin này giúp xác định phạm vi xử lý."

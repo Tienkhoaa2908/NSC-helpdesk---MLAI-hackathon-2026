@@ -311,6 +311,7 @@ export type SupportRequest = {
 export type SupportPreview = {
   id: string;
   fingerprint: string;
+  locale?: "vi" | "en";
   expiresAt: Date;
   sentiment: SentimentAssessment;
   canonical: CanonicalRequest;

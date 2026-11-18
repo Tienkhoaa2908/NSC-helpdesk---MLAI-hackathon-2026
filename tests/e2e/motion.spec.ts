@@ -1,15 +1,15 @@
 import { expect, requesterLink, test } from "./fixtures";
+import { fillEmployeeIdentity, withRequesterIdentity } from "./intake-helpers";
 
-for (const [label, destination] of [
-  ["Tôi cần hỗ trợ", "/login"],
-  ["Dành cho Admin", "/review"],
-  ["Đăng nhập không cần tài khoản", "/guest"],
+for (const { label, destination, captureHomeScreenshot } of [
+  { label: "Tôi cần hỗ trợ", destination: /\/login$/, captureHomeScreenshot: true },
+  { label: "Dành cho Admin", destination: /\/login\?next=%2Freview$/, captureHomeScreenshot: false },
 ]) {
-  test(`line reveal enters ${destination}, logo wipes home and back still works`, async ({ page }, info) => {
+  test(`line reveal enters ${label}, logo wipes home and back still works`, async ({ page }, info) => {
     await page.goto("/");
     const entry = page.getByRole("link", { name: label, exact: true });
     await expect(entry).toBeVisible();
-    if (destination === "/login") {
+    if (captureHomeScreenshot) {
       await page.evaluate(async () => {
         await document.fonts.ready;
         await Promise.all(Array.from(document.images, img => img.decode().catch(() => {})));
@@ -19,21 +19,21 @@ for (const [label, destination] of [
     await entry.focus();
     await page.keyboard.press("Enter");
     await expect(page.locator('[data-transition="line"]')).toBeAttached();
-    await expect(page).toHaveURL(new RegExp(`${destination}$`));
+    await expect(page).toHaveURL(destination);
     await expect(page.locator(".route-curtain")).toHaveCount(0);
     await page.getByRole("link", { name: "VNG Support", exact: true }).click();
     await expect(page.locator('[data-transition="wipe"]')).toBeAttached();
     await expect(page).toHaveURL(/\/$/);
     await expect(page.locator(".route-curtain")).toHaveCount(0);
-    await expect(page.locator("main a")).toHaveCount(3);
+    await expect(page.locator("main a")).toHaveCount(2);
     await page.goBack();
-    await expect(page).toHaveURL(new RegExp(`${destination}$`));
+    await expect(page).toHaveURL(destination);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   });
 }
 
 test("buttons respond to pointer and keyboard without emulated touch hover", async ({ page }, info) => {
-  await page.goto("/guest");
+  await page.goto("/send-help");
   const button = page.getByRole("button", { name: "Mô tả vấn đề", exact: true });
   if (info.project.name === "chromium") {
     await button.hover();
@@ -49,9 +49,11 @@ test("buttons respond to pointer and keyboard without emulated touch hover", asy
 test("reduced motion skips curtains and retains a static, labelled AI progress bar", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto("/");
-  await page.getByRole("link", { name: "Đăng nhập không cần tài khoản", exact: true }).click();
-  await expect(page).toHaveURL(/\/guest$/);
+  await page.getByRole("link", { name: "Tôi cần hỗ trợ", exact: true }).click();
+  await expect(page).toHaveURL(/\/login$/);
   await expect(page.locator(".route-curtain")).toHaveCount(0);
+  await page.goto("/send-help");
+  await fillEmployeeIdentity(page);
   let release!: () => void;
   const gate = new Promise<void>(resolve => { release = resolve; });
   await page.route("**/api/support/preview", async route => { await gate; await route.continue(); });
@@ -66,7 +68,8 @@ test("reduced motion skips curtains and retains a static, labelled AI progress b
 });
 
 test("AI pending survives slow responses, clears on failure and keeps the draft for retry", async ({ page }, info) => {
-  await page.goto("/guest");
+  await page.goto("/send-help");
+  await fillEmployeeIdentity(page);
   let release!: () => void;
   const gate = new Promise<void>(resolve => { release = resolve; });
   await page.route("**/api/support/preview", async route => {
@@ -95,8 +98,8 @@ test("AI pending survives slow responses, clears on failure and keeps the draft 
   await expect(page.getByRole("progressbar")).toHaveCount(0);
 });
 
-test("request skeleton resolves to the original record and followup shows AI progress", async ({ page, request }, info) => {
-  const saved = await request.post("/api/support/requests", { data: { mode: "freeform", requesterMode: "guest", serviceGroup: "OTHER", rawText: "Máy in báo kẹt giấy. Tôi nên kiểm tra gì trước?", fields: {}, confirmed: true, idempotencyKey: crypto.randomUUID() } });
+test("request skeleton resolves to the original record and followup shows AI progress", async ({ page, requesterRequest }, info) => {
+  const saved = await requesterRequest.post("/api/support/requests", { data: withRequesterIdentity({ mode: "freeform", serviceGroup: "OTHER", rawText: "Máy in báo kẹt giấy. Tôi nên kiểm tra gì trước?", confirmed: true, idempotencyKey: crypto.randomUUID() }) });
   expect(saved.status()).toBe(201);
   const row = (await saved.json()).data;
   let release!: () => void;
@@ -126,11 +129,13 @@ test("changing reduced-motion preference cancels a curtain immediately", async (
   await expect(page.locator(".route-curtain")).toBeAttached();
   await page.emulateMedia({ reducedMotion: "reduce" });
   await expect(page.locator(".route-curtain")).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Đăng nhập bằng Google", exact: true })).toBeVisible();
+  await expect(page.getByLabel("ID nhân viên hoặc email")).toBeVisible();
+  await expect(page.getByLabel("Mật khẩu")).toBeVisible();
 });
 
 test("a stalled API releases the pending UI at the deadline without clearing the draft", async ({ page }) => {
-  await page.goto("/guest");
+  await page.goto("/send-help");
+  await fillEmployeeIdentity(page);
   await page.clock.install();
   await page.route("**/api/support/preview", () => { /* Fault injection: no headers/body arrive. */ });
   const input = page.getByLabel("Mô tả yêu cầu", { exact: true });
@@ -144,16 +149,13 @@ test("a stalled API releases the pending UI at the deadline without clearing the
   await expect(input).toHaveValue("DNS là gì?");
 });
 
-test("first-visit onboarding waits for the role reveal and remains dismissible", async ({ page }) => {
+test("first-visit login guidance is visible and remains dismissible", async ({ page }) => {
   await page.addInitScript(() => sessionStorage.clear());
-  await page.goto("/");
-  await page.getByRole("link", { name: "Dành cho Admin", exact: true }).click();
-  await expect(page.locator('[data-transition="line"]')).toBeAttached();
-  await expect(page.getByRole("dialog", { name: "Bắt đầu cùng VNG Support" })).not.toBeVisible();
-  await expect(page.locator(".route-curtain")).toHaveCount(0);
+  await page.goto("/login");
   const intro = page.getByRole("dialog", { name: "Bắt đầu cùng VNG Support" });
   await expect(intro).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Đăng nhập", exact: true })).toBeVisible();
   await intro.getByRole("button", { name: "Đã hiểu" }).click();
   await expect(intro).not.toBeVisible();
-  await expect(page.getByRole("heading", { name: "Tiếp nhận hỗ trợ", exact: true })).toBeVisible();
+  await expect(page.getByLabel("ID nhân viên hoặc email")).toBeVisible();
 });

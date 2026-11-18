@@ -7,6 +7,7 @@ import { supportDatabase } from "./support-repository";
 import { recordAnswerCache } from "./support-telemetry";
 import { z } from "zod";
 import { INTAKE_REVISION } from "@/domain/text";
+import type { Locale } from "@/i18n/types";
 const answerSchema = z.object({
   summary: z.string(), diagnosis: z.string().optional(), potentialFixes: z.array(z.string()).optional(),
   stepByStepInstructions: z.array(z.string()), options: z.array(z.string()),
@@ -24,7 +25,7 @@ const hash = (s: unknown) => createHash("sha256").update(JSON.stringify(s)).dige
  * reviewed template, so a modified stored answer never becomes trusted prose. */
 export async function sharedFaqAnswer(input: SupportInput, canonical: CanonicalRequest, decision: Decision,
   template: Assistance, mode: "read" | "write" = "write",
-  isolatedMemory?: ReturnType<typeof createIsolatedFaqCache>): Promise<Assistance> {
+  isolatedMemory?: ReturnType<typeof createIsolatedFaqCache>, locale: Locale = "vi"): Promise<Assistance> {
   const topic = faqTopic(input.rawText);
   if (!topic || input.verifyRunId || canonical.redactions.length || canonical.subrequests.length > 1 ||
       canonical.riskSignals.length || canonical.ambiguities.length || canonical.model.failure ||
@@ -39,7 +40,7 @@ export async function sharedFaqAnswer(input: SupportInput, canonical: CanonicalR
   delete (body as Partial<Assistance>).source;
   const parsed = answerSchema.safeParse(body);
   if (!parsed.success) return template;
-  const templateHash = hash(parsed.data), prefix = hash(["faq-v3-stored-answer", POLICY_VERSION, INTAKE_REVISION, topic, templateHash]);
+  const templateHash = hash(parsed.data), prefix = hash(["faq-v4-stored-answer", locale, POLICY_VERSION, INTAKE_REVISION, topic, templateHash]);
   const now = new Date();
   const entries = isolatedMemory ?? memory;
   try {
