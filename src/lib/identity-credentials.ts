@@ -2,6 +2,8 @@ import { createCipheriv, createDecipheriv, randomBytes, randomInt } from "node:c
 import type { CredentialEnvelope } from "@/domain/password-identity";
 
 const ALGORITHM = "aes-256-gcm";
+const IV_LENGTH_BYTES = 12;
+const AUTH_TAG_LENGTH_BYTES = 16;
 
 function encryptionKey() {
   const encoded = process.env.IDENTITY_CREDENTIAL_ENCRYPTION_KEY?.trim() ?? "";
@@ -28,8 +30,8 @@ export function generateTemporaryPassword() {
 }
 
 export function encryptTemporaryPassword(password: string): CredentialEnvelope {
-  const iv = randomBytes(12);
-  const cipher = createCipheriv(ALGORITHM, encryptionKey(), iv);
+  const iv = randomBytes(IV_LENGTH_BYTES);
+  const cipher = createCipheriv(ALGORITHM, encryptionKey(), iv, { authTagLength: AUTH_TAG_LENGTH_BYTES });
   const ciphertext = Buffer.concat([cipher.update(password, "utf8"), cipher.final()]);
   return {
     version: 1,
@@ -41,7 +43,9 @@ export function encryptTemporaryPassword(password: string): CredentialEnvelope {
 
 export function decryptTemporaryPassword(envelope: CredentialEnvelope) {
   if (envelope.version !== 1) throw new Error("Unsupported encrypted credential version.");
-  const decipher = createDecipheriv(ALGORITHM, encryptionKey(), Buffer.from(envelope.iv, "base64"));
+  const iv = Buffer.from(envelope.iv, "base64");
+  if (iv.length !== IV_LENGTH_BYTES) throw new Error("Encrypted credential IV must be 12 bytes.");
+  const decipher = createDecipheriv(ALGORITHM, encryptionKey(), iv, { authTagLength: AUTH_TAG_LENGTH_BYTES });
   decipher.setAuthTag(Buffer.from(envelope.authTag, "base64"));
   return Buffer.concat([
     decipher.update(Buffer.from(envelope.ciphertext, "base64")),

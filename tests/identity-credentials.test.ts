@@ -18,10 +18,12 @@ it("encrypts a retry copy that can be recovered with the configured key", () => 
   expect(decryptTemporaryPassword(envelope)).toBe(password);
 });
 
-it("rejects tampering and malformed or absent encryption keys", () => {
+it("rejects tampering, shortened tags, and malformed or absent encryption keys", () => {
   vi.stubEnv("IDENTITY_CREDENTIAL_ENCRYPTION_KEY", Buffer.alloc(32, 23).toString("base64"));
   const envelope = encryptTemporaryPassword("12345");
   expect(() => decryptTemporaryPassword({ ...envelope, ciphertext: Buffer.from("12345").toString("base64") })).toThrow();
+  const shortTag = Buffer.from(envelope.authTag, "base64").subarray(0, 8).toString("base64");
+  expect(() => decryptTemporaryPassword({ ...envelope, authTag: shortTag })).toThrow();
 
   vi.stubEnv("IDENTITY_CREDENTIAL_ENCRYPTION_KEY", "not-a-key");
   expect(() => assertIdentityCredentialEncryptionConfigured()).toThrow();
