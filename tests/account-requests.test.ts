@@ -1,7 +1,11 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { compare } from "bcryptjs";
+import { randomUUID } from "node:crypto";
 import { authenticatePasswordAccount } from "@/services/password-auth";
+import { identityCookie, identityPrincipalForRequest, requireIdentitySession } from "@/lib/identity-auth";
+import { requireEmployeeIdentity } from "@/lib/support-http";
 import { decryptTemporaryPassword } from "@/lib/identity-credentials";
+import { sendAccountRequestNotice, sendAccountRequestRejected, sendIssuedCredentials } from "@/lib/identity-mailer";
 import { decideAccountRequest, listAccountRequests, retryAccountRequestNotice, submitAccountRequest } from "@/services/account-requests";
 
 const fake = vi.hoisted(() => ({
@@ -13,6 +17,7 @@ const fake = vi.hoisted(() => ({
   failCredentials: false,
   failNextIdentityTransaction: false,
   failCredentialFinalization: false,
+  loseNextCommitReply: false,
   failNoticeFinalization: false,
   duplicatePendingRequest: false,
 }));
@@ -26,8 +31,11 @@ function matches(row: Record<string, unknown>, query: Record<string, unknown>): 
   return Object.entries(query).every(([key, expected]) => {
     if (key === "$or") return (expected as Record<string, unknown>[]).some((branch) => matches(row, branch));
     const actual = getPath(row, key);
+    if (actual instanceof Date && expected instanceof Date) return actual.getTime() === expected.getTime();
+    if (expected === null) return actual === undefined || actual === null;
     if (expected && typeof expected === "object" && !(expected instanceof Date)) {
       const rules = expected as Record<string, unknown>;
+      if ("$in" in rules) return (rules.$in as unknown[]).includes(actual);
       if ("$gt" in rules) return actual instanceof Date && actual > (rules.$gt as Date);
       if ("$lte" in rules) return actual instanceof Date && actual <= (rules.$lte as Date);
       if ("$exists" in rules) return (actual !== undefined) === rules.$exists;
@@ -103,7 +111,12 @@ vi.mock("@/lib/identity-store", () => ({
       fake.failNextIdentityTransaction = false;
       throw new Error("simulated transaction failure");
     }
-    return work(db, {});
+    const result = await work(db, {});
+    if (fake.loseNextCommitReply) {
+      fake.loseNextCommitReply = false;
+      throw new Error("Commit acknowledgement lost");
+    }
+    return result;
   },
 }));
 
@@ -140,11 +153,13 @@ beforeEach(() => {
   fake.failCredentials = false;
   fake.failNextIdentityTransaction = false;
   fake.failCredentialFinalization = false;
+  fake.loseNextCommitReply = false;
   fake.failNoticeFinalization = false;
   fake.duplicatePendingRequest = false;
   vi.stubEnv("IDENTITY_CREDENTIAL_ENCRYPTION_KEY", Buffer.alloc(32, 17).toString("base64"));
 });
 afterEach(() => {
+  vi.useRealTimers();
   vi.restoreAllMocks();
   vi.unstubAllEnvs();
 });
@@ -171,6 +186,44 @@ it("returns the generic received response when concurrent submissions race on th
     .resolves.toEqual({ status: "RECEIVED" });
   expect(fake.notices).toHaveLength(0);
   expect(fake.rows.identity_account_requests).toHaveLength(0);
+});
+
+it("saves the request before scheduling its notice and allows recovery if the scheduled work never starts", async () => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  const scheduled: Array<() => Promise<void>> = [];
+  const input = { fullName: "Deferred Notice", email: "deferred.notice@gmail.com" };
+  const enqueue = (work: () => Promise<void>) => { scheduled.push(work); };
+  await expect(submitAccountRequest(input, enqueue)).resolves.toEqual({ status: "RECEIVED" });
+  const request = fake.rows.identity_account_requests[0];
+  expect(request.notificationStatus).toBe("PENDING");
+  expect(fake.notices).toHaveLength(0);
+  await submitAccountRequest(input, enqueue);
+  expect(scheduled).toHaveLength(1);
+
+  vi.setSystemTime(Date.now() + 121_000);
+  await retryAccountRequestNotice(String(request.id), "admin@gmail.com");
+  await scheduled[0]();
+  expect(fake.notices).toHaveLength(1);
+  expect(request.notificationStatus).toBe("SENT");
+});
+
+it("keeps a later notice result when the original SMTP callback finishes late", async () => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  const started = Promise.withResolvers<void>();
+  const original = Promise.withResolvers<void>();
+  vi.mocked(sendAccountRequestNotice).mockImplementationOnce(async () => {
+    started.resolve();
+    await original.promise;
+  });
+  const submit = submitAccountRequest({ fullName: "Late Notice", email: "late.notice@gmail.com" });
+  await started.promise;
+  const request = fake.rows.identity_account_requests[0];
+  vi.setSystemTime(Date.now() + 121_000);
+  await retryAccountRequestNotice(String(request.id), "admin@gmail.com");
+  original.reject(new Error("Late SMTP timeout"));
+  await submit;
+  expect(request.notificationStatus).toBe("SENT");
+  expect(fake.rows.identity_audit.map((audit) => audit.action)).not.toContain("ACCOUNT_REQUEST_NOTICE_UNCONFIRMED");
 });
 
 it("keeps a request in Mongo and reports failed Admin notification delivery", async () => {
@@ -223,26 +276,44 @@ it("keeps one request when SMTP accepts the Admin notice but recording the resul
   expect(row).toMatchObject({ notificationStatus: "SENT" });
 });
 
-it("issues a random five-digit password after an explicit Admin approval", async () => {
-  await submitAccountRequest({ fullName: "Đào Tiến Khoa", email: "khoa.demo@gmail.com" });
+it("rejects a Gmail address that could not be used as a support employee ID before saving a request", async () => {
+  for (const localPart of ["_demo", "x".repeat(65)]) {
+    await expect(submitAccountRequest({ fullName: "Synthetic Applicant", email: `${localPart}@gmail.com` }))
+      .rejects.toThrow("Phần trước @gmail.com");
+  }
+  expect(fake.rows.identity_account_requests ?? []).toHaveLength(0);
+  expect(fake.notices).toHaveLength(0);
+});
+
+it("accepts the exact email credential at login and authorizes the resulting requester session for support intake", async () => {
+  const applicant = { fullName: "Synthetic Applicant", email: `demo+${randomUUID()}'s@gmail.com` };
+  vi.stubEnv("IDENTITY_ADMIN_ID", applicant.email);
+  vi.stubEnv("IDENTITY_ADMIN_PASSWORD", randomUUID());
+  await submitAccountRequest({ ...applicant, email: `  ${applicant.email.toUpperCase()}  ` });
   const requestId = fake.rows.identity_account_requests[0].id as string;
   const result = await decideAccountRequest(requestId, "APPROVE", "admin@gmail.com");
   const account = fake.rows.identity_password_accounts[0];
   const request = fake.rows.identity_account_requests[0];
   const email = fake.credentials[0];
 
-  expect(result).toMatchObject({ status: "APPROVED", email: "khoa.demo@gmail.com" });
+  expect(result).toMatchObject({ status: "APPROVED", email: applicant.email });
   expect(String(email.password)).toMatch(/^\d{5}$/);
-  expect(account).toMatchObject({ loginId: "khoa.demo@gmail.com", email: "khoa.demo@gmail.com", role: "requester", kind: "employee", status: "ACTIVE" });
+  expect(account).toMatchObject({ loginId: applicant.email, email: applicant.email, role: "requester", kind: "employee", status: "ACTIVE" });
   expect(account.passwordHash).not.toBe(email.password);
   expect(await compare(String(email.password), String(account.passwordHash))).toBe(true);
   expect(account.credentialEnvelope).toBeUndefined();
   const login = await authenticatePasswordAccount({ employeeId: email.email, password: email.password }, new Request("http://localhost/api/identity/login", { headers: { "x-real-ip": "127.0.0.1" } }));
   expect(login).toMatchObject({ status: "ACTIVE", redirectTo: "/send-help" });
+  const intake = new Request("http://localhost/api/support/preview", { headers: { cookie: `${identityCookie}=${login.token}` } });
+  const principal = await identityPrincipalForRequest(intake);
+  expect(principal).toMatchObject({ status: "ACTIVE", loginId: applicant.email, assurance: "password", canReviewIds: false, demoRequester: false });
+  const body = { idempotencyKey: randomUUID(), rawText: "Synthetic VPN request", fields: { department: "engineering" } };
+  await expect(requireEmployeeIdentity(body, intake)).resolves.toMatchObject({ fields: { department: "engineering", employeeId: applicant.email } });
+  await expect(requireIdentitySession(intake, true)).rejects.toMatchObject({ status: 403 });
   expect(fake.rows.identity_password_accounts).toHaveLength(1);
   expect(request).toMatchObject({ status: "APPROVED", finalDecision: "APPROVED", notificationStatus: "SENT", approvalTokenHash: null });
   await expect(decideAccountRequest(requestId, "APPROVE", "admin@gmail.com")).rejects.toMatchObject({ code: "ACCOUNT_REQUEST_ALREADY_DECIDED" });
-  await expect(submitAccountRequest({ fullName: "Đào Tiến Khoa", email: "khoa.demo@gmail.com" })).resolves.toEqual({ status: "RECEIVED" });
+  await expect(submitAccountRequest(applicant)).resolves.toEqual({ status: "RECEIVED" });
   expect(fake.rows.identity_account_requests).toHaveLength(1);
   expect(fake.notices).toHaveLength(1);
   expect((await listAccountRequests("all", 1)).items).toMatchObject([{ status: "ISSUED" }]);
@@ -260,6 +331,42 @@ it("claims one approval when two Admin requests arrive concurrently", async () =
   expect(results.filter((result) => result.status === "rejected")).toHaveLength(1);
   expect(fake.rows.identity_password_accounts).toHaveLength(1);
   expect(fake.rows.identity_password_accounts[0].status).toBe("ACTIVE");
+  expect(fake.credentials).toHaveLength(1);
+});
+
+it("commits only one outcome when different Admins submit opposite decisions together", async () => {
+  await submitAccountRequest({ fullName: "Conflicting Decisions", email: "conflicting.decisions@gmail.com" });
+  const request = fake.rows.identity_account_requests[0];
+  const results = await Promise.allSettled([
+    decideAccountRequest(String(request.id), "APPROVE", "first-admin"),
+    decideAccountRequest(String(request.id), "REJECT", "second-admin"),
+  ]);
+  expect(results.map((result) => result.status).sort()).toEqual(["fulfilled", "rejected"]);
+  const issued = request.finalDecision === "APPROVED";
+  expect(fake.credentials).toHaveLength(issued ? 1 : 0);
+  expect(fake.rejections).toHaveLength(issued ? 0 : 1);
+  expect(fake.rows.identity_password_accounts).toHaveLength(issued ? 1 : 0);
+  expect(fake.rows.identity_audit.at(-1)).toMatchObject({
+    actor: issued ? "first-admin" : "second-admin",
+    action: issued ? "ACCOUNT_APPROVED" : "ACCOUNT_REJECTED",
+    subject: request.id,
+  });
+});
+
+it("reconciles a committed activation after the client loses the database acknowledgement", async () => {
+  await submitAccountRequest({ fullName: "Acknowledgement Lost", email: "commit.lost@gmail.com" });
+  const request = fake.rows.identity_account_requests[0];
+  vi.mocked(sendIssuedCredentials).mockImplementationOnce(async (input) => {
+    fake.credentials.push(structuredClone(input));
+    fake.loseNextCommitReply = true;
+  });
+  await expect(decideAccountRequest(String(request.id), "APPROVE", "admin@gmail.com"))
+    .rejects.toMatchObject({ code: "ACCOUNT_CREDENTIAL_EMAIL_UNCONFIRMED" });
+  expect((await listAccountRequests("all", 1)).items[0]).toMatchObject({ status: "ISSUED", retryAction: null });
+  expect(fake.rows.identity_password_accounts[0]).toMatchObject({ status: "ACTIVE" });
+  expect(fake.rows.identity_password_accounts[0]).not.toHaveProperty("credentialEnvelope");
+  await expect(decideAccountRequest(String(request.id), "APPROVE", "admin@gmail.com"))
+    .rejects.toMatchObject({ code: "ACCOUNT_REQUEST_ALREADY_DECIDED" });
   expect(fake.credentials).toHaveLength(1);
 });
 
@@ -325,6 +432,81 @@ it("reuses the exact same credential if SMTP accepted it but the activation tran
   expect(fake.rows.identity_password_accounts[0]).not.toHaveProperty("credentialEnvelope");
 });
 
+it("preserves a pending credential after a key change and can use the original SMTP-accepted password after restoring the key", async () => {
+  const originalKey = process.env.IDENTITY_CREDENTIAL_ENCRYPTION_KEY!;
+  await submitAccountRequest({ fullName: "Recovery Test", email: "restore.key@gmail.com" });
+  const request = fake.rows.identity_account_requests[0];
+  fake.failCredentialFinalization = true;
+  await expect(decideAccountRequest(String(request.id), "APPROVE", "admin@gmail.com"))
+    .rejects.toMatchObject({ code: "ACCOUNT_CREDENTIAL_EMAIL_UNCONFIRMED" });
+  const pending = fake.rows.identity_password_accounts[0];
+  const originalEnvelope = structuredClone(pending.credentialEnvelope);
+  const originalHash = pending.passwordHash;
+  request.processingUntil = new Date(Date.now() - 1);
+  vi.stubEnv("IDENTITY_CREDENTIAL_ENCRYPTION_KEY", Buffer.alloc(32, 31).toString("base64"));
+
+  await expect(decideAccountRequest(String(request.id), "APPROVE", "admin@gmail.com"))
+    .rejects.toMatchObject({ code: "ACCOUNT_CREDENTIAL_RECOVERY_REQUIRED", status: 503 });
+  expect(pending).toMatchObject({ passwordHash: originalHash, credentialEnvelope: originalEnvelope, status: "PENDING_DELIVERY" });
+  expect(fake.credentials).toHaveLength(1);
+  expect(request).toMatchObject({ notificationStatus: "FAILED", finalDecision: "APPROVED" });
+  expect(fake.rows.identity_audit.at(-1)).toMatchObject({ action: "ACCOUNT_CREDENTIAL_RECOVERY_REQUIRED", actor: "admin@gmail.com", subject: request.id });
+
+  vi.stubEnv("IDENTITY_CREDENTIAL_ENCRYPTION_KEY", originalKey);
+  await decideAccountRequest(String(request.id), "APPROVE", "admin@gmail.com");
+  expect(fake.credentials).toHaveLength(2);
+  expect(fake.credentials[1].password).toBe(fake.credentials[0].password);
+  expect(pending).toMatchObject({ status: "ACTIVE", passwordHash: originalHash });
+  expect(pending).not.toHaveProperty("credentialEnvelope");
+});
+
+it.each(["null", "missing"] as const)("preserves the hash if a modern account has a %s retry envelope", async (invalidEnvelope) => {
+  await submitAccountRequest({ fullName: "Malformed Copy", email: "malformed.copy@gmail.com" });
+  const requestId = String(fake.rows.identity_account_requests[0].id);
+  fake.failCredentials = true;
+  await expect(decideAccountRequest(requestId, "APPROVE", "admin@gmail.com")).rejects.toMatchObject({ code: "ACCOUNT_CREDENTIAL_EMAIL_FAILED" });
+  const account = fake.rows.identity_password_accounts[0];
+  const hash = account.passwordHash;
+  if (invalidEnvelope === "null") account.credentialEnvelope = null;
+  else delete account.credentialEnvelope;
+  fake.failCredentials = false;
+  await expect(decideAccountRequest(requestId, "APPROVE", "admin@gmail.com")).rejects.toMatchObject({ code: "ACCOUNT_CREDENTIAL_RECOVERY_REQUIRED" });
+  expect(account).toMatchObject({ status: "PENDING_DELIVERY", passwordHash: hash });
+  expect(account.credentialEnvelope).toBe(invalidEnvelope === "null" ? null : undefined);
+  expect(fake.credentials).toHaveLength(0);
+});
+
+it.each(["APPROVE", "REJECT"] as const)("only the current %s attempt can release its lease or finalize its result", async (decision) => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  await submitAccountRequest({ fullName: "Delayed Send", email: "slow.send@gmail.com" });
+  const request = fake.rows.identity_account_requests[0];
+  const original = Promise.withResolvers<void>();
+  const retry = Promise.withResolvers<void>();
+  const firstStarted = Promise.withResolvers<void>();
+  const retryStarted = Promise.withResolvers<void>();
+  const mailer = decision === "APPROVE" ? vi.mocked(sendIssuedCredentials) : vi.mocked(sendAccountRequestRejected);
+  mailer.mockImplementationOnce(async () => { firstStarted.resolve(); await original.promise; });
+  mailer.mockImplementationOnce(async () => { retryStarted.resolve(); await retry.promise; });
+  const firstResult = decideAccountRequest(String(request.id), decision, "first-admin").catch((error: unknown) => error);
+  await firstStarted.promise;
+  vi.setSystemTime(Date.now() + 121_000);
+  await expect(decideAccountRequest(String(request.id), decision === "APPROVE" ? "REJECT" : "APPROVE", "second-admin"))
+    .rejects.toMatchObject({ code: "ACCOUNT_REQUEST_ALREADY_DECIDED" });
+  const secondResult = decideAccountRequest(String(request.id), decision, "second-admin");
+  await retryStarted.promise;
+  if (decision === "APPROVE") original.resolve();
+  else original.reject(new Error("Late SMTP failure"));
+  expect(await firstResult).toBeInstanceOf(Error);
+  expect((await listAccountRequests("pending", 1)).items[0].status).toBe("PROCESSING");
+  if (decision === "APPROVE") expect(fake.rows.identity_password_accounts[0].status).toBe("PENDING_DELIVERY");
+
+  retry.resolve();
+  await secondResult;
+  expect(request.notificationStatus).toBe("SENT");
+  expect(request.processingUntil).toBeUndefined();
+  expect(fake.rows.identity_audit.at(-1)).toMatchObject({ actor: "second-admin", subject: request.id });
+});
+
 it("shows active approval and rejection email sends as processing, then recovers expired leases", async () => {
   const approvalId = "00000000-0000-4000-8000-000000000001";
   const rejectionId = "00000000-0000-4000-8000-000000000002";
@@ -372,6 +554,8 @@ it("shows active approval and rejection email sends as processing, then recovers
   await decideAccountRequest(approvalId, "APPROVE", "admin@gmail.com");
   await decideAccountRequest(rejectionId, "REJECT", "admin@gmail.com");
   await decideAccountRequest(approvedRetryId, "APPROVE", "admin@gmail.com");
+  expect(fake.rows.identity_audit.filter((entry) => entry.action === "ACCOUNT_CREDENTIAL_REPLACED"))
+    .toMatchObject([{ subject: approvedRetryId }]);
   await decideAccountRequest(rejectedRetryId, "REJECT", "admin@gmail.com");
   expect((await listAccountRequests("all", 1)).items.map((item) => item.status))
     .toEqual(["ISSUED", "REJECTED", "ISSUED", "REJECTED"]);
@@ -405,4 +589,8 @@ it("records a rejection, sends a fixed outcome email and allows retry if deliver
   });
   expect(fake.rows.identity_password_accounts ?? []).toHaveLength(0);
   expect((await listAccountRequests("all", 1)).items).toMatchObject([{ status: "REJECTED" }]);
+  await expect(authenticatePasswordAccount({ employeeId: fake.rejections[0].email, password: randomUUID() },
+    new Request("http://localhost/api/identity/login", { headers: { "x-real-ip": "127.0.0.1" } })))
+    .rejects.toMatchObject({ code: "INVALID_CREDENTIALS", status: 401 });
+  expect(fake.rows.identity_sessions ?? []).toHaveLength(0);
 });

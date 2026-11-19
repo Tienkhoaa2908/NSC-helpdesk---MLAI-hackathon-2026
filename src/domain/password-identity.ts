@@ -1,11 +1,13 @@
 import { z } from "zod";
+import { employeeIdPattern, normalizeEmployeeId } from "./employee-identity";
 
 export const loginIdSchema = z.string().trim().min(3).max(254).transform((value) => value.toLowerCase());
 
 export const accountRequestSchema = z.object({
   fullName: z.string().trim().min(2).max(120).transform((value) => value.normalize("NFC").replace(/\s+/g, " ")),
-  email: z.string().trim().email().max(254).transform((value) => value.toLowerCase())
-    .refine((value) => value.endsWith("@gmail.com"), "Chỉ chấp nhận địa chỉ Gmail."),
+  email: z.string().trim().email().max(254).transform(normalizeEmployeeId)
+    .refine((value) => value.endsWith("@gmail.com"), "Chỉ chấp nhận địa chỉ Gmail.")
+    .refine((value) => employeeIdPattern.test(value), "Phần trước @gmail.com phải bắt đầu bằng chữ hoặc số và có tối đa 64 ký tự."),
 }).strict();
 
 export const passwordLoginSchema = z.object({

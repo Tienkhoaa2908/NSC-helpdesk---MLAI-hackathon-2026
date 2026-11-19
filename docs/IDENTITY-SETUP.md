@@ -5,7 +5,7 @@
 ## Luồng cấp tài khoản
 
 1. Người dùng gửi họ tên và Gmail ở mục **Nhân viên mới?**. Server kiểm tra dữ liệu rồi lưu đơn chờ trong MongoDB. Đơn được giữ lại nếu email thông báo bị lỗi hoặc không xác nhận được.
-2. Khi email được bật và cấu hình gửi thư hoàn tất, server gửi thông báo cố định đến hộp thư Admin. Thư ghi tên, email/ID dự kiến, mã đơn và nút mở trang **Cấp ID nhân viên**. Admin có thể gửi lại thông báo từ cùng dòng đơn.
+2. Sau khi đã lưu đơn, API trả HTTP 202. Khi email được bật và cấu hình gửi thư hoàn tất, server tiếp tục gửi thông báo cố định đến hộp thư Admin. Thư ghi tên, email/ID dự kiến, mã đơn và nút mở trang **Cấp ID nhân viên**. Admin có thể gửi lại thông báo từ cùng dòng đơn.
 3. Nút trong email chỉ mở trang Admin, thao tác GET không thay đổi trạng thái. Admin đăng nhập, kiểm tra đơn rồi chọn **Xác nhận cấp tài khoản** hoặc **Từ chối yêu cầu**. Quyết định đầu tiên được khóa, lần thử lại chỉ gửi lại cùng quyết định.
 4. Khi xác nhận, server tạo mật khẩu demo ngẫu nhiên dưới dạng chuỗi đúng năm chữ số, có thể có số 0 ở đầu. Server lưu hash bcrypt cùng một bản mã hóa AES-256-GCM để gửi lại cùng mật khẩu nếu kết quả SMTP hoặc Mongo chưa xác nhận được. Tài khoản vẫn chưa hoạt động trong thời gian này. Khi SMTP chấp nhận thông điệp và Mongo cập nhật trạng thái thành công trong cùng transaction, tài khoản chuyển sang ACTIVE và bản mã hóa bị xóa.
 5. Khi từ chối, hệ thống ghi quyết định vào audit và gửi email thông báo cố định. Lỗi hoặc trạng thái gửi chưa rõ được giữ lại để Admin có thể thử lại cùng quyết định.
@@ -17,7 +17,7 @@ Biểu mẫu công khai trả cùng xác nhận cho Gmail mới, đang có đơn
 
 ## Phiên đăng nhập
 
-Sau khi đăng nhập, trình duyệt nhận cookie phiên HttpOnly, SameSite=Lax và Secure trên Production. Cookie không có Max-Age để thuộc phiên trình duyệt, MongoDB lưu hash của token cùng thời hạn server-side tám giờ. Header hiện ID đang đăng nhập và cung cấp nút đăng xuất. Đăng xuất thu hồi phiên trong MongoDB và xóa cookie. Việc đóng cửa sổ không đảm bảo xóa cookie trên trình duyệt có khôi phục phiên, thời hạn server-side vẫn được áp dụng.
+Sau khi đăng nhập, trình duyệt nhận cookie phiên HttpOnly, SameSite=Lax và Secure trên Production. Cookie không có Max-Age để thuộc phiên trình duyệt, MongoDB lưu hash của token cùng thời hạn server-side tám giờ. Header hiện ID đang đăng nhập và cung cấp nút đăng xuất. Đăng xuất thu hồi phiên và ghi audit trong cùng transaction MongoDB. Trình duyệt chỉ xóa cookie sau khi server xác nhận. Nếu chưa nhận được xác nhận, hãy bấm Đăng xuất lần nữa. Việc đóng cửa sổ không đảm bảo xóa cookie trên trình duyệt có khôi phục phiên, thời hạn server-side vẫn được áp dụng.
 
 ID Admin và mật khẩu được cấu hình phía server. ID dùng giá trị IDENTITY_ADMIN_ID, nếu để trống, ứng dụng dùng IDENTITY_ADMIN_EMAIL. Không tạo Admin trong collection nhân viên, không đưa mật khẩu vào source code, chat, URL hoặc log. Mật khẩu Admin đã được chia sẻ trong chat trước đây không được dùng lại, hãy thay bằng một mật khẩu mới trước khi bật đăng nhập Admin.
 
@@ -125,7 +125,7 @@ Tạo khóa cục bộ rồi dán thẳng vào Vercel Production, không gửi q
 node -e "console.log(require('node:crypto').randomBytes(32).toString('base64'))"
 ```
 
-Giữ nguyên khóa khi còn request ở `PENDING_DELIVERY`. Đổi khóa khi còn credential chờ khiến lần retry phải thay mật khẩu trước khi gửi lại. Sau khi account được kích hoạt, bản credential mã hóa đã bị xóa.
+Giữ nguyên khóa khi còn tài khoản ở `PENDING_DELIVERY`. Nếu khóa sai, bản mã bị hỏng hoặc không khớp với hash, hệ thống dừng gửi, giữ nguyên hash và ghi audit. Nếu đã đổi nhầm khóa, khôi phục khóa gốc và tạo deployment mới trước khi thử lại. Nếu mất khóa gốc, lần gửi lại vẫn bị chặn. Chỉ bản ghi cũ chưa từng có bản mã, không có dấu vết chuẩn bị bản mã trong audit và còn chờ kích hoạt mới được tạo credential thay thế có ghi audit.
 
 Không đặt biến bí mật trong NEXT_PUBLIC_*, Git, README hoặc log. Chỉ cấu hình biến Production sau khi xác nhận project Vercel cá nhân đang được chọn.
 
@@ -144,10 +144,16 @@ Plugin Gmail trong Codex chỉ cho phép thao tác Gmail của tài khoản đan
 
 Google yêu cầu 2-Step Verification cho App Password và khuyến nghị dùng Google sign-in khi ứng dụng hỗ trợ. Gmail SMTP cũng hỗ trợ OAuth 2.0, nếu App Password không dùng được thì có thể triển khai OAuth token cho SMTP mà không cần đổi sang Gmail API. Gmail API OAuth là phương án khác nhưng cần API enablement, consent, token refresh/storage và thêm xử lý quota. Vercel hỗ trợ SMTP trên Node.js qua cổng 465 hoặc 587, gửi phải được `await`, và ứng dụng tự quản lý retry. Gmail quota và chính sách tài khoản vẫn áp dụng. Xem [hướng dẫn App Password](https://support.google.com/accounts/answer/185833?hl=vi), [Gmail SMTP và OAuth](https://developers.google.com/workspace/gmail/imap/imap-smtp), [Gmail API gửi thư](https://developers.google.com/workspace/gmail/api/guides/sending), [tài liệu SMTP của Vercel](https://vercel.com/kb/guide/serverless-functions-and-smtp) và [ghi chú nghiên cứu onboarding](IDENTITY-ONBOARDING-RESEARCH.md).
 
+## Nghiệm thu trên website cá nhân
+
+Tại lần kiểm tra ngày 19/11/2026, Vercel đã ghi nhận khóa mã hóa và cờ bật email ở phạm vi Production. Giá trị SMTP và mật khẩu Admin nằm trong cấu hình riêng của chủ tài khoản. Lượt kiểm tra này chưa xác minh hai hộp thư hoặc đăng nhập bằng mật khẩu nhận qua email.
+
+Đăng nhập Admin, mở đúng đơn đã có rồi đối chiếu mã đơn với thư thông báo. Nếu cần, dùng nút gửi lại trên chính đơn đó. Sau khi Admin chọn duyệt, kiểm tra thư cấp tài khoản trong Inbox hoặc Spam rồi dùng thông tin trong thư đăng nhập và mở **Gửi yêu cầu**. Chỉ ghi lại tiêu đề, thời điểm, thư mục và kết quả đăng nhập.
+
 ## Giới hạn vận hành
 
 - Mật khẩu năm chữ số và tài khoản guest01 / 12345 chỉ dành cho demo dữ liệu synthetic.
-- Credential chỉ được lưu mã hóa trong lúc tài khoản còn `PENDING_DELIVERY`, sau khi kích hoạt bản mã hóa bị xóa. Nếu mất hoặc đổi khóa khi còn credential chờ, hệ thống phải thay credential trước lần gửi tiếp theo, tài khoản cũ vẫn chưa hoạt động.
+- Nếu Mongo mất phản hồi xác nhận commit, tải lại đơn và chọn bộ lọc **Tất cả**. Đơn đã cấp có thể đã hoàn tất cả kích hoạt và xóa bản mã. Nếu đơn còn chờ, Admin chỉ gửi lại theo quyết định đã khóa sau khi lượt xử lý trước hết hạn (hai phút).
 - Gửi email không đảm bảo Inbox placement. `SENT` chỉ phản ánh SMTP acceptance, không phải xác minh người nhận đã đọc hoặc email được giao cuối cùng.
 - Email yêu cầu do người dùng nhập chưa chứng minh danh tính hoặc quan hệ lao động.
 - Hộp thư Admin và database chứa họ tên/email, chỉ Admin được phép đọc danh sách đơn.

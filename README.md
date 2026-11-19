@@ -33,7 +33,7 @@ I contributed to the UI/UX design for request submission, preview and confirmati
 
 ### Employee identity and account lifecycle
 
-I built the demo employee-account workflow: an applicant submits a name and Gmail address, and the server stores a pending request in MongoDB. A valid request form response is the same whether the address is new, already pending or already active, so it does not reveal an account's status, repeated requests do not create duplicates. When SMTP, Admin and the credential-encryption key are configured and email is enabled, the server sends the owner a fixed bilingual notice. If email status is uncertain, the request remains stored under the same ID and an Admin can retry the notice. The email link only opens the private Admin request list. An authenticated Admin must sign in and explicitly approve or reject the request, and the first decision is locked. Approval uses the applicant's Gmail address as the login ID and generates a cryptographically random five-digit demo password, including a possible leading zero. The server stores a bcrypt hash and an AES-256-GCM encrypted retry copy while the account is inactive. A retry sends the same password. After SMTP accepts the credential email, one Mongo transaction activates the account and removes the encrypted copy. Rejections, uncertain delivery and retries are recorded in the audit log. SMTP acceptance does not prove inbox delivery. Login uses opaque server-side sessions with an eight-hour expiry and an HttpOnly session cookie. Signing out revokes the session. This demonstrates account lifecycle mechanics and is not production IAM or identity verification. See [`account-requests.ts`](src/services/account-requests.ts), [`identity-auth.ts`](src/lib/identity-auth.ts), [account setup](docs/IDENTITY-SETUP.md) and the [onboarding research note](docs/IDENTITY-ONBOARDING-RESEARCH.md).
+I built the demo employee-account workflow: an applicant submits a name and Gmail address, and the server stores a pending request in MongoDB. A valid request form response is the same whether the address is new, already pending or already active, so it does not reveal an account's status. Repeated requests do not create duplicates. When SMTP, Admin and the credential-encryption key are configured and email is enabled, the server sends the owner a fixed bilingual notice. If email status is uncertain, the request remains stored under the same ID and an Admin can retry the notice. The email link only opens the private Admin request list. An authenticated Admin must sign in and explicitly approve or reject the request, and the first decision is locked. Approval uses the applicant's Gmail address as the login ID and generates a cryptographically random five-digit demo password, including a possible leading zero. The server stores a bcrypt hash and an AES-256-GCM encrypted retry copy while the account is inactive. A retry sends the same password. After SMTP accepts the credential email, one Mongo transaction activates the account and removes the encrypted copy. Rejections, uncertain delivery and retries are recorded in the audit log. SMTP acceptance does not prove inbox delivery. Login uses opaque server-side sessions with an eight-hour expiry and an HttpOnly session cookie. Signing out revokes the session. This demonstrates account lifecycle mechanics and is not production IAM or identity verification. See [`account-requests.ts`](src/services/account-requests.ts), [`identity-auth.ts`](src/lib/identity-auth.ts), [account setup](docs/IDENTITY-SETUP.md) and the [onboarding research note](docs/IDENTITY-ONBOARDING-RESEARCH.md).
 
 ### Support API and response orchestration
 
@@ -55,7 +55,7 @@ Eligible requests are grouped by a recognized FAQ topic or a site-scoped inciden
 
 - **Application:** Next.js App Router, React and TypeScript.
 - **Model assistance:** Gemini supports structured request extraction and response drafting through the model adapter. The server validates outputs and retains final policy control. Google Search grounding is optional and separately configured.
-- **Policy and safety:** Versioned deterministic rules handle risk, missing facts, authority and routing. Retrieval uses the application knowledge base, source and answer checks run before guidance is shown.
+- **Policy and safety:** Versioned deterministic rules handle risk, missing facts, authority and routing. Retrieval uses the application knowledge base. Source and answer checks run before guidance is shown.
 - **Persistence:** MongoDB stores support requests, events, incident groups, Verify runs and Identity records. Support and Identity can use separate configured databases.
 - **Employee access:** Applicants submit a name and Gmail address. The public form returns the same confirmation for a new, pending or active address, and repeated submissions do not create duplicate requests. When email is enabled and all required mail settings are configured, the system sends a fixed bilingual notice with a link to the Admin-only request list. An authenticated Admin explicitly approves or rejects the request, and the first decision is locked. If email status is uncertain, the request remains saved for a same-ID retry. On approval, the server uses Gmail as the login ID and generates a cryptographically random five-digit demo password, including leading zeroes. It stores a bcrypt hash and an AES-256-GCM encrypted retry copy while the account is inactive. A retry sends the same password, and activation deletes the encrypted copy in the same Mongo transaction that completes the request. SMTP acceptance does not prove inbox delivery. Sessions use opaque tokens stored as hashes, expire after eight hours on the server, and use HttpOnly cookies. Signing out revokes the session. In `public-demo`, authenticated requester accounts can explore Support review, audit and Verify, but their reviewer data scope is limited to known server-created Verify fixtures. Ordinary requests stay hidden from public reviewer access, while senders retain their own tracking links. Identity request data and decisions are Admin-only. The public demo account is `guest01 / 12345`.
 - **Requester tracking:** The server derives a stable HMAC token from a dedicated secret and request ID, and MongoDB stores only its hash. At submission, the browser also supplies a random recovery proof whose hash is stored separately. The receipt-recovery endpoint uses that proof only after an ambiguous submission. Tracking and follow-up routes require the token. Support reviewer access requires an authenticated account in public-demo mode. Identity request APIs remain Admin-only.
@@ -114,15 +114,17 @@ The English view translates the same entry points and help content.
 
 ![Employee ID and password sign-in on the official website](docs/images/official-login.png)
 
-Employees sign in with an issued ID or email and password. The public `guest01 / 12345` account can explore the Support review workspace in `public-demo` mode, where it can read and change only requests linked to known server-created Verify fixtures. Ordinary employee requests remain hidden from public reviewer accounts, each sender can still access their own case through its tracking link.
+Employees sign in with an issued ID or email and password. The public `guest01 / 12345` account can explore the Support review workspace in `public-demo` mode, where it can read and change only requests linked to known server-created Verify fixtures. Ordinary employee requests remain hidden from public reviewer accounts. Each sender can still access their own case through its tracking link.
 
 ![New account request form on the official website](docs/images/official-registration.png)
 
-The request form collects a full name and Gmail address. It returns the same confirmation for a new, pending or active address, and repeated submissions do not create duplicate records or disclose account status. When email is enabled and all required mail settings are configured, the owner notification opens the private Admin list. After an Admin explicitly approves the request, the system emails a random five-digit demo password, Gmail becomes the employee login ID. The request remains saved if email is disabled or delivery fails, and the account is activated only after the credential email succeeds.
+The request form collects a full name and Gmail address. It returns the same confirmation for a new, pending or active address, and repeated submissions do not create duplicate records or disclose account status. When email is enabled and all required mail settings are configured, the owner notification opens the private Admin list. After an Admin explicitly approves the request, the system emails a random five-digit demo password to the applicant. The Gmail address becomes the employee login ID. The request remains saved if email is disabled or delivery fails, and the account is activated only after the credential email succeeds.
 
 ![English account request form](docs/images/official-registration-en.png)
 
 The same account request is available in English from the language switch.
+
+Production mailbox receipt and sign-in with the emailed credential are pending verification. [Account setup and release checks](docs/IDENTITY-SETUP.md)
 
 ### Requester workflow
 
@@ -142,7 +144,7 @@ The Admin guide covers queue triage, evidence review, allowed actions, incident 
 
 ![Admin guide in English](docs/images/official-admin-guide-en.png)
 
-When email is enabled and all required mail settings are configured, the owner-only identity request list supports explicit approval, rejection and safe retries. The notification email only opens the list, an authenticated Admin must choose an action. Approval emails a random five-digit demo password and uses the applicant’s Gmail address as the login ID. An inactive account keeps an encrypted retry copy until SMTP acceptance and the activation transaction complete, so retries reuse the same password. Email status reflects SMTP acceptance, not inbox delivery. Applicant Gmail is not independently verified. This demo is not a substitute for an organization’s IAM or HR verification process.
+When email is enabled and all required mail settings are configured, the owner-only identity request list supports explicit approval, rejection and safe retries. The notification email opens the list. An authenticated Admin must choose an action. Approval emails a random five-digit demo password and uses the applicant’s Gmail address as the login ID. An inactive account keeps an encrypted retry copy until SMTP acceptance and the activation transaction complete, so retries reuse the same password. Email status reflects SMTP acceptance, not inbox delivery. Applicant Gmail is not independently verified. This demo is not a substitute for an organization’s IAM or HR verification process.
 
 ## Run locally
 
@@ -167,7 +169,7 @@ npm run build
 ```
 
 The full release and persistence checks are documented in the [runbook](RUNBOOK.md).
-CI runs unit tests, documentation checks, lint, type checking, production build and desktop/mobile end-to-end tests. A separate workflow runs clean `npm ci` on Linux and Windows. Mongo restart persistence is opt-in in hosted CI and is skipped unless an isolated test URI and acknowledgement are configured, a passing badge does not claim live Mongo restart verification.
+CI runs unit tests, documentation checks, lint, type checking, production build and desktop/mobile end-to-end tests. A separate workflow runs clean `npm ci` on Linux and Windows. Mongo restart persistence is opt-in in hosted CI and is skipped unless an isolated test URI and acknowledgement are configured. The CI badge therefore does not establish whether the restart check ran.
 
 ## Documentation
 
@@ -180,7 +182,7 @@ CI runs unit tests, documentation checks, lint, type checking, production build 
 
 ## Demo scope
 
-This is a demonstration system, not organization-wide IAM. Account applications collect a user-supplied name and Gmail address, the address is not independently verified before issuance. Identity requests and decisions are Admin-only. In `public-demo` mode, authenticated requester accounts can use the Support review workspace only for requests linked to known server-created Verify fixtures. Ordinary employee requests are hidden from public reviewer accounts, senders can still use their own tracking links. The public requester demo uses `guest01 / 12345`, five-digit passwords are for demonstration only. Do not submit company-confidential data.
+This is a demonstration system, not organization-wide IAM. Applicants supply a name and Gmail address. The system does not independently verify the address before issuance. Identity requests and decisions are Admin-only. In `public-demo` mode, authenticated requester accounts can use the Support review workspace only for requests linked to known server-created Verify fixtures. Ordinary employee requests are hidden from public reviewer accounts. Senders can still use their own tracking links. The public requester demo uses `guest01 / 12345`. Five-digit passwords are for demonstration only. Do not submit company-confidential data.
 
 ## Original competition repository
 
@@ -298,6 +300,8 @@ Biểu mẫu nhận họ tên và Gmail, trả cùng xác nhận cho địa ch�
 ![Biểu mẫu yêu cầu cấp tài khoản bằng tiếng Anh](docs/images/official-registration-en.png)
 
 Người dùng có thể chuyển biểu mẫu sang tiếng Anh bằng nút đổi ngôn ngữ.
+
+Việc nhận thư trong hộp thư thật và đăng nhập bằng mật khẩu trong thư đang chờ xác minh trên Production. [Hướng dẫn nghiệm thu](docs/IDENTITY-SETUP.md)
 
 ### Luồng nhân viên
 

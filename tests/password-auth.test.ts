@@ -1,9 +1,10 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { compare } from "bcryptjs";
 import { authenticatePasswordAccount, allowlistedAdminNext } from "@/services/password-auth";
-import { identityPrincipalForRequest, identitySessionCookie } from "@/lib/identity-auth";
+import { createHash } from "node:crypto";
+import { identityPrincipalForRequest, identitySessionCookie, logoutIdentity } from "@/lib/identity-auth";
 
-const fake = vi.hoisted(() => ({ rows: {} as Record<string, Record<string, unknown>[]> }));
+const fake = vi.hoisted(() => ({ rows: {} as Record<string, Record<string, unknown>[]>, failRevoke: false }));
 
 function matches(row: Record<string, unknown>, query: Record<string, unknown>) {
   return Object.entries(query).every(([key, expected]) => {
@@ -45,11 +46,11 @@ const db = {
         if (row) apply(row, update);
         return structuredClone(row ?? null);
       },
-      deleteOne: async (query: Record<string, unknown>) => {
+      findOneAndDelete: async (query: Record<string, unknown>) => {
+        if (fake.failRevoke) throw new Error("Store unavailable");
         const index = rows.findIndex((candidate) => matches(candidate, query));
-        if (index < 0) return { deletedCount: 0 };
-        rows.splice(index, 1);
-        return { deletedCount: 1 };
+        if (index < 0) return null;
+        return rows.splice(index, 1)[0];
       },
     };
   },
@@ -65,6 +66,7 @@ const cookieRequest = (token: string) => new Request("http://localhost/api/ident
 
 beforeEach(() => {
   fake.rows = {};
+  fake.failRevoke = false;
   vi.unstubAllEnvs();
 });
 afterEach(() => vi.restoreAllMocks());
@@ -113,4 +115,27 @@ it("issues an opaque HttpOnly cookie and marks it Secure in production", () => {
   expect(cookie).toContain("Secure");
   expect(cookie).not.toContain("Max-Age");
   expect(identitySessionCookie("", true)).toContain("Max-Age=0");
+});
+
+it("rejects expired sessions even before the Mongo TTL cleanup runs", async () => {
+  const { token } = await authenticatePasswordAccount({ employeeId: "guest01", password: "12345" }, loginRequest());
+  const session = fake.rows.identity_sessions[0];
+  expect(session.hash).toBe(createHash("sha256").update(token).digest("hex"));
+  expect(JSON.stringify(session)).not.toContain(token);
+  expect(Number(session.expiresAt) - Number(session.createdAt)).toBe(8 * 60 * 60_000);
+  session.expiresAt = new Date(0);
+  await expect(identityPrincipalForRequest(cookieRequest(token))).rejects.toMatchObject({ status: 401 });
+});
+
+it("reports unconfirmed logout, then revokes the same session once on retry", async () => {
+  const { token } = await authenticatePasswordAccount({ employeeId: "guest01", password: "12345" }, loginRequest());
+  const request = cookieRequest(token);
+  fake.failRevoke = true;
+  await expect(logoutIdentity(request)).rejects.toMatchObject({ code: "IDENTITY_LOGOUT_UNCONFIRMED", status: 503 });
+  await expect(identityPrincipalForRequest(request)).resolves.toMatchObject({ id: "guest01" });
+  fake.failRevoke = false;
+  await logoutIdentity(request);
+  await logoutIdentity(request);
+  await expect(identityPrincipalForRequest(request)).rejects.toMatchObject({ status: 401 });
+  expect(fake.rows.identity_audit.filter(row => row.action === "SESSION_REVOKED")).toHaveLength(1);
 });

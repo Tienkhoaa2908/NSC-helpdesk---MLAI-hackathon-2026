@@ -2,7 +2,7 @@ import { fieldOptions } from "./catalog";
 
 // Legacy employee IDs remain short slugs. Password accounts use a normalized
 // Gmail address as their employee ID.
-export const employeeIdPattern = /^(?:[a-z0-9][a-z0-9_-]{0,31}|[a-z0-9][a-z0-9._%+-]{0,63}@gmail\.com)$/;
+export const employeeIdPattern = /^(?:[a-z0-9][a-z0-9_-]{0,31}|[a-z0-9][a-z0-9._%+'-]{0,63}@gmail\.com)$/;
 
 export function normalizeEmployeeId(value: string) {
   return value.trim().toLocaleLowerCase("en-US");

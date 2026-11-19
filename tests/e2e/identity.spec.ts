@@ -31,12 +31,17 @@ test("home exposes sign-in, registration and a persistent English switch", async
 
 test("employee sign-in sends the employee ID and password, then opens the protected requester form", async ({ requesterPage: page }) => {
   let signedIn = false;
+  let logoutAttempts = 0;
   await page.route("**/api/identity/session", (route) => signedIn
     ? route.fulfill({ json: { success: true, data: { status: "ACTIVE", id: "guest01", name: "Tài khoản trải nghiệm", email: null } } })
     : route.fulfill({ status: 401, json: { success: false, error: { code: "AUTHENTICATION_REQUIRED", message: "Sign in." } } }));
   await page.route("**/api/identity/logout", (route) => {
+    logoutAttempts += 1;
+    if (logoutAttempts === 1) return route.fulfill({ status: 503, json: {
+      success: false, error: { code: "IDENTITY_STORAGE_UNAVAILABLE", message: "Session store unavailable." },
+    } });
     signedIn = false;
-    return route.fulfill({ json: { success: true, data: { loggedOut: true } } });
+    return route.fulfill({ json: { success: true, data: { signedOut: true } } });
   });
   await page.route("**/api/identity/login", async (route) => {
     expect(route.request().postDataJSON()).toEqual({ employeeId: "guest01", password: "12345" });
@@ -65,7 +70,12 @@ test("employee sign-in sends the employee ID and password, then opens the protec
   await page.getByRole("link", { name: "Tôi cần hỗ trợ", exact: true }).click();
   await expect(page).toHaveURL(/\/send-help$/);
   await expect(page.getByRole("heading", { name: "Tôi cần hỗ trợ" })).toBeVisible();
-  await page.getByRole("navigation", { name: "Điều hướng chính" }).getByRole("button", { name: "Đăng xuất", exact: true }).click();
+  const signOutButton = page.getByRole("navigation", { name: "Điều hướng chính" }).getByRole("button", { name: "Đăng xuất", exact: true });
+  await signOutButton.click();
+  await expect(page.getByRole("alert").filter({ hasText: /đăng xuất/i })).toBeVisible();
+  await expect(page).toHaveURL(/\/send-help$/);
+  await expect(page.getByText("ID: guest01")).toBeVisible();
+  await signOutButton.click();
   await expect(page).toHaveURL(/\/$/);
   await expect(page.getByRole("link", { name: "Đăng nhập", exact: true })).toBeVisible();
 });
@@ -183,7 +193,7 @@ test("registration confirmation does not disclose request or email status", asyn
   await expect(page.getByText("12345", { exact: true })).toBeVisible();
 });
 
-test("Admin can explicitly approve or reject identity requests", async ({ page }) => {
+test("Admin can cancel confirmation and explicitly reject an account request", async ({ page }) => {
   await page.route("**/api/identity/review?*", (route) => route.fulfill({ json: {
     success: true,
     data: { items: [{ id: "e2e-application", fullName: "Synthetic Test Requester", email: "requester.e2e.000001@gmail.com", status: "PENDING", createdAt: "2026-11-18T00:00:00.000Z", updatedAt: "2026-11-18T00:00:00.000Z" }], hasMore: false },
@@ -191,7 +201,7 @@ test("Admin can explicitly approve or reject identity requests", async ({ page }
   let decisionBody: unknown;
   await page.route("**/api/identity/review/decision", async (route) => {
     decisionBody = route.request().postDataJSON();
-    await route.fulfill({ json: { success: true, data: { status: "APPROVED", email: "requester.e2e.000001@gmail.com" } } });
+    await route.fulfill({ json: { success: true, data: { status: "REJECTED", email: "requester.e2e.000001@gmail.com" } } });
   });
   await page.goto("/identity/review");
   await expect(page.getByRole("heading", { name: "Yêu cầu cấp tài khoản" })).toBeVisible();
@@ -200,9 +210,35 @@ test("Admin can explicitly approve or reject identity requests", async ({ page }
   await expect(page.getByRole("button", { name: "Xác nhận cấp tài khoản" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Từ chối yêu cầu" })).toBeVisible();
   expect(decisionBody).toBeUndefined();
+  page.once("dialog", (dialog) => void dialog.dismiss());
+  await page.getByRole("button", { name: "Từ chối yêu cầu" }).click();
+  expect(decisionBody).toBeUndefined();
   page.once("dialog", (dialog) => void dialog.accept());
-  await page.getByRole("button", { name: "Xác nhận cấp tài khoản" }).click();
-  await expect.poll(() => decisionBody).toEqual({ id: "e2e-application", decision: "APPROVE" });
+  await page.getByRole("button", { name: "Từ chối yêu cầu" }).click();
+  await expect.poll(() => decisionBody).toEqual({ id: "e2e-application", decision: "REJECT" });
+});
+
+test("Admin can reach older requests and changing the filter resets the page", async ({ page }) => {
+  await page.route("**/api/identity/review?*", (route) => {
+    const query = new URL(route.request().url()).searchParams;
+    const number = Number(query.get("page") ?? 1);
+    const fullName = `Synthetic ${query.get("status")} page ${number}`;
+    return route.fulfill({ json: { success: true, data: {
+      items: [{ id: `e2e-${number}`, fullName, email: "pagination.e2e@gmail.com", status: "PENDING", retryAction: null, createdAt: "2026-11-18T00:00:00.000Z", updatedAt: "2026-11-18T00:00:00.000Z" }],
+      hasMore: number === 1,
+    } } });
+  });
+  await page.goto("/identity/review");
+  await expect(page.getByRole("heading", { name: "Synthetic pending page 1" })).toBeVisible();
+  const next = page.getByRole("button", { name: /trang sau|trang tiếp/i });
+  await next.click();
+  await expect(page.getByRole("heading", { name: "Synthetic pending page 2" })).toBeVisible();
+  await page.getByRole("button", { name: /trang trước/i }).click();
+  await expect(page.getByRole("heading", { name: "Synthetic pending page 1" })).toBeVisible();
+  await next.click();
+  await expect(page.getByRole("heading", { name: "Synthetic pending page 2" })).toBeVisible();
+  await page.getByRole("combobox", { name: "Lọc yêu cầu" }).selectOption("all");
+  await expect(page.getByRole("heading", { name: "Synthetic all page 1" })).toBeVisible();
 });
 
 test("Admin can retry the existing Admin notice without creating another request", async ({ page }) => {
@@ -223,23 +259,29 @@ test("Admin can retry the existing Admin notice without creating another request
   await expect(page.getByText(/Hộp thư chưa được kiểm tra/)).toBeVisible();
 });
 
-test("a failed approval exposes only the same-decision credential retry", async ({ page }) => {
+test("an uncertain approval refreshes the request and exposes only the matching credential retry", async ({ page }) => {
+  const decisions: unknown[] = [];
   await page.route("**/api/identity/review?*", (route) => route.fulfill({ json: {
     success: true,
-    data: { items: [{ id: "e2e-approval-retry", fullName: "Synthetic Credential Retry", email: "credential.retry.e2e@gmail.com", status: "DELIVERY_FAILED", retryAction: "APPROVE", createdAt: "2026-11-18T00:00:00.000Z", updatedAt: "2026-11-18T00:00:00.000Z" }], hasMore: false },
+    data: { items: [{ id: "e2e-approval-retry", fullName: "Synthetic Credential Retry", email: "credential.retry.e2e@gmail.com", status: decisions.length ? "DELIVERY_FAILED" : "PENDING", retryAction: decisions.length ? "APPROVE" : null, createdAt: "2026-11-18T00:00:00.000Z", updatedAt: "2026-11-18T00:00:00.000Z" }], hasMore: false },
   } }));
-  let decisionBody: unknown;
   await page.route("**/api/identity/review/decision", async (route) => {
-    decisionBody = route.request().postDataJSON();
+    decisions.push(route.request().postDataJSON());
+    if (decisions.length === 1) return route.fulfill({ status: 503, json: {
+      success: false, error: { code: "ACCOUNT_CREDENTIAL_EMAIL_UNCONFIRMED", message: "Email status unknown." },
+    } });
     await route.fulfill({ json: { success: true, data: { status: "APPROVED", email: "credential.retry.e2e@gmail.com" } } });
   });
   await page.goto("/identity/review");
+  page.once("dialog", (dialog) => void dialog.accept());
+  await page.getByRole("button", { name: "Xác nhận cấp tài khoản" }).click();
   await expect(page.getByRole("button", { name: "Gửi lại cùng mật khẩu" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Xác nhận cấp tài khoản" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Từ chối yêu cầu" })).toHaveCount(0);
   page.once("dialog", (dialog) => void dialog.accept());
   await page.getByRole("button", { name: "Gửi lại cùng mật khẩu" }).click();
-  await expect.poll(() => decisionBody).toEqual({ id: "e2e-approval-retry", decision: "APPROVE" });
+  const expectedDecision = { id: "e2e-approval-retry", decision: "APPROVE" };
+  await expect.poll(() => decisions).toEqual([expectedDecision, expectedDecision]);
 });
 
 test("authenticated requester can explore support review but not identity requests", async ({ requesterPage, requesterRequest }) => {

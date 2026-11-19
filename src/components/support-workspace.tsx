@@ -192,7 +192,7 @@ export function SupportWorkspace() {
   return (
     <main className="page page-narrow page-enter" data-guide-stage={preview ? "sender-preview" : "sender-form"}>
       <h1>{localized("Tôi cần hỗ trợ", "How can we help?", locale)}</h1>
-      {account && <Alert>{localized("Tài khoản nhân viên đang hoạt động · ID", "Employee account active · ID", locale)} {account.id}. <button type="button" className="identity-text-link" onClick={async () => { try { await identityApi("logout", {}); setAccount(null); edit({ fields: { ...input.fields, employeeId: "" } }); } catch (cause) { setError(localizedError(cause, locale, "Không thể đăng xuất. Hãy thử lại.", "Could not sign out. Please try again.")); } }}>{localized("Đăng xuất", "Sign out", locale)}</button></Alert>}
+      {account && <Alert>{localized("Tài khoản nhân viên đang hoạt động · ID", "Employee account active · ID", locale)} {account.id}. <button type="button" className="identity-text-link" onClick={async () => { try { await identityApi("logout", {}); window.location.assign("/"); } catch (cause) { setError(localizedError(cause, locale, "Không thể đăng xuất. Hãy thử lại.", "Could not sign out. Please try again.")); } }}>{localized("Đăng xuất", "Sign out", locale)}</button></Alert>}
       <p className="page-description">
         {localized("Bạn cứ mô tả vấn đề bằng lời của mình. Chúng tôi sẽ giúp bạn tìm hướng xử lý phù hợp.", "Describe the issue in your own words. We’ll help you find an appropriate next step.", locale)}
       </p>

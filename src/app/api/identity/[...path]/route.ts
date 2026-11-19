@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { after } from "next/server";
 import { successResponse } from "@/lib/api-response";
 import { identityClientRateLimitKey, identityPrincipalForRequest, identityRateLimit, identitySessionCookie, logoutIdentity, requireIdentitySession } from "@/lib/identity-auth";
 import { identityStore } from "@/lib/identity-store";
@@ -74,7 +75,7 @@ export async function POST(request: Request, context: Context) {
       await identityRateLimit(`account-request:client:${clientKey}`, 5, 60 * 60_000);
       const input = z.object({ fullName: z.string().trim().min(2).max(120), email: z.string().trim().email().max(254) }).strict().parse(await supportBody(request));
       await identityRateLimit(`account-request:email:${input.email.toLowerCase()}`, 2, 60 * 60_000);
-      return successResponse(await submitAccountRequest(input), { status: 202 });
+      return successResponse(await submitAccountRequest(input, after), { status: 202 });
     }
     if (route === "review/decision") {
       const { principal } = await requireIdentitySession(request, true);

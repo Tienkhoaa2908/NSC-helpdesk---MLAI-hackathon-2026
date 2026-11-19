@@ -185,15 +185,17 @@ export async function logoutIdentity(request: Request) {
   const token = sessionToken(request);
   if (!token) return;
   try {
-    const { db } = await identityStore();
-    const session = await db.collection<IdentitySession>("identity_sessions").findOne({ hash: hash(token) }, { projection: { _id: 0 } });
-    await db.collection<IdentitySession>("identity_sessions").deleteOne({ hash: hash(token) });
-    if (session) await db.collection("identity_audit").insertOne({
-      id: randomBytes(16).toString("hex"), at: new Date().toISOString(), actor: session.loginId,
-      action: "SESSION_REVOKED", subject: session.id, reason: "User signed out; opaque application session revoked.",
+    await identityTransaction(async (db, mongoSession) => {
+      const revoked = await db.collection<IdentitySession>("identity_sessions").findOneAndDelete(
+        { hash: hash(token) }, { session: mongoSession, projection: { loginId: 1, id: 1 } },
+      );
+      if (revoked) await db.collection("identity_audit").insertOne({
+        id: randomBytes(16).toString("hex"), at: new Date().toISOString(), actor: revoked.loginId,
+        action: "SESSION_REVOKED", subject: revoked.id, reason: "User signed out and the application session was revoked.",
+      }, { session: mongoSession });
     });
   } catch {
-    // The browser cookie is still cleared if the session store is unavailable.
+    throw new SupportError("IDENTITY_LOGOUT_UNCONFIRMED", "Chưa xác nhận được đăng xuất. Hãy thử lại.", 503);
   }
 }
 

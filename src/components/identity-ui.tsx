@@ -13,7 +13,7 @@ type IdentityResponse<T> = {
   error?: { code?: string; message?: string };
 };
 
-class IdentityApiError extends Error {
+export class IdentityApiError extends Error {
   constructor(message: string, readonly status: number) {
     super(message);
     this.name = "IdentityApiError";
@@ -40,8 +40,9 @@ const apiErrorCopy: Record<string, { vi: string; en: string }> = {
   ACCOUNT_OUTCOME_EMAIL_FAILED: { vi: "Chưa xác nhận được email kết quả. Yêu cầu đã khóa quyết định và có thể gửi lại.", en: "The result email status is unconfirmed. The decision is locked and can be retried." },
   ACCOUNT_OUTCOME_EMAIL_UNCONFIRMED: { vi: "Máy chủ email có thể đã nhận thông báo nhưng chưa lưu được trạng thái. Gửi lại cùng quyết định để đồng bộ.", en: "The email server may have accepted the notice, but the status was not saved. Retry the same decision to sync it." },
   ACCOUNT_CREDENTIAL_EMAIL_FAILED: { vi: "Chưa xác nhận được email đăng nhập. Tài khoản chưa hoạt động, lần thử lại sẽ dùng cùng mật khẩu.", en: "Credential email status is unconfirmed. The account is inactive, retry will use the same password." },
-  ACCOUNT_CREDENTIAL_EMAIL_UNCONFIRMED: { vi: "Email có thể đã được nhận nhưng chưa lưu được trạng thái. Tài khoản chưa hoạt động, hãy thử lại cùng mật khẩu.", en: "The email may have been accepted but its status was not saved. The account is inactive, retry with the same password." },
-  ACCOUNT_CREDENTIAL_RECOVERY_REQUIRED: { vi: "Chưa thể chuẩn bị thông tin đăng nhập an toàn. Liên hệ quản trị viên.", en: "Secure sign-in details could not be prepared. Contact the administrator." },
+  ACCOUNT_CREDENTIAL_EMAIL_UNCONFIRMED: { vi: "Máy chủ email có thể đã nhận thư. Kiểm tra trạng thái đơn trước khi thử lại.", en: "The mail server may have accepted the message. Check the request status before retrying." },
+  ACCOUNT_CREDENTIAL_RECOVERY_REQUIRED: { vi: "Chưa thể khôi phục mật khẩu đang chờ. Kiểm tra khóa mã hóa của deployment gốc trước khi gửi lại.", en: "The pending password could not be recovered. Check the original deployment’s encryption key before retrying." },
+  IDENTITY_LOGOUT_UNCONFIRMED: { vi: "Chưa xác nhận được đăng xuất. Hãy thử lại.", en: "Sign-out is unconfirmed. Please try again." },
   IDENTITY_CREDENTIAL_ENCRYPTION_NOT_CONFIGURED: { vi: "Thiếu khóa mã hóa credential. Kiểm tra cấu hình Production rồi thử lại.", en: "The credential encryption key is missing. Check Production settings and try again." },
   VALIDATION_ERROR: { vi: "Kiểm tra lại họ tên và địa chỉ Gmail.", en: "Check the name and Gmail address and try again." },
 };

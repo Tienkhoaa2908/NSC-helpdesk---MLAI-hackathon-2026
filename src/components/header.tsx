@@ -13,6 +13,8 @@ export function Header() {
   const path = usePathname();
   const { locale, setLocale } = useLocale();
   const [identity, setIdentity] = useState<HeaderIdentity | null>(null);
+  const [signingOut, setSigningOut] = useState(false);
+  const [signOutFailed, setSignOutFailed] = useState(false);
   const staff = /^\/(review|audit|verify|identity\/(review|authority))/.test(path);
   const supportPath = "/send-help";
   const openGuide = () => window.dispatchEvent(new Event("vng-open-guide"));
@@ -34,13 +36,17 @@ export function Header() {
   }, [path]);
 
   async function signOut() {
+    setSigningOut(true);
+    setSignOutFailed(false);
     try {
-      await fetch("/api/identity/logout", {
+      const response = await fetch("/api/identity/logout", {
         method: "POST", credentials: "same-origin", headers: { "content-type": "application/json" }, body: "{}",
       });
-    } finally {
-      setIdentity(null);
+      if (!response.ok || !(await response.json()).data?.signedOut) throw new Error("Logout unconfirmed");
       window.location.assign("/");
+    } catch {
+      setSignOutFailed(true);
+      setSigningOut(false);
     }
   }
 
@@ -72,7 +78,8 @@ export function Header() {
         </>}
         {identity ? <>
           <span className="identity-session-label">{localized("ID", "ID", locale)}: <strong>{identity.id}</strong></span>
-          <button className="identity-signout" type="button" onClick={() => void signOut()}>{localized("Đăng xuất", "Sign out", locale)}</button>
+          <button className="identity-signout" type="button" disabled={signingOut} onClick={() => void signOut()}>{localized("Đăng xuất", "Sign out", locale)}</button>
+          {signOutFailed && <span role="alert">{localized("Chưa xác nhận được đăng xuất. Hãy thử lại.", "Sign-out is unconfirmed. Please try again.", locale)}</span>}
         </> : path !== "/" && <Link href="/login">{localized("Đăng nhập", "Sign in", locale)}</Link>}
         <button
           className="button secondary locale-toggle"

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { identityApi } from "./identity-ui";
+import { identityApi, IdentityApiError } from "./identity-ui";
 import { Alert, Button } from "./ui";
 import { StaffWorkspace } from "./staff-workspace";
 import { localized, useLocale } from "@/i18n/locale";
@@ -34,22 +34,32 @@ export function IdentityReview() {
   const { locale } = useLocale();
   const [rows, setRows] = useState<AccountRequest[]>([]);
   const [status, setStatus] = useState<"pending" | "all">("pending");
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(false);
+  const [needsAdmin, setNeedsAdmin] = useState(false);
   const [busy, setBusy] = useState(false);
   const [workingId, setWorkingId] = useState("");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
 
-  const load = useCallback(async (nextStatus: "pending" | "all") => {
+  const load = useCallback(async (nextStatus: "pending" | "all", nextPage = 1) => {
     setBusy(true);
     setError("");
     setNotice("");
     try {
-      const result = await identityApi<{ items: AccountRequest[]; hasMore: boolean }>(`review?status=${nextStatus}`);
+      const result = await identityApi<{ items: AccountRequest[]; hasMore: boolean }>(`review?status=${nextStatus}&page=${nextPage}`);
       setRows(result.items);
       setStatus(nextStatus);
+      setPage(nextPage);
+      setHasMore(result.hasMore);
+      setNeedsAdmin(false);
+      return true;
     } catch (cause) {
       setRows([]);
+      setHasMore(false);
+      setNeedsAdmin(cause instanceof IdentityApiError && (cause.status === 401 || cause.status === 403));
       setError(cause instanceof Error ? cause.message : localized("Không tải được danh sách yêu cầu.", "Could not load account requests.", locale));
+      return false;
     } finally {
       setBusy(false);
     }
@@ -70,12 +80,12 @@ export function IdentityReview() {
     setNotice("");
     try {
       await identityApi<{ status: "APPROVED" | "REJECTED" }>("review/decision", { id: row.id, decision });
-      await load(status);
+      await load(status, page);
       setNotice(decision === "APPROVE"
         ? localized("Đã cấp tài khoản, máy chủ email đã nhận thông tin đăng nhập.", "The account is active and the email server accepted the sign-in details.", locale)
         : localized("Đã từ chối yêu cầu, máy chủ email đã nhận thông báo.", "The request was rejected and the email server accepted the notice.", locale));
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : localized("Không thể xử lý yêu cầu.", "Could not process the request.", locale));
+      if (await load(status, page)) setError(cause instanceof Error ? cause.message : localized("Không thể xử lý yêu cầu.", "Could not process the request.", locale));
     } finally {
       setWorkingId("");
     }
@@ -87,10 +97,10 @@ export function IdentityReview() {
     setNotice("");
     try {
       await identityApi<{ status: "SENT" }>("review/notification", { id: row.id });
-      await load(status);
+      await load(status, page);
       setNotice(localized("Máy chủ email đã nhận thông báo Admin. Hộp thư chưa được kiểm tra.", "The email server accepted the Admin notice. Inbox receipt was not checked.", locale));
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : localized("Không thể gửi lại thông báo.", "Could not resend the notice.", locale));
+      if (await load(status, page)) setError(cause instanceof Error ? cause.message : localized("Không thể gửi lại thông báo.", "Could not resend the notice.", locale));
     } finally {
       setWorkingId("");
     }
@@ -107,26 +117,26 @@ export function IdentityReview() {
             <h1>{localized("Yêu cầu cấp tài khoản", "Account requests", locale)}</h1>
             <p>{localized("Danh sách chỉ dành cho Admin. Email thông báo mở danh sách riêng. Để xác nhận hoặc từ chối, hãy đăng nhập Admin rồi bấm nút tương ứng.", "This list is private to the Admin. The notification email opens it. An Admin must sign in and choose an explicit action to approve or reject a request.", locale)}</p>
           </div>
-          <Button variant="secondary" disabled={busy} onClick={() => void load(status)}>
+          <Button variant="secondary" disabled={busy || Boolean(workingId)} onClick={() => void load(status, page)}>
             {busy ? localized("Đang tải…", "Loading…", locale) : localized("Tải lại danh sách", "Refresh", locale)}
           </Button>
         </header>
 
         <Alert>{localized("Liên kết trong email chỉ mở danh sách. Chỉ thao tác xác nhận hoặc từ chối tại màn hình này mới xử lý yêu cầu.", "The email link only opens the list. The request changes only after an explicit approval or rejection here.", locale)}</Alert>
 
-        {error && <Alert tone="error">{error} <Link className="identity-text-link" href="/login?next=%2Fidentity%2Freview">{localized("Đăng nhập bằng ID quản trị", "Sign in with the admin ID", locale)}</Link></Alert>}
+        {error && <Alert tone="error">{error} {needsAdmin && <Link className="identity-text-link" href="/login?next=%2Fidentity%2Freview">{localized("Đăng nhập bằng ID quản trị", "Sign in with the admin ID", locale)}</Link>}</Alert>}
         {notice && <Alert>{notice}</Alert>}
 
-        {!error && <>
+        {!needsAdmin && <>
           <label className="identity-filter">
             {localized("Trạng thái", "Status", locale)}
-            <select aria-label={localized("Lọc yêu cầu", "Filter requests", locale)} value={status} disabled={busy} onChange={(event) => void load(event.target.value as "pending" | "all")}>
+            <select aria-label={localized("Lọc yêu cầu", "Filter requests", locale)} value={status} disabled={busy || Boolean(workingId)} onChange={(event) => void load(event.target.value as "pending" | "all")}>
               <option value="pending">{localized("Chờ xử lý", "Pending", locale)}</option>
               <option value="all">{localized("Tất cả", "All", locale)}</option>
             </select>
           </label>
           <p role="status">{busy ? localized("Đang tải yêu cầu…", "Loading requests…", locale) : localized(`${rows.length} yêu cầu`, `${rows.length} requests`, locale)}</p>
-          {!busy && rows.length === 0 && <p>{localized("Chưa có yêu cầu trong mục này.", "There are no requests in this view.", locale)}</p>}
+          {!busy && !error && rows.length === 0 && <p>{localized("Chưa có yêu cầu trong mục này.", "There are no requests in this view.", locale)}</p>}
           <div className="identity-request-list">
             {rows.map((row) => (
               <article className="identity-card" key={row.id}>
@@ -170,6 +180,11 @@ export function IdentityReview() {
               </article>
             ))}
           </div>
+          {(hasMore || page > 1) && <nav className="identity-actions" aria-label={localized("Phân trang yêu cầu", "Request pages", locale)}>
+            <Button variant="secondary" disabled={page <= 1 || busy || Boolean(workingId)} onClick={() => void load(status, page - 1)}>{localized("Trang trước", "Previous page", locale)}</Button>
+            <span>{localized(`Trang ${page}`, `Page ${page}`, locale)}</span>
+            <Button variant="secondary" disabled={!hasMore || busy || Boolean(workingId)} onClick={() => void load(status, page + 1)}>{localized("Trang sau", "Next page", locale)}</Button>
+          </nav>}
         </>}
       </main>
     </StaffWorkspace>
