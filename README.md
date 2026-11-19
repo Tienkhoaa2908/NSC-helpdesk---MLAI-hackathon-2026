@@ -124,7 +124,7 @@ The request form collects a full name and Gmail address. It returns the same con
 
 The same account request is available in English from the language switch.
 
-Production mailbox receipt and sign-in with the emailed credential are pending verification. [Account setup and release checks](docs/IDENTITY-SETUP.md)
+On 20 November 2026, the bilingual request notice reached the Admin’s Gmail Inbox. The Admin approved the existing request on Production. The applicant confirmed that they received the account email, signed in with the issued credentials and opened the support request form. [Account setup and release checks](docs/IDENTITY-SETUP.md)
 
 ### Requester workflow
 
@@ -301,7 +301,7 @@ Biểu mẫu nhận họ tên và Gmail, trả cùng xác nhận cho địa ch�
 
 Người dùng có thể chuyển biểu mẫu sang tiếng Anh bằng nút đổi ngôn ngữ.
 
-Việc nhận thư trong hộp thư thật và đăng nhập bằng mật khẩu trong thư đang chờ xác minh trên Production. [Hướng dẫn nghiệm thu](docs/IDENTITY-SETUP.md)
+Ngày 20/11/2026, thông báo song ngữ đã vào Hộp thư đến của Admin. Admin duyệt đơn hiện có trên Production. Người đăng ký xác nhận đã nhận thư cấp tài khoản, đăng nhập bằng thông tin trong thư và mở được biểu mẫu gửi yêu cầu hỗ trợ. [Hướng dẫn nghiệm thu](docs/IDENTITY-SETUP.md)
 
 ### Luồng nhân viên
 

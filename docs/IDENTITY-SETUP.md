@@ -146,7 +146,9 @@ Google yêu cầu 2-Step Verification cho App Password và khuyến nghị dùng
 
 ## Nghiệm thu trên website cá nhân
 
-Tại lần kiểm tra ngày 19/11/2026, Vercel đã ghi nhận khóa mã hóa và cờ bật email ở phạm vi Production. Giá trị SMTP và mật khẩu Admin nằm trong cấu hình riêng của chủ tài khoản. Lượt kiểm tra này chưa xác minh hai hộp thư hoặc đăng nhập bằng mật khẩu nhận qua email.
+Ngày 20/11/2026, Admin đăng nhập trên Production và mở được danh sách cấp tài khoản cùng hàng đợi hỗ trợ. Lần đầu gửi lại thông báo cho đơn hiện có trả HTTP 503. Sau khi chủ tài khoản cập nhật mật khẩu ứng dụng Gmail và triển khai lại commit `11509ca`, máy chủ SMTP chấp nhận lần gửi lại trên cùng đơn. Lúc 00:25 (giờ Việt Nam), Gmail hiển thị thư **Yêu cầu cấp tài khoản / Employee account request — NSClub Help Desk** trong Hộp thư đến của Admin. Nội dung thư có cả tiếng Việt và tiếng Anh.
+
+Chủ tài khoản duyệt đơn trên website. Khi tải lại danh sách, Admin thấy trạng thái **Đã gửi tài khoản**. Người đăng ký xác nhận đã nhận thư trong Gmail, dùng thông tin trong thư để đăng nhập và mở được biểu mẫu **Gửi yêu cầu hỗ trợ**. Thời điểm và thư mục nhận thư của người đăng ký chưa được ghi nhận.
 
 Đăng nhập Admin, mở đúng đơn đã có rồi đối chiếu mã đơn với thư thông báo. Nếu cần, dùng nút gửi lại trên chính đơn đó. Sau khi Admin chọn duyệt, kiểm tra thư cấp tài khoản trong Inbox hoặc Spam rồi dùng thông tin trong thư đăng nhập và mở **Gửi yêu cầu**. Chỉ ghi lại tiêu đề, thời điểm, thư mục và kết quả đăng nhập.
 
