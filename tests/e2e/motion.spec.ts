@@ -1,11 +1,12 @@
-import { expect, requesterLink, test } from "./fixtures";
+import { anonymousHeaders, expect, requesterLink, test } from "./fixtures";
 import { fillEmployeeIdentity, withRequesterIdentity } from "./intake-helpers";
 
 for (const { label, destination, captureHomeScreenshot } of [
-  { label: "Tôi cần hỗ trợ", destination: /\/login$/, captureHomeScreenshot: true },
+  { label: "Tôi cần hỗ trợ", destination: /\/login\?next=%2Fsend-help$/, captureHomeScreenshot: true },
   { label: "Dành cho Admin", destination: /\/login\?next=%2Freview$/, captureHomeScreenshot: false },
 ]) {
   test(`line reveal enters ${label}, logo wipes home and back still works`, async ({ page }, info) => {
+    await page.setExtraHTTPHeaders(anonymousHeaders);
     await page.goto("/");
     const entry = page.getByRole("link", { name: label, exact: true });
     await expect(entry).toBeVisible();
@@ -46,13 +47,12 @@ test("buttons respond to pointer and keyboard without emulated touch hover", asy
   if (info.project.name === "mobile") await expect(button).toHaveCSS("scale", "none");
 });
 
-test("reduced motion skips curtains and retains a static, labelled AI progress bar", async ({ page }) => {
+test("reduced motion skips curtains and retains a static, labelled AI progress bar", async ({ requesterPage: page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto("/");
   await page.getByRole("link", { name: "Tôi cần hỗ trợ", exact: true }).click();
-  await expect(page).toHaveURL(/\/login$/);
+  await expect(page).toHaveURL(/\/send-help$/);
   await expect(page.locator(".route-curtain")).toHaveCount(0);
-  await page.goto("/send-help");
   await fillEmployeeIdentity(page);
   let release!: () => void;
   const gate = new Promise<void>(resolve => { release = resolve; });
@@ -124,6 +124,7 @@ test("request skeleton resolves to the original record and followup shows AI pro
 });
 
 test("changing reduced-motion preference cancels a curtain immediately", async ({ page }) => {
+  await page.setExtraHTTPHeaders(anonymousHeaders);
   await page.goto("/");
   await page.getByRole("link", { name: "Tôi cần hỗ trợ", exact: true }).click();
   await expect(page.locator(".route-curtain")).toBeAttached();
@@ -150,6 +151,7 @@ test("a stalled API releases the pending UI at the deadline without clearing the
 });
 
 test("first-visit login guidance is visible and remains dismissible", async ({ page }) => {
+  await page.setExtraHTTPHeaders(anonymousHeaders);
   await page.addInitScript(() => sessionStorage.clear());
   await page.goto("/login");
   const intro = page.getByRole("dialog", { name: "Bắt đầu cùng VNG Support" });

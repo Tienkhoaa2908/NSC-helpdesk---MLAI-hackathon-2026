@@ -1,5 +1,5 @@
 import jsQR from "jsqr";
-import { expect, requesterLink, test } from "./fixtures";
+import { anonymousHeaders, expect, requesterLink, test } from "./fixtures";
 import { employeeIdentity, withRequesterIdentity } from "./intake-helpers";
 
 test("QR decodes to the role picker and URL can be copied from any page", async ({ page, context }, info) => {
@@ -31,7 +31,7 @@ test("QR decodes to the role picker and URL can be copied from any page", async 
   await expect(scanned.getByRole("link", { name: "Dành cho Admin", exact: true })).toBeVisible();
 });
 
-test("pages and QR dialog fit narrow phones and landscape without horizontal scrolling", async ({ page, requesterRequest }) => {
+test("pages and QR dialog fit narrow phones and landscape without horizontal scrolling", async ({ page, requesterRequest, extraHTTPHeaders }) => {
   test.setTimeout(120_000);
   const response = await requesterRequest.post("/api/support/requests", { data: withRequesterIdentity({
     ...employeeIdentity, rawText: "VPN không kết nối", mode: "freeform", serviceGroup: "NETWORK_VPN", confirmed: true, idempotencyKey: crypto.randomUUID(),
@@ -42,8 +42,11 @@ test("pages and QR dialog fit narrow phones and landscape without horizontal scr
   for (const viewport of [{ width: 320, height: 568 }, { width: 390, height: 844 }, { width: 844, height: 390 }]) {
     await page.setViewportSize(viewport);
     for (const route of routes) {
+      const isLogin = route === "/login";
+      await page.setExtraHTTPHeaders(isLogin ? anonymousHeaders : extraHTTPHeaders ?? {});
       await page.goto(route);
       await expect(page.getByRole("main")).toBeVisible();
+      if (isLogin) await expect(page.getByRole("heading", { name: "Đăng nhập", exact: true })).toBeVisible();
       await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), { message: `${route} fits ${viewport.width}px` }).toBe(true);
     }
     await page.getByRole("button", { name: "URL / QR", exact: true }).click();

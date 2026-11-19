@@ -5,7 +5,7 @@ export { expect, type Page } from "@playwright/test";
 export type RequestTrackingReceipt = { id: string; trackingToken: string };
 export const requesterLink = (request: RequestTrackingReceipt) => `/requests/${request.id}#token=${request.trackingToken}`;
 export const requesterTokenHeader = (request: RequestTrackingReceipt) => ({ "x-tracking-token": request.trackingToken });
-const anonymousHeaders = {
+export const anonymousHeaders = {
   "x-support-e2e-identity": "",
   "x-support-e2e-role": "",
 };

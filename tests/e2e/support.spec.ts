@@ -1,4 +1,4 @@
-import { expect, requesterLink, test, type Page } from "./fixtures";
+import { anonymousHeaders, expect, requesterLink, test, type Page } from "./fixtures";
 import { employeeIdentity, fillEmployeeIdentity } from "./intake-helpers";
 
 test.beforeEach(async ({ request }) => {
@@ -18,19 +18,21 @@ async function submit(page: Page, text: string) {
   await expect(page.getByText("Trạng thái:")).toBeVisible();
 }
 test("role entry opens sign-in and protected requester and Admin workspaces", async ({
-  page,
+  page, requesterPage,
 }, info) => {
+  await page.setExtraHTTPHeaders(anonymousHeaders);
   await page.goto("/");
   await page.getByRole("link", { name: "Tôi cần hỗ trợ", exact: true }).click();
-  await expect(page).toHaveURL(/\/login$/);
+  await expect(page).toHaveURL(/\/login\?next=%2Fsend-help$/);
   await expect(page.getByLabel("ID nhân viên hoặc email")).toBeVisible();
-  await page.goto("/send-help");
-  await expect(page.getByRole("heading", { name: "Tôi cần hỗ trợ" })).toBeVisible();
+  await requesterPage.goto("/send-help");
+  await expect(requesterPage.getByRole("heading", { name: "Tôi cần hỗ trợ" })).toBeVisible();
   await page.goto("/");
   await page
     .getByRole("link", { name: "Dành cho Admin", exact: true })
     .click();
   await expect(page).toHaveURL(/\/login\?next=%2Freview$/);
+  await page.setExtraHTTPHeaders({});
   await page.goto("/review");
   await expect(
     page.getByRole("heading", { name: "Tiếp nhận hỗ trợ" }),

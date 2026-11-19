@@ -1,18 +1,19 @@
-import { expect, requesterLink, test } from "./fixtures";
+import { anonymousHeaders, expect, requesterLink, test } from "./fixtures";
 import { employeeIdentity, fillEmployeeIdentity, withRequesterIdentity } from "./intake-helpers";
 
-test("home and authenticated intake omit the five distracting screenshot captions", async ({ page }) => {
+test("home and authenticated intake omit the five distracting screenshot captions", async ({ page, requesterPage }) => {
+  await page.setExtraHTTPHeaders(anonymousHeaders);
   await page.goto("/");
   for (const text of ["MỖI VẤN ĐỀ · MỘT BƯỚC TIẾP THEO", "Kể cho chúng tôi điều bạn đang gặp.", "Bắt đầu: chọn", "Luôn có một cách để bắt đầu."])
     await expect(page.getByText(text, { exact: false })).toHaveCount(0);
   await expect(page.getByRole("link", { name: "Tôi cần hỗ trợ", exact: true })).toBeVisible();
   await expect(page.getByRole("link", { name: "Dành cho Admin", exact: true })).toBeVisible();
   await page.getByRole("link", { name: "Tôi cần hỗ trợ", exact: true }).click();
-  await expect(page).toHaveURL(/\/login$/);
+  await expect(page).toHaveURL(/\/login\?next=%2Fsend-help$/);
   await expect(page.getByLabel("ID nhân viên hoặc email")).toBeVisible();
-  await page.goto("/send-help");
-  await expect(page.getByText("HỖ TRỢ KỸ THUẬT", { exact: true })).toHaveCount(0);
-  await expect(page.getByRole("heading", { name: "Tôi cần hỗ trợ", exact: true })).toBeVisible();
+  await requesterPage.goto("/send-help");
+  await expect(requesterPage.getByText("HỖ TRỢ KỸ THUẬT", { exact: true })).toHaveCount(0);
+  await expect(requesterPage.getByRole("heading", { name: "Tôi cần hỗ trợ", exact: true })).toBeVisible();
 });
 
 test("reselecting a mode preserves input; blank input has an actionable error", async ({ page }) => {

@@ -129,9 +129,9 @@ export function LoginPanel() {
   }
 
   if (checkingSession) {
-    return <main className="identity-page"><section className="identity-card" role="status">
+    return <div className="identity-page"><section className="identity-card" role="status">
       {localized("Đang kiểm tra phiên đăng nhập…", "Checking your sign-in session…", locale)}
-    </section></main>;
+    </section></div>;
   }
 
   return (

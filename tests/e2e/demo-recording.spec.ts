@@ -1,4 +1,4 @@
-import { expect, test } from "./fixtures";
+import { anonymousHeaders, expect, test } from "./fixtures";
 import { mkdir } from "node:fs/promises";
 import { fillEmployeeIdentity } from "./intake-helpers";
 
@@ -25,11 +25,14 @@ test("record a raw demo and verify reviewer override, stop and audit", async ({
   });
   const video = page.video();
   try {
+    await page.setExtraHTTPHeaders(anonymousHeaders);
     await page.goto("/");
     await page
       .getByRole("link", { name: "Tôi cần hỗ trợ", exact: true })
       .click();
-    await expect(page).toHaveURL(/\/login$/);
+    await expect(page).toHaveURL(/\/login\?next=%2Fsend-help$/);
+    await expect(page.getByLabel("ID nhân viên hoặc email")).toBeVisible();
+    await page.setExtraHTTPHeaders({});
     await page.goto("/send-help");
     await fillEmployeeIdentity(page);
     await page
