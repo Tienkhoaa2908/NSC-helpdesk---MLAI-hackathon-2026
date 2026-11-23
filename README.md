@@ -184,10 +184,6 @@ CI runs unit tests, documentation checks, lint, type checking, production build 
 
 This is a demonstration system, not organization-wide IAM. Applicants supply a name and Gmail address. The system does not independently verify the address before issuance. Identity requests and decisions are Admin-only. In `public-demo` mode, authenticated requester accounts can use the Support review workspace only for requests linked to known server-created Verify fixtures. Ordinary employee requests are hidden from public reviewer accounts. Senders can still use their own tracking links. The public requester demo uses `guest01 / 12345`. Five-digit passwords are for demonstration only. Do not submit company-confidential data.
 
-## Original competition repository
-
-The team repository submitted to the competition is [dakiemdarktharr/nosleepclub-support-desk](https://github.com/dakiemdarktharr/nosleepclub-support-desk).
-
 ---
 
 ## Phần tiếng Việt
@@ -360,7 +356,3 @@ CI chạy unit test, kiểm tra tài liệu, lint, kiểm tra kiểu, build prod
 ## Phạm vi bản demo
 
 Đây là hệ thống trình diễn, không phải IAM của tổ chức. Đơn cấp tài khoản thu họ tên và Gmail do người dùng cung cấp, Gmail chưa được xác minh độc lập trước khi cấp. Danh sách yêu cầu cấp ID và các quyết định chỉ dành cho Admin. Ở chế độ `public-demo`, requester đã đăng nhập chỉ đọc và sửa được những hồ sơ gắn với bộ Verify do server tạo. Yêu cầu thông thường ẩn trong khu reviewer, người gửi vẫn dùng liên kết riêng để theo dõi hồ sơ của mình. Tài khoản mẫu là `guest01 / 12345`, mật khẩu năm chữ số chỉ dành cho demo. Không gửi dữ liệu bảo mật của công ty.
-
-## Repo nhóm tham gia cuộc thi
-
-Repository nhóm đã nộp dự thi: [dakiemdarktharr/nosleepclub-support-desk](https://github.com/dakiemdarktharr/nosleepclub-support-desk).
